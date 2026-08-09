@@ -471,10 +471,6 @@ namespace NinjaTrader.NinjaScript.Strategies
 					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5, currentCeiling + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentCeiling - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Red, 20);
 					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5, currentFloor + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentFloor - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Green, 20);
 				}
-				
-				// Reset Reversion Variables
-				esperandoRebote = false;
-				precioMurallaRebote = 0.0;
 
 				// Usamos Time[1] porque es la barra completada que evaluamos
 				int currentTime = ToTime(Time[1]);
