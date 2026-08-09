@@ -113,14 +113,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.3";
+				Version										= "10.0.4";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
 				FastPeriod									= 34;
 				SlowPeriod									= 89;
 				ADXPeriod									= 14;
-				ADXThreshold								= 25;
+				ADXThreshold								= 24;
 				KCPeriod									= 52;
 				KCMultiplier								= 3.5;
 				DelayBars									= 5;
@@ -132,11 +132,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// Reversión
 				EnableReversion								= true;
 				TicksReboteContrario						= 2;
-				ReversionProfitTicks						= 8;
+				ReversionProfitTicks						= 12;
 				
 				// Nuevo Filtro de Anomalías (Velas Gigantes)
 				LookbackAnomalia							= 15;
-				MaxTamanoBarra								= 25;
+				MaxTamanoBarra								= 20;
 				
 				// Filtro HMA
 				HMAPeriod									= 21;
@@ -158,7 +158,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				FinalTargetPhase3Ticks						= 8; 
 				
 				// Parámetros de Gestión Dinámica (Runner)
-				RunnerTakeProfitTicks						= 400; // TP muy grande
+				RunnerTakeProfitTicks						= 50; // TP muy grande
 				RunnerTriggerPhase2Ticks					= 35;
 				RunnerTrailPhase2Ticks						= 8;
 				RunnerTriggerPhase3Ticks					= 60;
@@ -246,12 +246,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
 					if (Position.MarketPosition == MarketPosition.Long)
 					{
-						if (Close[0] > targetObstaclePrice + offset)
-						{
-							obstacleBroken = true;
-							Print(string.Format("{0} - [RADAR] El precio rompió el techo histórico ({1}). Escape Táctico Desactivado.", Time[0].ToString("HH:mm:ss"), targetObstaclePrice));
-						}
-						else if (High[0] >= targetObstaclePrice - offset)
+						if (High[0] >= targetObstaclePrice - offset)
 						{
 							enteredObstacleZone = true;
 						}
@@ -266,12 +261,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					}
 					else if (Position.MarketPosition == MarketPosition.Short)
 					{
-						if (Close[0] < targetObstaclePrice - offset)
-						{
-							obstacleBroken = true;
-							Print(string.Format("{0} - [RADAR] El precio rompió el piso histórico ({1}). Escape Táctico Desactivado.", Time[0].ToString("HH:mm:ss"), targetObstaclePrice));
-						}
-						else if (Low[0] <= targetObstaclePrice + offset)
+						if (Low[0] <= targetObstaclePrice + offset)
 						{
 							enteredObstacleZone = true;
 						}
@@ -458,6 +448,26 @@ namespace NinjaTrader.NinjaScript.Strategies
 					{
 						esperandoRebote = false;
 						Print(string.Format("{0} - [Cazador] Precio cerró por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss")));
+					}
+				}
+				
+				// ------------------------------------------
+				// ESCAPE TÁCTICO (ABORTAR SI CIERRA AFUERA)
+				// ------------------------------------------
+				if (radarBailoutActive)
+				{
+					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
+					if (Position.MarketPosition == MarketPosition.Long && Close[1] > targetObstaclePrice + offset)
+					{
+						obstacleBroken = true;
+						radarBailoutActive = false; // Ya no evaluamos más
+						Print(string.Format("{0} - [RADAR] El precio cerró rompiendo el techo ({1}). Escape Táctico Desactivado.", Time[1].ToString("HH:mm:ss"), targetObstaclePrice));
+					}
+					else if (Position.MarketPosition == MarketPosition.Short && Close[1] < targetObstaclePrice - offset)
+					{
+						obstacleBroken = true;
+						radarBailoutActive = false;
+						Print(string.Format("{0} - [RADAR] El precio cerró rompiendo el piso ({1}). Escape Táctico Desactivado.", Time[1].ToString("HH:mm:ss"), targetObstaclePrice));
 					}
 				}
 				if (currentTime < 93000 || currentTime >= 160000) return;
