@@ -95,7 +95,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 		{
 			if (State == State.SetDefaults)
 			{
-				Description									= @"Estrategia V10.0.0: Murallas Centradas y Cazador de Rebotes (Mean Reversion).";
+				Description									= @"Estrategia V10.0.1: Cazador de Rebotes Fix (Mean Reversion).";
 				Name										= "Tick610_AlphaCrossover";
 				Calculate									= Calculate.OnEachTick; // ARQUITECTURA HÍBRIDA (ALTA VELOCIDAD)
 				EntriesPerDirection							= 2; // Permite lanzar 2 señales (Scalper y Runner)
@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.0";
+				Version										= "10.0.1";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
