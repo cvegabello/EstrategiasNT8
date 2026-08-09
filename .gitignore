@@ -1,0 +1,11 @@
+# Gitignore for NinjaTrader 8 Custom Folder
+*.dll
+*.pdb
+*.xml
+*.cache
+*.exe
+bin/
+obj/
+.vs/
+Thumbs.db
+
