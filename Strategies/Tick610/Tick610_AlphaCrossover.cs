@@ -224,7 +224,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Corto (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
 							SetStopLoss("Reversion", CalculationMode.Price, topBorder, false);
 							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
-							EnterShort("Reversion", "Reversion");
+							EnterShort(ContractQuantityScalper, "Reversion");
 						}
 					}
 					else if (direccionReboteEsperado == 1) // Esperando rebote alcista desde piso
@@ -243,7 +243,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Largo (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
 							SetStopLoss("Reversion", CalculationMode.Price, bottomBorder, false);
 							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
-							EnterLong("Reversion", "Reversion");
+							EnterLong(ContractQuantityScalper, "Reversion");
 						}
 					}
 				}
