@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.4";
+				Version										= "10.0.5";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -127,7 +127,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 				
 				// Nuevo Filtro de Techos y Pisos
 				LookbackTechosPisos							= 80;
-				DistanciaMinimaBorde						= 6;
+				DistanciaMinimaBorde						= 8;
+				TicksRompimientoRadar						= 5;
 				
 				// Reversión
 				EnableReversion								= true;
@@ -439,15 +440,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 				if (esperandoRebote)
 				{
 					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
-					if (direccionReboteEsperado == -1 && Close[1] > precioMurallaRebote + offset)
+					double rupturaOffset = (TicksRompimientoRadar * TickSize);
+					if (direccionReboteEsperado == -1 && Close[1] > (precioMurallaRebote + offset) + rupturaOffset)
 					{
 						esperandoRebote = false;
-						Print(string.Format("{0} - [Cazador] Precio cerró por encima del techo. Caza abortada.", Time[1].ToString("HH:mm:ss")));
+						Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por encima del techo. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
 					}
-					else if (direccionReboteEsperado == 1 && Close[1] < precioMurallaRebote - offset)
+					else if (direccionReboteEsperado == 1 && Close[1] < (precioMurallaRebote - offset) - rupturaOffset)
 					{
 						esperandoRebote = false;
-						Print(string.Format("{0} - [Cazador] Precio cerró por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss")));
+						Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
 					}
 				}
 				
@@ -457,17 +459,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 				if (radarBailoutActive)
 				{
 					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
-					if (Position.MarketPosition == MarketPosition.Long && Close[1] > targetObstaclePrice + offset)
+					double rupturaOffset = (TicksRompimientoRadar * TickSize);
+					if (Position.MarketPosition == MarketPosition.Long && Close[1] > (targetObstaclePrice + offset) + rupturaOffset)
 					{
 						obstacleBroken = true;
 						radarBailoutActive = false; // Ya no evaluamos más
-						Print(string.Format("{0} - [RADAR] El precio cerró rompiendo el techo ({1}). Escape Táctico Desactivado.", Time[1].ToString("HH:mm:ss"), targetObstaclePrice));
+						Print(string.Format("{0} - [RADAR] El precio cerró rompiendo el techo por {1} Ticks ({2}). Escape Táctico Desactivado.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar, targetObstaclePrice));
 					}
-					else if (Position.MarketPosition == MarketPosition.Short && Close[1] < targetObstaclePrice - offset)
+					else if (Position.MarketPosition == MarketPosition.Short && Close[1] < (targetObstaclePrice - offset) - rupturaOffset)
 					{
 						obstacleBroken = true;
 						radarBailoutActive = false;
-						Print(string.Format("{0} - [RADAR] El precio cerró rompiendo el piso ({1}). Escape Táctico Desactivado.", Time[1].ToString("HH:mm:ss"), targetObstaclePrice));
+						Print(string.Format("{0} - [RADAR] El precio cerró rompiendo el piso por {1} Ticks ({2}). Escape Táctico Desactivado.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar, targetObstaclePrice));
 					}
 				}
 				if (currentTime < 93000 || currentTime >= 160000) return;
@@ -824,9 +827,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[Display(Name="Distancia Mínima al Borde (Ticks)", Description="Distancia de la caja de muralla (se divide entre 2: mitad arriba, mitad abajo)", Order=10, GroupName="1. Parámetros de Estrategia")]
 		public int DistanciaMinimaBorde { get; set; }
 		
+		[Display(Name="Ticks Rompimiento Radar", Description="Ticks que el cierre debe superar el borde de la muralla para considerarlo roto", Order=11, GroupName="1. Parámetros de Estrategia")]
+		public int TicksRompimientoRadar { get; set; }
+
 		// CAZADOR DE REBOTES (MEAN REVERSION)
 		[NinjaScriptProperty]
-		[Display(Name="Activar Cazador de Rebotes", Description="Si true, buscará reversiones cuando una señal se cancele por la muralla.", Order=11, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Activar Cazador de Rebotes", Description="Si true, buscará reversiones cuando una señal se cancele por la muralla.", Order=12, GroupName="1. Parámetros de Estrategia")]
 		public bool EnableReversion { get; set; }
 		
 		[NinjaScriptProperty]
