@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.6";
+				Version										= "10.0.7";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -129,6 +129,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				LookbackTechosPisos							= 80;
 				DistanciaMinimaBorde						= 8;
 				TicksRompimientoRadar						= 5;
+				ToleranciaHmaBailout						= 2;
 				
 				// Reversión
 				EnableReversion								= true;
@@ -252,9 +253,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 							enteredObstacleZone = true;
 						}
 						
-						if (enteredObstacleZone && !obstacleBroken && hma[0] < hma[2])
+						if (enteredObstacleZone && !obstacleBroken && hma[0] < hma[ToleranciaHmaBailout])
 						{
-							Print(string.Format("{0} - [ESCAPE TÁCTICO] Rebote detectado en Techo Histórico (HMA perdiendo fuerza vs hace 2 barras). Misión Abortada.", Time[0].ToString("HH:mm:ss")));
+							Print(string.Format("{0} - [ESCAPE TÁCTICO] Rebote detectado en Techo Histórico (HMA perdiendo fuerza vs hace {1} barras). Misión Abortada.", Time[0].ToString("HH:mm:ss"), ToleranciaHmaBailout));
 							if (isScalperAlive) ExitLong("Scalper Bailout", "Scalper");
 							if (isRunnerAlive) ExitLong("Runner Bailout", "Runner");
 							radarBailoutActive = false; // Solo mandamos la orden una vez
@@ -267,9 +268,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 							enteredObstacleZone = true;
 						}
 						
-						if (enteredObstacleZone && !obstacleBroken && hma[0] > hma[2])
+						if (enteredObstacleZone && !obstacleBroken && hma[0] > hma[ToleranciaHmaBailout])
 						{
-							Print(string.Format("{0} - [ESCAPE TÁCTICO] Rebote detectado en Piso Histórico (HMA perdiendo fuerza vs hace 2 barras). Misión Abortada.", Time[0].ToString("HH:mm:ss")));
+							Print(string.Format("{0} - [ESCAPE TÁCTICO] Rebote detectado en Piso Histórico (HMA perdiendo fuerza vs hace {1} barras). Misión Abortada.", Time[0].ToString("HH:mm:ss"), ToleranciaHmaBailout));
 							if (isScalperAlive) ExitShort("Scalper Bailout", "Scalper");
 							if (isRunnerAlive) ExitShort("Runner Bailout", "Runner");
 							radarBailoutActive = false; // Solo mandamos la orden una vez
@@ -829,6 +830,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 		
 		[Display(Name="Ticks Rompimiento Radar", Description="Ticks que el cierre debe superar el borde de la muralla para considerarlo roto", Order=11, GroupName="1. Parámetros de Estrategia")]
 		public int TicksRompimientoRadar { get; set; }
+
+		[Display(Name="Tolerancia HMA Escape Táctico", Description="Número de barras hacia atrás para comparar el HMA en el Escape Táctico (ej. 2 significa hma[0] vs hma[2])", Order=12, GroupName="1. Parámetros de Estrategia")]
+		public int ToleranciaHmaBailout { get; set; }
 
 		// CAZADOR DE REBOTES (MEAN REVERSION)
 		[NinjaScriptProperty]
