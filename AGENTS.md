@@ -36,3 +36,4 @@ Este documento define las reglas base, el contexto técnico y mi rol para todas 
   2. Te explicaré claramente la **lógica de entrada y salida** propuesta.
   3. Solo después de la explicación, escribiré el **código completo**.
 - **Organización Estricta de Archivos:** Toda estrategia diseñada para **610 Ticks** debe nombrarse con el prefijo `Tick610_` y guardarse siempre en la ruta `\Custom\Strategies\Tick610\` (sin alterar el namespace original de NT8).
+- **Control de Versiones (GitHub):** Siempre que se haga un cambio funcional en el código y se genere una nueva versión, es OBLIGATORIO hacer un `git commit` describiendo los cambios y un `git push` hacia el repositorio remoto (`https://github.com/cvegabello/EstrategiasNT8.git`) para respaldar el código.

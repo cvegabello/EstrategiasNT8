@@ -83,12 +83,19 @@ namespace NinjaTrader.NinjaScript.Strategies
 		private double targetObstaclePrice = 0.0;
 		private bool obstacleBroken = false;
 		private bool enteredObstacleZone = false;
+		
+		// ==========================================
+		// VARIABLES DE REVERSIÓN (CAZADOR DE REBOTES)
+		// ==========================================
+		private bool esperandoRebote = false;
+		private int direccionReboteEsperado = 0;
+		private double precioMurallaRebote = 0.0;
 
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)
 			{
-				Description									= @"Estrategia V6.0.0: Radar Bailout (Escape Táctico por Rebote en HMA).";
+				Description									= @"Estrategia V10.0.0: Murallas Centradas y Cazador de Rebotes (Mean Reversion).";
 				Name										= "Tick610_AlphaCrossover";
 				Calculate									= Calculate.OnEachTick; // ARQUITECTURA HÍBRIDA (ALTA VELOCIDAD)
 				EntriesPerDirection							= 2; // Permite lanzar 2 señales (Scalper y Runner)
@@ -106,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "6.0.0";
+				Version										= "10.0.0";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -121,6 +128,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// Nuevo Filtro de Techos y Pisos
 				LookbackTechosPisos							= 80;
 				DistanciaMinimaBorde						= 6;
+				
+				// Reversión
+				EnableReversion								= true;
+				TicksReboteContrario						= 2;
+				ReversionProfitTicks						= 8;
 				
 				// Nuevo Filtro de Anomalías (Velas Gigantes)
 				LookbackAnomalia							= 15;
@@ -188,24 +200,68 @@ namespace NinjaTrader.NinjaScript.Strategies
 			// ==========================================
 			// 1. ZONA DE ALTA VELOCIDAD: GESTIÓN DINÁMICA (TICK A TICK)
 			// ==========================================
-			if (Position.MarketPosition != MarketPosition.Flat)
+			if (IsFirstTickOfBar == false)
 			{
-				crossoverDirection = 0;
-				crossoverBar = -1;
+				// ------------------------------------------
+				// CAZADOR DE REBOTES (MEAN REVERSION)
+				// ------------------------------------------
+				if (esperandoRebote && Position.MarketPosition == MarketPosition.Flat)
+				{
+					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
+					if (direccionReboteEsperado == -1) // Esperando rebote bajista desde techo
+					{
+						double topBorder = precioMurallaRebote + offset;
+						double bottomBorder = precioMurallaRebote - offset;
+						
+						if (Close[0] > topBorder) // Rompió arriba, falsa alarma
+						{
+							esperandoRebote = false;
+							Print(string.Format("{0} - [Cazador] Precio rompió el techo por arriba. Caza abortada.", Time[0].ToString("HH:mm:ss")));
+						}
+						else if (hma[0] <= bottomBorder - (TicksReboteContrario * TickSize))
+						{
+							esperandoRebote = false;
+							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Corto (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
+							SetStopLoss("Reversion", CalculationMode.Price, topBorder, false);
+							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
+							EnterShort("Reversion", "Reversion");
+						}
+					}
+					else if (direccionReboteEsperado == 1) // Esperando rebote alcista desde piso
+					{
+						double topBorder = precioMurallaRebote + offset;
+						double bottomBorder = precioMurallaRebote - offset;
+						
+						if (Close[0] < bottomBorder) // Rompió abajo, falsa alarma
+						{
+							esperandoRebote = false;
+							Print(string.Format("{0} - [Cazador] Precio rompió el piso por abajo. Caza abortada.", Time[0].ToString("HH:mm:ss")));
+						}
+						else if (hma[0] >= topBorder + (TicksReboteContrario * TickSize))
+						{
+							esperandoRebote = false;
+							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Largo (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
+							SetStopLoss("Reversion", CalculationMode.Price, bottomBorder, false);
+							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
+							EnterLong("Reversion", "Reversion");
+						}
+					}
+				}
 
 				// ------------------------------------------
 				// ESCAPE TÁCTICO (RADAR BAILOUT)
 				// ------------------------------------------
 				if (radarBailoutActive && !obstacleBroken)
 				{
+					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
 					if (Position.MarketPosition == MarketPosition.Long)
 					{
-						if (Close[0] > targetObstaclePrice)
+						if (Close[0] > targetObstaclePrice + offset)
 						{
 							obstacleBroken = true;
 							Print(string.Format("{0} - [RADAR] El precio rompió el techo histórico ({1}). Escape Táctico Desactivado.", Time[0].ToString("HH:mm:ss"), targetObstaclePrice));
 						}
-						else if (High[0] >= targetObstaclePrice - (DistanciaMinimaBorde * TickSize))
+						else if (High[0] >= targetObstaclePrice - offset)
 						{
 							enteredObstacleZone = true;
 						}
@@ -220,12 +276,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 					}
 					else if (Position.MarketPosition == MarketPosition.Short)
 					{
-						if (Close[0] < targetObstaclePrice)
+						if (Close[0] < targetObstaclePrice - offset)
 						{
 							obstacleBroken = true;
 							Print(string.Format("{0} - [RADAR] El precio rompió el piso histórico ({1}). Escape Táctico Desactivado.", Time[0].ToString("HH:mm:ss"), targetObstaclePrice));
 						}
-						else if (Low[0] <= targetObstaclePrice + (DistanciaMinimaBorde * TickSize))
+						else if (Low[0] <= targetObstaclePrice + offset)
 						{
 							enteredObstacleZone = true;
 						}
@@ -412,9 +468,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 				{
 					double currentCeiling = radarMax[1];
 					double currentFloor = radarMin[1];
-					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5, currentCeiling, -5, currentCeiling - (DistanciaMinimaBorde * TickSize), Brushes.Transparent, Brushes.Red, 20);
-					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5, currentFloor + (DistanciaMinimaBorde * TickSize), -5, currentFloor, Brushes.Transparent, Brushes.Green, 20);
+					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5, currentCeiling + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentCeiling - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Red, 20);
+					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5, currentFloor + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentFloor - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Green, 20);
 				}
+				
+				// Reset Reversion Variables
+				esperandoRebote = false;
+				precioMurallaRebote = 0.0;
 
 				// Usamos Time[1] porque es la barra completada que evaluamos
 				int currentTime = ToTime(Time[1]);
@@ -448,24 +508,25 @@ namespace NinjaTrader.NinjaScript.Strategies
 					else if (crossoverDirection == -1 && Close[1] < Math.Min(smaFast[1], smaSlow[1])) 
 						validPricePosition = true;
 						
-					// Validación 2: RADAR DE TECHOS Y PISOS
+					// Validación 2: RADAR DE TECHOS Y PISOS CENTRADO
 					bool validRadar = true;
+					double offsetValidation = (DistanciaMinimaBorde / 2.0) * TickSize;
 					if (crossoverDirection == 1) // Compras (Techos)
 					{
 						double distancia = radarMax[1] - Close[1];
-						if (distancia < DistanciaMinimaBorde * TickSize)
+						if (distancia < offsetValidation)
 						{
 							validRadar = false;
-							Print(string.Format("{0} - [Cancelado] Muy cerca del Techo Histórico. Distancia: {1} Ticks (Mínimo: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde));
+							Print(string.Format("{0} - [Cancelado] Muy cerca del Techo Histórico. Distancia: {1} Ticks (Mínimo requerido desde centro: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde / 2.0));
 						}
 					}
 					else if (crossoverDirection == -1) // Ventas (Pisos)
 					{
 						double distancia = Close[1] - radarMin[1];
-						if (distancia < DistanciaMinimaBorde * TickSize)
+						if (distancia < offsetValidation)
 						{
 							validRadar = false;
-							Print(string.Format("{0} - [Cancelado] Muy cerca del Piso Histórico. Distancia: {1} Ticks (Mínimo: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde));
+							Print(string.Format("{0} - [Cancelado] Muy cerca del Piso Histórico. Distancia: {1} Ticks (Mínimo requerido desde centro: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde / 2.0));
 						}
 					}
 					
@@ -605,7 +666,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 							Print(string.Format("{0} - [Cancelado] El Precio está del lado equivocado de las SMAs (Cierre: {1}).", Time[1].ToString("HH:mm:ss"), Close[1]));
 						else if (!validRadar)
 						{
-							// El print ya se hizo arriba
+							// Activar Cazador de Rebotes
+							if (EnableReversion && Position.MarketPosition == MarketPosition.Flat && !esperandoRebote)
+							{
+								esperandoRebote = true;
+								direccionReboteEsperado = (crossoverDirection == 1) ? -1 : 1;
+								precioMurallaRebote = (crossoverDirection == 1) ? radarMax[1] : radarMin[1];
+								Print(string.Format("{0} - [Cazador] Señal cancelada. Esperando rebote en Muralla Centrada ({1}).", Time[1].ToString("HH:mm:ss"), precioMurallaRebote));
+							}
 						}
 						else if (!validVolatility)
 						{
@@ -743,22 +811,37 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="Distancia Mínima al Borde (Ticks)", Description="Distancia mínima requerida entre el precio y el Techo/Piso para entrar", Order=10, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Distancia Mínima al Borde (Ticks)", Description="Distancia de la caja de muralla (se divide entre 2: mitad arriba, mitad abajo)", Order=10, GroupName="1. Parámetros de Estrategia")]
 		public int DistanciaMinimaBorde { get; set; }
+		
+		// CAZADOR DE REBOTES (MEAN REVERSION)
+		[NinjaScriptProperty]
+		[Display(Name="Activar Cazador de Rebotes", Description="Si true, buscará reversiones cuando una señal se cancele por la muralla.", Order=11, GroupName="1. Parámetros de Estrategia")]
+		public bool EnableReversion { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Rebote Contrario (Ticks)", Description="Ticks de salida de la caja para confirmar el rebote.", Order=12, GroupName="1. Parámetros de Estrategia")]
+		public int TicksReboteContrario { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Take Profit Rebote (Ticks)", Description="Take profit fijo para la reversión.", Order=13, GroupName="1. Parámetros de Estrategia")]
+		public int ReversionProfitTicks { get; set; }
 
 		// FILTRO DE ANOMALÍAS
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="Lookback Anomalía (Velas)", Description="Revisar n velas atrás buscando anomalías", Order=11, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Lookback Anomalía (Velas)", Description="Revisar n velas atrás buscando anomalías", Order=14, GroupName="1. Parámetros de Estrategia")]
 		public int LookbackAnomalia { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="Rango Máximo Vela (Ticks)", Description="Si una vela supera este rango, se cancela", Order=12, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Rango Máximo Vela (Ticks)", Description="Si una vela supera este rango, se cancela", Order=15, GroupName="1. Parámetros de Estrategia")]
 		public int MaxTamanoBarra { get; set; }
 
 		[NinjaScriptProperty]
-		[Display(Name="Mostrar Radar en Gráfica", Description="Dibuja la caja roja/verde de Techos y Pisos", Order=13, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Mostrar Radar en Gráfica", Description="Dibuja la caja roja/verde de Techos y Pisos", Order=16, GroupName="1. Parámetros de Estrategia")]
 		public bool DrawRadarRectangle { get; set; }
 
 		// MULTICONTRATO
