@@ -95,7 +95,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 		{
 			if (State == State.SetDefaults)
 			{
-				Description									= @"Estrategia V10.0.1: Cazador de Rebotes Fix (Mean Reversion).";
+				Description									= @"Estrategia V10.0.2: Cazador de Rebotes (Filtro de Mechas).";
 				Name										= "Tick610_AlphaCrossover";
 				Calculate									= Calculate.OnEachTick; // ARQUITECTURA HÍBRIDA (ALTA VELOCIDAD)
 				EntriesPerDirection							= 2; // Permite lanzar 2 señales (Scalper y Runner)
@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.1";
+				Version										= "10.0.2";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -213,12 +213,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 						double topBorder = precioMurallaRebote + offset;
 						double bottomBorder = precioMurallaRebote - offset;
 						
-						if (Close[0] > topBorder) // Rompió arriba, falsa alarma
-						{
-							esperandoRebote = false;
-							Print(string.Format("{0} - [Cazador] Precio rompió el techo por arriba. Caza abortada.", Time[0].ToString("HH:mm:ss")));
-						}
-						else if (hma[0] <= bottomBorder - (TicksReboteContrario * TickSize))
+						if (hma[0] <= bottomBorder - (TicksReboteContrario * TickSize))
 						{
 							esperandoRebote = false;
 							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Corto (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
@@ -232,12 +227,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 						double topBorder = precioMurallaRebote + offset;
 						double bottomBorder = precioMurallaRebote - offset;
 						
-						if (Close[0] < bottomBorder) // Rompió abajo, falsa alarma
-						{
-							esperandoRebote = false;
-							Print(string.Format("{0} - [Cazador] Precio rompió el piso por abajo. Caza abortada.", Time[0].ToString("HH:mm:ss")));
-						}
-						else if (hma[0] >= topBorder + (TicksReboteContrario * TickSize))
+						if (hma[0] >= topBorder + (TicksReboteContrario * TickSize))
 						{
 							esperandoRebote = false;
 							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Largo (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
@@ -474,6 +464,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 				// Usamos Time[1] porque es la barra completada que evaluamos
 				int currentTime = ToTime(Time[1]);
+				
+				// ------------------------------------------
+				// CAZADOR DE REBOTES (ABORTAR SI CIERRA AFUERA)
+				// ------------------------------------------
+				if (esperandoRebote)
+				{
+					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
+					if (direccionReboteEsperado == -1 && Close[1] > precioMurallaRebote + offset)
+					{
+						esperandoRebote = false;
+						Print(string.Format("{0} - [Cazador] Precio cerró por encima del techo. Caza abortada.", Time[1].ToString("HH:mm:ss")));
+					}
+					else if (direccionReboteEsperado == 1 && Close[1] < precioMurallaRebote - offset)
+					{
+						esperandoRebote = false;
+						Print(string.Format("{0} - [Cazador] Precio cerró por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss")));
+					}
+				}
 				if (currentTime < 93000 || currentTime >= 160000) return;
 
 				// DETECCIÓN DE CRUCE MANUAL EN BARRAS CONSOLIDADAS [1] Y [2]
