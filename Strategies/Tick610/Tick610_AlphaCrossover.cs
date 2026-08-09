@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.2";
+				Version										= "10.0.3";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -425,29 +425,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					SetStopLoss("Runner", CalculationMode.Price, activeSlPrice_Runner, false);
 				}
 			}
-			else
-			{
-				// Estamos Flat. Reseteamos TODAS las variables
-				maxProfitTicks_Scalper = 0;
-				phase2Triggered_Scalper = false;
-				phase3Triggered_Scalper = false;
-				activeSlPrice_Scalper = 0.0;
-				slKeltnerMode_Scalper = 0;
-				isScalperAlive = false;
-				
-				activeSlPrice_Runner = 0.0;
-				runnerBreakEvenTriggered = false;
-				isRunnerAlive = false;
-				maxProfitTicks_Runner = 0;
-				phase2Triggered_Runner = false;
-				phase3Triggered_Runner = false;
-				
-				// Reset Bailout Variables
-				radarBailoutActive = false;
-				targetObstaclePrice = 0.0;
-				obstacleBroken = false;
-				enteredObstacleZone = false;
-			}
+
 
 			// ==========================================
 			// 2. ZONA DE BAJA VELOCIDAD: FILTRO DE BARRAS (FILTRADO DE ENTRADAS)
@@ -564,6 +542,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// DISPARO DEL SCALPER
 							if (ContractQuantityScalper > 0)
 							{
+								maxProfitTicks_Scalper = 0;
+								phase2Triggered_Scalper = false;
+								phase3Triggered_Scalper = false;
+								
 								if (Low[1] > kc.Upper[1]) { activeSlPrice_Scalper = kc.Upper[1] - TickSize; slKeltnerMode_Scalper = 1; }
 								else { activeSlPrice_Scalper = kc.Midline[1] - TickSize; slKeltnerMode_Scalper = 2; }
 								
@@ -586,6 +568,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// DISPARO DEL RUNNER
 							if (ContractQuantityRunner > 0)
 							{
+								maxProfitTicks_Runner = 0;
+								phase2Triggered_Runner = false;
+								phase3Triggered_Runner = false;
+								runnerBreakEvenTriggered = false;
+								
 								activeSlPrice_Runner = kc.Midline[1] - TickSize; // Siempre Midline inicial
 								
 								// Freno de Emergencia y Mínimo
@@ -616,6 +603,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// DISPARO DEL SCALPER
 							if (ContractQuantityScalper > 0)
 							{
+								maxProfitTicks_Scalper = 0;
+								phase2Triggered_Scalper = false;
+								phase3Triggered_Scalper = false;
+								
 								if (High[1] < kc.Lower[1]) { activeSlPrice_Scalper = kc.Lower[1] + TickSize; slKeltnerMode_Scalper = -1; }
 								else { activeSlPrice_Scalper = kc.Midline[1] + TickSize; slKeltnerMode_Scalper = 2; }
 								
@@ -638,6 +629,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// DISPARO DEL RUNNER
 							if (ContractQuantityRunner > 0)
 							{
+								maxProfitTicks_Runner = 0;
+								phase2Triggered_Runner = false;
+								phase3Triggered_Runner = false;
+								runnerBreakEvenTriggered = false;
+								
 								activeSlPrice_Runner = kc.Midline[1] + TickSize; // Siempre Midline inicial
 								
 								// Freno de Emergencia y Mínimo
