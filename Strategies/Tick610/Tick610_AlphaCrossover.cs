@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.7";
+				Version										= "10.0.8";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -134,6 +134,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// Reversión
 				EnableReversion								= true;
 				TicksReboteContrario						= 2;
+				
+				// Rompimiento (Breakout)
+				EnableBreakout								= true;
+				BreakoutProfitTicks							= 8;
 				ReversionProfitTicks						= 12;
 				
 				// Nuevo Filtro de Anomalías (Velas Gigantes)
@@ -436,21 +440,46 @@ namespace NinjaTrader.NinjaScript.Strategies
 				int currentTime = ToTime(Time[1]);
 				
 				// ------------------------------------------
-				// CAZADOR DE REBOTES (ABORTAR SI CIERRA AFUERA)
+				// CAZADOR DE REBOTES / CAZADOR DE ROMPIMIENTOS
 				// ------------------------------------------
 				if (esperandoRebote)
 				{
 					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
 					double rupturaOffset = (TicksRompimientoRadar * TickSize);
+					
+					// Rompimiento Alcista (Atraviesa el Techo)
 					if (direccionReboteEsperado == -1 && Close[1] > (precioMurallaRebote + offset) + rupturaOffset)
 					{
 						esperandoRebote = false;
-						Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por encima del techo. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
+						if (EnableBreakout)
+						{
+							double slPrice = precioMurallaRebote - offset; // Borde inferior del techo
+							SetStopLoss("Breakout", CalculationMode.Price, slPrice, false);
+							SetProfitTarget("Breakout", CalculationMode.Ticks, BreakoutProfitTicks);
+							EnterLong(ContractQuantityScalper, "Breakout");
+							Print(string.Format("{0} - [Cazador] Techo roto por {1} ticks. Abortando rebote y entrando en Breakout LARGO. SL: {2}.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar, slPrice));
+						}
+						else
+						{
+							Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por encima del techo. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
+						}
 					}
+					// Rompimiento Bajista (Atraviesa el Piso)
 					else if (direccionReboteEsperado == 1 && Close[1] < (precioMurallaRebote - offset) - rupturaOffset)
 					{
 						esperandoRebote = false;
-						Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
+						if (EnableBreakout)
+						{
+							double slPrice = precioMurallaRebote + offset; // Borde superior del piso
+							SetStopLoss("Breakout", CalculationMode.Price, slPrice, false);
+							SetProfitTarget("Breakout", CalculationMode.Ticks, BreakoutProfitTicks);
+							EnterShort(ContractQuantityScalper, "Breakout");
+							Print(string.Format("{0} - [Cazador] Piso roto por {1} ticks. Abortando rebote y entrando en Breakout CORTO. SL: {2}.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar, slPrice));
+						}
+						else
+						{
+							Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
+						}
 					}
 				}
 				
@@ -846,13 +875,23 @@ namespace NinjaTrader.NinjaScript.Strategies
 		
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="Take Profit Rebote (Ticks)", Description="Take profit fijo para la reversión.", Order=13, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Take Profit Rebote (Ticks)", Description="Ganancia para el trade de rebote", Order=14, GroupName="1. Parámetros de Estrategia")]
 		public int ReversionProfitTicks { get; set; }
+		
+		// CAZADOR DE ROMPIMIENTOS (BREAKOUT)
+		[NinjaScriptProperty]
+		[Display(Name="Activar Cazador de Rompimiento", Description="Si true, buscará entrar a favor del rompimiento cuando se aborte el rebote.", Order=15, GroupName="1. Parámetros de Estrategia")]
+		public bool EnableBreakout { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Take Profit Breakout (Ticks)", Description="Ganancia fija para el trade de rompimiento", Order=16, GroupName="1. Parámetros de Estrategia")]
+		public int BreakoutProfitTicks { get; set; }
 
 		// FILTRO DE ANOMALÍAS
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="Lookback Anomalía (Velas)", Description="Revisar n velas atrás buscando anomalías", Order=14, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Lookback Anomalía (Velas)", Description="Revisar n velas atrás buscando anomalías", Order=17, GroupName="1. Parámetros de Estrategia")]
 		public int LookbackAnomalia { get; set; }
 
 		[NinjaScriptProperty]
