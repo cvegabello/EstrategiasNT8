@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.8";
+				Version										= "10.0.9";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -746,7 +746,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					{
 						entryPrice_Scalper = execution.Price;
 						string dir = (execution.Order.OrderAction == OrderAction.Buy) ? "LARGO" : "CORTO";
-						Print(string.Format("{0} - [CAZADOR] Abrió posición en {1} ({2})", time.ToString("HH:mm:ss"), dir, execution.Price));
+						Print(string.Format("{0} - [SCALPER] Abrió posición en {1} ({2})", time.ToString("HH:mm:ss"), dir, execution.Price));
 					}
 					else if (execution.Order.Name == "Runner" || execution.Order.FromEntrySignal == "Runner")
 					{
@@ -768,16 +768,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 						
 						if (execution.Order.Name == "Profit target")
 						{
-							Print(string.Format("{0} - [CAZADOR CERRADO] Alcanzó su meta. Salió en {1}. P/L: {2} USD", time.ToString("HH:mm:ss"), price, pnlDollars.ToString("C2")));
+							Print(string.Format("{0} - [SCALPER CERRADO] Alcanzó su meta. Salió en {1}. P/L: {2} USD", time.ToString("HH:mm:ss"), price, pnlDollars.ToString("C2")));
 							runnerBreakEvenTriggered = true; 
 						}
 						else if (execution.Order.Name == "Stop loss")
 						{
-							Print(string.Format("{0} - [CAZADOR CERRADO] Tocado por Stop Loss en {1}. P/L: {2} USD", time.ToString("HH:mm:ss"), price, pnlDollars.ToString("C2")));
+							Print(string.Format("{0} - [SCALPER CERRADO] Tocado por Stop Loss en {1}. P/L: {2} USD", time.ToString("HH:mm:ss"), price, pnlDollars.ToString("C2")));
 						}
 						else if (execution.Order.Name == "Scalper Bailout")
 						{
-							Print(string.Format("{0} - [CAZADOR CERRADO] Abortado por Radar Bailout en {1}. P/L: {2} USD", time.ToString("HH:mm:ss"), price, pnlDollars.ToString("C2")));
+							Print(string.Format("{0} - [SCALPER CERRADO] Abortado por Radar Bailout en {1}. P/L: {2} USD", time.ToString("HH:mm:ss"), price, pnlDollars.ToString("C2")));
 						}
 						isScalperAlive = false;
 					}
