@@ -20,6 +20,10 @@ using NinjaTrader.NinjaScript;
 using NinjaTrader.Core.FloatingPoint;
 using NinjaTrader.NinjaScript.Indicators;
 using NinjaTrader.NinjaScript.DrawingTools;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Input;
+using System.Windows;
 #endregion
 
 namespace NinjaTrader.NinjaScript.Strategies
@@ -34,6 +38,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[NinjaScriptProperty]
 		[Display(Name="Activar RealTime", Description="Inicia operativa solo al conectar en tiempo real", Order=1, GroupName="0. Información")]
 		public bool RealTimeActivated { get; set; }
+
+		// UI WPF
+		private Button btnToggleTrading;
+		private Grid myGrid;
+		private bool isUIActive = false; // Estado del botón UI
 
 		// Indicadores
 		private SMA smaFast;
@@ -113,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.0.9";
+				Version										= "10.1.0";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -172,11 +181,19 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 			else if (State == State.Historical)
 			{
-				Draw.TextFixed(this, "StrategyStatus", "🟢 ALPHA CROSSOVER: ACTIVO", TextPosition.TopRight, Brushes.LimeGreen, new Gui.Tools.SimpleFont("Arial", 12) { Bold = true }, Brushes.Transparent, Brushes.Transparent, 100);
+				Draw.TextFixed(this, "StrategyStatus", "🟢 ALPHA CROSSOVER: COMPILADO", TextPosition.TopRight, Brushes.LimeGreen, new Gui.Tools.SimpleFont("Arial", 12) { Bold = true }, Brushes.Transparent, Brushes.Transparent, 100);
+				
+				if (UserControlCollection.Contains(myGrid)) return;
+				
+				ChartControl.Dispatcher.InvokeAsync(() => {
+					InitWPF();
+				});
 			}
 			else if (State == State.Terminated)
 			{
-				Draw.TextFixed(this, "StrategyStatus", "🔴 ALPHA CROSSOVER: APAGADO", TextPosition.TopRight, Brushes.Red, new Gui.Tools.SimpleFont("Arial", 12) { Bold = true }, Brushes.Transparent, Brushes.Transparent, 100);
+				ChartControl.Dispatcher.InvokeAsync(() => {
+					DisposeWPF();
+				});
 			}
 			else if (State == State.Realtime)
 			{
@@ -200,6 +217,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 		protected override void OnBarUpdate()
 		{
+			// BLOQUEO MAESTRO DEL BOTÓN UI
+			if (!isUIActive) return;
+			
 			if (!startTrading) return;
 			if (CurrentBar < Math.Max(BarsRequiredToTrade, LookbackTechosPisos + 2)) return;
 
@@ -976,6 +996,101 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[Range(1, int.MaxValue)]
 		[Display(Name="Runner Trailing Fase 3 (Ticks)", Order=4, GroupName="5. Gestión Dinámica (Runner)")]
 		public int RunnerTrailPhase3Ticks { get; set; }
+		#region WPF UI Methods
+		private void InitWPF()
+		{
+			if (myGrid != null) return;
+
+			myGrid = new Grid
+			{
+				HorizontalAlignment = HorizontalAlignment.Right,
+				VerticalAlignment = VerticalAlignment.Top,
+				Margin = new Thickness(0, 30, 10, 0) // Debajo de las barras de herramientas
+			};
+
+			btnToggleTrading = new Button
+			{
+				Content = "PAUSADO",
+				Background = Brushes.Red,
+				Foreground = Brushes.White,
+				FontWeight = FontWeights.Bold,
+				FontSize = 14,
+				Padding = new Thickness(10, 5, 10, 5),
+				BorderBrush = Brushes.DarkRed,
+				BorderThickness = new Thickness(2),
+				Cursor = Cursors.Hand
+			};
+
+			btnToggleTrading.Click += OnButtonClick;
+			myGrid.Children.Add(btnToggleTrading);
+
+			if (ChartControl != null && ChartPanel != null)
+			{
+				ChartPanel.PreviewKeyDown += Chart_PreviewKeyDown;
+			}
+
+			UserControlCollection.Add(myGrid);
+		}
+
+		private void DisposeWPF()
+		{
+			if (btnToggleTrading != null)
+			{
+				btnToggleTrading.Click -= OnButtonClick;
+			}
+			if (ChartPanel != null)
+			{
+				ChartPanel.PreviewKeyDown -= Chart_PreviewKeyDown;
+			}
+			if (myGrid != null)
+			{
+				UserControlCollection.Remove(myGrid);
+				myGrid = null;
+			}
+		}
+
+		private void OnButtonClick(object sender, RoutedEventArgs e)
+		{
+			ToggleTradingState();
+		}
+
+		private void Chart_PreviewKeyDown(object sender, KeyEventArgs e)
+		{
+			if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.Control)
+			{
+				ToggleTradingState();
+				e.Handled = true;
+			}
+		}
+
+		private void ToggleTradingState()
+		{
+			isUIActive = !isUIActive;
+			if (isUIActive)
+			{
+				btnToggleTrading.Content = "ACTIVO";
+				btnToggleTrading.Background = Brushes.LimeGreen;
+				btnToggleTrading.BorderBrush = Brushes.DarkGreen;
+			}
+			else
+			{
+				btnToggleTrading.Content = "PAUSADO";
+				btnToggleTrading.Background = Brushes.Red;
+				btnToggleTrading.BorderBrush = Brushes.DarkRed;
+				
+				// Opcional: Cerrar posiciones abiertas al pausar
+				// if (Position.MarketPosition != MarketPosition.Flat)
+				// {
+				//     ExitLong();
+				//     ExitShort();
+				// }
+			}
+			
+			// Forzamos actualización visual de la gráfica
+			ForceRefresh();
+		}
+		#endregion
+
 		#endregion
 	}
 }
