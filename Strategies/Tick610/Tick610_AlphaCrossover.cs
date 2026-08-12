@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.1.3";
+				Version										= "11.0.0";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -140,6 +140,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				TicksRompimientoRadar						= 8;
 				ToleranciaHmaBailout						= 2;
 				BarrasFiltroMuralla							= 4;
+				DesplazamientoMuralla						= 10;
 				
 				// Reversión
 				EnableReversion								= true;
@@ -489,12 +490,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 			// ==========================================
 			if (IsFirstTickOfBar)
 			{
-				if (DrawRadarRectangle && CurrentBar > LookbackTechosPisos + 5)
+				if (DrawRadarRectangle && CurrentBar > LookbackTechosPisos + 5 + DesplazamientoMuralla)
 				{
-					double currentCeiling = radarMax[1];
-					double currentFloor = radarMin[1];
-					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5, currentCeiling + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentCeiling - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Red, 20);
-					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5, currentFloor + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentFloor - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Green, 20);
+					double currentCeiling = radarMax[DesplazamientoMuralla];
+					double currentFloor = radarMin[DesplazamientoMuralla];
+					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5 + DesplazamientoMuralla, currentCeiling + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentCeiling - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Red, 20);
+					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5 + DesplazamientoMuralla, currentFloor + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentFloor - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Green, 20);
 				}
 
 				// Usamos Time[1] porque es la barra completada que evaluamos
@@ -555,7 +556,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					double offsetValidation = (DistanciaMinimaBorde / 2.0) * TickSize;
 					if (crossoverDirection == 1) // Compras (Techos)
 					{
-						double distancia = radarMax[1] - Close[1];
+						double distancia = radarMax[DesplazamientoMuralla] - Close[1];
 						if (distancia < offsetValidation)
 						{
 							validRadar = false;
@@ -566,7 +567,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// Revisar memoria de velas previas (Mechas)
 							for (int i = 1; i <= BarrasFiltroMuralla; i++)
 							{
-								if (High[i] >= radarMax[1] - offsetValidation)
+								if (High[i] >= radarMax[DesplazamientoMuralla] - offsetValidation)
 								{
 									validRadar = false;
 									Print(string.Format("{0} - [Cancelado] La mecha de la vela [{1}] tocó el Techo Histórico. Memoria activada.", Time[1].ToString("HH:mm:ss"), i));
@@ -577,7 +578,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					}
 					else if (crossoverDirection == -1) // Ventas (Pisos)
 					{
-						double distancia = Close[1] - radarMin[1];
+						double distancia = Close[1] - radarMin[DesplazamientoMuralla];
 						if (distancia < offsetValidation)
 						{
 							validRadar = false;
@@ -588,7 +589,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// Revisar memoria de velas previas (Mechas)
 							for (int i = 1; i <= BarrasFiltroMuralla; i++)
 							{
-								if (Low[i] <= radarMin[1] + offsetValidation)
+								if (Low[i] <= radarMin[DesplazamientoMuralla] + offsetValidation)
 								{
 									validRadar = false;
 									Print(string.Format("{0} - [Cancelado] La mecha de la vela [{1}] tocó el Piso Histórico. Memoria activada.", Time[1].ToString("HH:mm:ss"), i));
@@ -680,7 +681,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							
 							// Configurar Radar Bailout
 							radarBailoutActive = true;
-							targetObstaclePrice = radarMax[1];
+							targetObstaclePrice = radarMax[DesplazamientoMuralla];
 							obstacleBroken = false;
 							enteredObstacleZone = false;
 						}
@@ -741,7 +742,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							
 							// Configurar Radar Bailout
 							radarBailoutActive = true;
-							targetObstaclePrice = radarMin[1];
+							targetObstaclePrice = radarMin[DesplazamientoMuralla];
 							obstacleBroken = false;
 							enteredObstacleZone = false;
 						}
@@ -757,7 +758,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							{
 								esperandoRebote = true;
 								direccionReboteEsperado = (crossoverDirection == 1) ? -1 : 1;
-								precioMurallaRebote = (crossoverDirection == 1) ? radarMax[1] : radarMin[1];
+								precioMurallaRebote = (crossoverDirection == 1) ? radarMax[DesplazamientoMuralla] : radarMin[DesplazamientoMuralla];
 								Print(string.Format("{0} - [Cazador] Señal cancelada. Esperando rebote en Muralla Centrada ({1}).", Time[1].ToString("HH:mm:ss"), precioMurallaRebote));
 							}
 						}
@@ -905,8 +906,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 		
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="Barras Memoria Muralla", Description="Velas previas analizadas para evitar entrar si hubo rebote reciente", Order=8, GroupName="3. Filtros del Cazador (Radar)")]
+		[Display(Name="Memoria Muralla (Velas)", Order=8, GroupName="3. AlphaCrossover: Techos/Pisos (Murallas)")]
 		public int BarrasFiltroMuralla { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Desplazamiento (Velas atrás)", Order=9, GroupName="3. AlphaCrossover: Techos/Pisos (Murallas)")]
+		public int DesplazamientoMuralla { get; set; }
 
 		[Display(Name="Tolerancia HMA Escape Táctico", Description="Número de barras hacia atrás para comparar el HMA en el Escape Táctico (ej. 2 significa hma[0] vs hma[2])", Order=12, GroupName="1. Parámetros de Estrategia")]
 		public int ToleranciaHmaBailout { get; set; }
