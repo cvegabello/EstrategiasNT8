@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.1.0";
+				Version										= "10.1.1";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -139,6 +139,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				DistanciaMinimaBorde						= 8;
 				TicksRompimientoRadar						= 5;
 				ToleranciaHmaBailout						= 2;
+				BarrasFiltroMuralla							= 4;
 				
 				// Reversión
 				EnableReversion								= true;
@@ -564,6 +565,19 @@ namespace NinjaTrader.NinjaScript.Strategies
 							validRadar = false;
 							Print(string.Format("{0} - [Cancelado] Muy cerca del Techo Histórico. Distancia: {1} Ticks (Mínimo requerido desde centro: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde / 2.0));
 						}
+						else
+						{
+							// Revisar memoria de velas previas (Mechas)
+							for (int i = 1; i <= BarrasFiltroMuralla; i++)
+							{
+								if (High[i] >= radarMax[1] - offsetValidation)
+								{
+									validRadar = false;
+									Print(string.Format("{0} - [Cancelado] La mecha de la vela [{1}] tocó el Techo Histórico. Memoria activada.", Time[1].ToString("HH:mm:ss"), i));
+									break;
+								}
+							}
+						}
 					}
 					else if (crossoverDirection == -1) // Ventas (Pisos)
 					{
@@ -572,6 +586,19 @@ namespace NinjaTrader.NinjaScript.Strategies
 						{
 							validRadar = false;
 							Print(string.Format("{0} - [Cancelado] Muy cerca del Piso Histórico. Distancia: {1} Ticks (Mínimo requerido desde centro: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde / 2.0));
+						}
+						else
+						{
+							// Revisar memoria de velas previas (Mechas)
+							for (int i = 1; i <= BarrasFiltroMuralla; i++)
+							{
+								if (Low[i] <= radarMin[1] + offsetValidation)
+								{
+									validRadar = false;
+									Print(string.Format("{0} - [Cancelado] La mecha de la vela [{1}] tocó el Piso Histórico. Memoria activada.", Time[1].ToString("HH:mm:ss"), i));
+									break;
+								}
+							}
 						}
 					}
 					
@@ -877,8 +904,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[Display(Name="Distancia Mínima al Borde (Ticks)", Description="Distancia de la caja de muralla (se divide entre 2: mitad arriba, mitad abajo)", Order=10, GroupName="1. Parámetros de Estrategia")]
 		public int DistanciaMinimaBorde { get; set; }
 		
-		[Display(Name="Ticks Rompimiento Radar", Description="Ticks que el cierre debe superar el borde de la muralla para considerarlo roto", Order=11, GroupName="1. Parámetros de Estrategia")]
+		[Display(Name="Ticks Rompimiento (Breakout)", Description="Ticks para considerar que la muralla fue destruida", Order=7, GroupName="3. Filtros del Cazador (Radar)")]
 		public int TicksRompimientoRadar { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Barras Memoria Muralla", Description="Velas previas analizadas para evitar entrar si hubo rebote reciente", Order=8, GroupName="3. Filtros del Cazador (Radar)")]
+		public int BarrasFiltroMuralla { get; set; }
 
 		[Display(Name="Tolerancia HMA Escape Táctico", Description="Número de barras hacia atrás para comparar el HMA en el Escape Táctico (ej. 2 significa hma[0] vs hma[2])", Order=12, GroupName="1. Parámetros de Estrategia")]
 		public int ToleranciaHmaBailout { get; set; }

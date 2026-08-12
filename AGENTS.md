@@ -28,6 +28,7 @@ Este documento define las reglas base, el contexto técnico y mi rol para todas 
 - **Estructura Estándar:** El código siempre aprovechará los estados correctos:
   - `State.SetDefaults`: Para variables y parámetros.
   - `State.DataLoaded`: Para instanciar indicadores y objetos.
+- **Interfaz de Control (WPF):** Toda estrategia de la Navaja Suiza debe incluir OBLIGATORIAMENTE un botón visual WPF en la gráfica y un atajo de teclado (`Ctrl + Espacio`) para pausar/activar la operativa de forma manual e instantánea. La estrategia siempre debe iniciar en estado "PAUSADO" por defecto.
 
 ## 5. Flujo de Trabajo
 - **Aislamiento por Chat:** Asumiré que cada NUEVO CHAT es una estrategia o consulta aislada (borrón y cuenta nueva), basándome únicamente en este documento de reglas.
