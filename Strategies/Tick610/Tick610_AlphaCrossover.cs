@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.1.1";
+				Version										= "10.1.2";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -240,10 +240,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 						double topBorder = precioMurallaRebote + offset;
 						double bottomBorder = precioMurallaRebote - offset;
 						
-						if (hma[0] <= bottomBorder - (TicksReboteContrario * TickSize))
+						if (Close[0] <= bottomBorder - (TicksReboteContrario * TickSize))
 						{
 							esperandoRebote = false;
-							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Corto (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
+							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Corto (Reversión)!", Time[0].ToString("HH:mm:ss"), Close[0]));
 							SetStopLoss("Reversion", CalculationMode.Price, topBorder, false);
 							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
 							EnterShort(ContractQuantityScalper, "Reversion");
@@ -254,10 +254,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 						double topBorder = precioMurallaRebote + offset;
 						double bottomBorder = precioMurallaRebote - offset;
 						
-						if (hma[0] >= topBorder + (TicksReboteContrario * TickSize))
+						if (Close[0] >= topBorder + (TicksReboteContrario * TickSize))
 						{
 							esperandoRebote = false;
-							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Largo (Reversión)!", Time[0].ToString("HH:mm:ss"), hma[0]));
+							Print(string.Format("{0} - [Cazador] Rebote confirmado en {1}. ¡Disparando Largo (Reversión)!", Time[0].ToString("HH:mm:ss"), Close[0]));
 							SetStopLoss("Reversion", CalculationMode.Price, bottomBorder, false);
 							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
 							EnterLong(ContractQuantityScalper, "Reversion");
