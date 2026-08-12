@@ -122,14 +122,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "10.1.2";
+				Version										= "10.1.3";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
 				FastPeriod									= 34;
 				SlowPeriod									= 89;
 				ADXPeriod									= 14;
-				ADXThreshold								= 24;
+				ADXThreshold								= 15;
 				KCPeriod									= 52;
 				KCMultiplier								= 3.5;
 				DelayBars									= 5;
@@ -137,7 +137,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// Nuevo Filtro de Techos y Pisos
 				LookbackTechosPisos							= 80;
 				DistanciaMinimaBorde						= 8;
-				TicksRompimientoRadar						= 5;
+				TicksRompimientoRadar						= 8;
 				ToleranciaHmaBailout						= 2;
 				BarrasFiltroMuralla							= 4;
 				
@@ -148,10 +148,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// Rompimiento (Breakout)
 				EnableBreakout								= true;
 				BreakoutProfitTicks							= 8;
-				ReversionProfitTicks						= 12;
+				ReversionProfitTicks						= 8;
 				
 				// Nuevo Filtro de Anomalías (Velas Gigantes)
-				LookbackAnomalia							= 15;
+				LookbackAnomalia							= 25;
 				MaxTamanoBarra								= 20;
 				
 				// Filtro HMA
@@ -165,7 +165,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				
 				// Parámetros de Gestión Dinámica (Generales y Scalper)
 				MinStopLossTicks							= 4;
-				MaxStopLossTicks							= 15; // Freno de Emergencia
+				MaxStopLossTicks							= 25; // Freno de Emergencia
 				
 				TriggerPhase2Ticks							= 16;
 				TrailPhase2Ticks							= 8;
@@ -261,6 +261,46 @@ namespace NinjaTrader.NinjaScript.Strategies
 							SetStopLoss("Reversion", CalculationMode.Price, bottomBorder, false);
 							SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionProfitTicks);
 							EnterLong(ContractQuantityScalper, "Reversion");
+						}
+					}
+					
+					// ------------------------------------------
+					// CAZADOR DE ROMPIMIENTOS (BREAKOUT TIPO TICK-A-TICK)
+					// ------------------------------------------
+					double rupturaOffset = (TicksRompimientoRadar * TickSize);
+					
+					// Rompimiento Alcista (Atraviesa el Techo)
+					if (direccionReboteEsperado == -1 && Close[0] >= (precioMurallaRebote + offset) + rupturaOffset)
+					{
+						esperandoRebote = false;
+						if (EnableBreakout)
+						{
+							double slPrice = precioMurallaRebote - offset; // Borde inferior del techo
+							SetStopLoss("Breakout", CalculationMode.Price, slPrice, false);
+							SetProfitTarget("Breakout", CalculationMode.Ticks, BreakoutProfitTicks);
+							EnterLong(ContractQuantityScalper, "Breakout");
+							Print(string.Format("{0} - [Cazador] Techo roto por {1} ticks. Abortando rebote y entrando en Breakout LARGO. SL: {2}.", Time[0].ToString("HH:mm:ss"), TicksRompimientoRadar, slPrice));
+						}
+						else
+						{
+							Print(string.Format("{0} - [Cazador] Precio tocó {1} ticks por encima del techo. Caza abortada.", Time[0].ToString("HH:mm:ss"), TicksRompimientoRadar));
+						}
+					}
+					// Rompimiento Bajista (Atraviesa el Piso)
+					else if (direccionReboteEsperado == 1 && Close[0] <= (precioMurallaRebote - offset) - rupturaOffset)
+					{
+						esperandoRebote = false;
+						if (EnableBreakout)
+						{
+							double slPrice = precioMurallaRebote + offset; // Borde superior del piso
+							SetStopLoss("Breakout", CalculationMode.Price, slPrice, false);
+							SetProfitTarget("Breakout", CalculationMode.Ticks, BreakoutProfitTicks);
+							EnterShort(ContractQuantityScalper, "Breakout");
+							Print(string.Format("{0} - [Cazador] Piso roto por {1} ticks. Abortando rebote y entrando en Breakout CORTO. SL: {2}.", Time[0].ToString("HH:mm:ss"), TicksRompimientoRadar, slPrice));
+						}
+						else
+						{
+							Print(string.Format("{0} - [Cazador] Precio tocó {1} ticks por debajo del piso. Caza abortada.", Time[0].ToString("HH:mm:ss"), TicksRompimientoRadar));
 						}
 					}
 				}
@@ -459,50 +499,6 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 				// Usamos Time[1] porque es la barra completada que evaluamos
 				int currentTime = ToTime(Time[1]);
-				
-				// ------------------------------------------
-				// CAZADOR DE REBOTES / CAZADOR DE ROMPIMIENTOS
-				// ------------------------------------------
-				if (esperandoRebote)
-				{
-					double offset = (DistanciaMinimaBorde / 2.0) * TickSize;
-					double rupturaOffset = (TicksRompimientoRadar * TickSize);
-					
-					// Rompimiento Alcista (Atraviesa el Techo)
-					if (direccionReboteEsperado == -1 && Close[1] > (precioMurallaRebote + offset) + rupturaOffset)
-					{
-						esperandoRebote = false;
-						if (EnableBreakout)
-						{
-							double slPrice = precioMurallaRebote - offset; // Borde inferior del techo
-							SetStopLoss("Breakout", CalculationMode.Price, slPrice, false);
-							SetProfitTarget("Breakout", CalculationMode.Ticks, BreakoutProfitTicks);
-							EnterLong(ContractQuantityScalper, "Breakout");
-							Print(string.Format("{0} - [Cazador] Techo roto por {1} ticks. Abortando rebote y entrando en Breakout LARGO. SL: {2}.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar, slPrice));
-						}
-						else
-						{
-							Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por encima del techo. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
-						}
-					}
-					// Rompimiento Bajista (Atraviesa el Piso)
-					else if (direccionReboteEsperado == 1 && Close[1] < (precioMurallaRebote - offset) - rupturaOffset)
-					{
-						esperandoRebote = false;
-						if (EnableBreakout)
-						{
-							double slPrice = precioMurallaRebote + offset; // Borde superior del piso
-							SetStopLoss("Breakout", CalculationMode.Price, slPrice, false);
-							SetProfitTarget("Breakout", CalculationMode.Ticks, BreakoutProfitTicks);
-							EnterShort(ContractQuantityScalper, "Breakout");
-							Print(string.Format("{0} - [Cazador] Piso roto por {1} ticks. Abortando rebote y entrando en Breakout CORTO. SL: {2}.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar, slPrice));
-						}
-						else
-						{
-							Print(string.Format("{0} - [Cazador] Precio cerró {1} ticks por debajo del piso. Caza abortada.", Time[1].ToString("HH:mm:ss"), TicksRompimientoRadar));
-						}
-					}
-				}
 				
 				// ------------------------------------------
 				// ESCAPE TÁCTICO (ABORTAR SI CIERRA AFUERA)
