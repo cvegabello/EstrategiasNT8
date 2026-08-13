@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "11.0.0";
+				Version										= "11.0.1";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -494,8 +494,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 				{
 					double currentCeiling = radarMax[DesplazamientoMuralla];
 					double currentFloor = radarMin[DesplazamientoMuralla];
-					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5 + DesplazamientoMuralla, currentCeiling + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentCeiling - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Red, 20);
-					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5 + DesplazamientoMuralla, currentFloor + ((DistanciaMinimaBorde / 2.0) * TickSize), -5, currentFloor - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Green, 20);
+					Draw.Rectangle(this, "RadarCeiling", false, LookbackTechosPisos + 5 + DesplazamientoMuralla, currentCeiling + ((DistanciaMinimaBorde / 2.0) * TickSize), DesplazamientoMuralla, currentCeiling - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Red, 20);
+					Draw.Rectangle(this, "RadarFloor", false, LookbackTechosPisos + 5 + DesplazamientoMuralla, currentFloor + ((DistanciaMinimaBorde / 2.0) * TickSize), DesplazamientoMuralla, currentFloor - ((DistanciaMinimaBorde / 2.0) * TickSize), Brushes.Transparent, Brushes.Green, 20);
 				}
 
 				// Usamos Time[1] porque es la barra completada que evaluamos
