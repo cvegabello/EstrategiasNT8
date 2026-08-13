@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "11.0.1";
+				Version										= "11.0.2";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -554,10 +554,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 					// Validación 2: RADAR DE TECHOS Y PISOS CENTRADO
 					bool validRadar = true;
 					double offsetValidation = (DistanciaMinimaBorde / 2.0) * TickSize;
+					double rupturaValidation = (TicksRompimientoRadar * TickSize);
 					if (crossoverDirection == 1) // Compras (Techos)
 					{
 						double distancia = radarMax[DesplazamientoMuralla] - Close[1];
-						if (distancia < offsetValidation)
+						// Zona de peligro: cerca del techo, pero no lo ha roto por completo
+						if (distancia < offsetValidation && distancia > -rupturaValidation)
 						{
 							validRadar = false;
 							Print(string.Format("{0} - [Cancelado] Muy cerca del Techo Histórico. Distancia: {1} Ticks (Mínimo requerido desde centro: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde / 2.0));
@@ -567,7 +569,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// Revisar memoria de velas previas (Mechas)
 							for (int i = 1; i <= BarrasFiltroMuralla; i++)
 							{
-								if (High[i] >= radarMax[DesplazamientoMuralla] - offsetValidation)
+								double mechaDistancia = radarMax[DesplazamientoMuralla] - High[i];
+								if (mechaDistancia < offsetValidation && mechaDistancia > -rupturaValidation)
 								{
 									validRadar = false;
 									Print(string.Format("{0} - [Cancelado] La mecha de la vela [{1}] tocó el Techo Histórico. Memoria activada.", Time[1].ToString("HH:mm:ss"), i));
@@ -579,7 +582,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 					else if (crossoverDirection == -1) // Ventas (Pisos)
 					{
 						double distancia = Close[1] - radarMin[DesplazamientoMuralla];
-						if (distancia < offsetValidation)
+						// Zona de peligro: cerca del piso, pero no lo ha roto por completo
+						if (distancia < offsetValidation && distancia > -rupturaValidation)
 						{
 							validRadar = false;
 							Print(string.Format("{0} - [Cancelado] Muy cerca del Piso Histórico. Distancia: {1} Ticks (Mínimo requerido desde centro: {2}).", Time[1].ToString("HH:mm:ss"), Math.Round(distancia / TickSize, 1), DistanciaMinimaBorde / 2.0));
@@ -589,7 +593,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 							// Revisar memoria de velas previas (Mechas)
 							for (int i = 1; i <= BarrasFiltroMuralla; i++)
 							{
-								if (Low[i] <= radarMin[DesplazamientoMuralla] + offsetValidation)
+								double mechaDistancia = Low[i] - radarMin[DesplazamientoMuralla];
+								if (mechaDistancia < offsetValidation && mechaDistancia > -rupturaValidation)
 								{
 									validRadar = false;
 									Print(string.Format("{0} - [Cancelado] La mecha de la vela [{1}] tocó el Piso Histórico. Memoria activada.", Time[1].ToString("HH:mm:ss"), i));
