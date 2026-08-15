@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "11.0.2";
+				Version										= "12.0.0";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -144,6 +144,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 				
 				// Reversión
 				EnableReversion								= true;
+				ReversionStopLossTicks						= 8;
+				ReversionTakeProfitTicks					= 10;
 				TicksReboteContrario						= 2;
 				
 				// Rompimiento (Breakout)
@@ -626,11 +628,82 @@ namespace NinjaTrader.NinjaScript.Strategies
 					if (crossoverDirection == 1 && hma[1] > hma[2]) validHMASlope = true;
 					else if (crossoverDirection == -1 && hma[1] < hma[2]) validHMASlope = true;
 					
-					// Si aprueba todos los filtros, entramos
-					if (adx[1] >= ADXThreshold && validPricePosition && validRadar && validVolatility && validHMASlope)
+					// Validación 5: PENDIENTES DE SMA (Trade Normal vs Reversión)
+					bool isReversionTrade = false;
+					bool validEntryDirection = false;
+					int tradeDirectionToExecute = 0; // 1 = Long, -1 = Short
+
+					if (crossoverDirection == 1) // Cruce Alcista
 					{
-						if (crossoverDirection == 1) // COMPRA (LONG)
+						bool fastSlopeUp = smaFast[1] > smaFast[4];
+						bool slowSlopeUp = smaSlow[1] > smaSlow[4];
+						
+						if (fastSlopeUp && slowSlopeUp) 
 						{
+							validEntryDirection = true;
+							tradeDirectionToExecute = 1;
+						}
+						else if (EnableReversion && fastSlopeUp && !slowSlopeUp)
+						{
+							validEntryDirection = true;
+							tradeDirectionToExecute = -1;
+							isReversionTrade = true;
+							Print(string.Format("{0} - [REVERSIÓN] Cruce Alcista pero SMA lenta plana/bajista. Ejecutando CORTO.", Time[1].ToString("HH:mm:ss")));
+						}
+						else
+						{
+							Print(string.Format("{0} - [Cancelado] Pendientes no alineadas para Normal ni Reversión.", Time[1].ToString("HH:mm:ss")));
+						}
+					}
+					else if (crossoverDirection == -1) // Cruce Bajista
+					{
+						bool fastSlopeDown = smaFast[1] < smaFast[4];
+						bool slowSlopeDown = smaSlow[1] < smaSlow[4];
+						
+						if (fastSlopeDown && slowSlopeDown)
+						{
+							validEntryDirection = true;
+							tradeDirectionToExecute = -1;
+						}
+						else if (EnableReversion && fastSlopeDown && !slowSlopeDown)
+						{
+							validEntryDirection = true;
+							tradeDirectionToExecute = 1;
+							isReversionTrade = true;
+							Print(string.Format("{0} - [REVERSIÓN] Cruce Bajista pero SMA lenta plana/alcista. Ejecutando LARGO.", Time[1].ToString("HH:mm:ss")));
+						}
+						else
+						{
+							Print(string.Format("{0} - [Cancelado] Pendientes no alineadas para Normal ni Reversión.", Time[1].ToString("HH:mm:ss")));
+						}
+					}
+
+					// Si aprueba todos los filtros, entramos
+					if (adx[1] >= ADXThreshold && validPricePosition && validRadar && validVolatility && validHMASlope && validEntryDirection)
+					{
+						if (isReversionTrade)
+						{
+							// Ejecutar Trade de Reversión (Fijo)
+							if (tradeDirectionToExecute == 1) // LARGO REVERSIÓN
+							{
+								SetStopLoss("Reversion", CalculationMode.Ticks, ReversionStopLossTicks, false);
+								SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionTakeProfitTicks);
+								EnterLong(ContractQuantityScalper + ContractQuantityRunner, "Reversion");
+								Print(string.Format("{0} - [LARGO REVERSIÓN] Entrada en {1}. SL: {2} Ticks. TP: {3} Ticks.", Time[0].ToString("HH:mm:ss"), Close[0], ReversionStopLossTicks, ReversionTakeProfitTicks));
+							}
+							else if (tradeDirectionToExecute == -1) // CORTO REVERSIÓN
+							{
+								SetStopLoss("Reversion", CalculationMode.Ticks, ReversionStopLossTicks, false);
+								SetProfitTarget("Reversion", CalculationMode.Ticks, ReversionTakeProfitTicks);
+								EnterShort(ContractQuantityScalper + ContractQuantityRunner, "Reversion");
+								Print(string.Format("{0} - [CORTO REVERSIÓN] Entrada en {1}. SL: {2} Ticks. TP: {3} Ticks.", Time[0].ToString("HH:mm:ss"), Close[0], ReversionStopLossTicks, ReversionTakeProfitTicks));
+							}
+						}
+						else
+						{
+							// Lógica de Ejecución Normal (Scalper + Runner)
+							if (tradeDirectionToExecute == 1) // COMPRA (LONG) NORMAL
+							{
 							// DISPARO DEL SCALPER
 							if (ContractQuantityScalper > 0)
 							{
@@ -690,8 +763,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 							obstacleBroken = false;
 							enteredObstacleZone = false;
 						}
-						else if (crossoverDirection == -1) // VENTA (SHORT)
-						{
+							else if (tradeDirectionToExecute == -1) // VENTA (SHORT) NORMAL
+							{
 							// DISPARO DEL SCALPER
 							if (ContractQuantityScalper > 0)
 							{
@@ -751,6 +824,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							obstacleBroken = false;
 							enteredObstacleZone = false;
 						}
+					}
 					}
 					else
 					{
@@ -855,6 +929,20 @@ namespace NinjaTrader.NinjaScript.Strategies
 		}
 
 		#region Properties
+		[NinjaScriptProperty]
+		[Display(Name="Habilitar Reversión", Order=1, GroupName="2. AlphaCrossover: Reversión de Tendencia")]
+		public bool EnableReversion { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Stop Loss Reversión (Ticks)", Order=2, GroupName="2. AlphaCrossover: Reversión de Tendencia")]
+		public int ReversionStopLossTicks { get; set; }
+		
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="Take Profit Reversión (Ticks)", Order=3, GroupName="2. AlphaCrossover: Reversión de Tendencia")]
+		public int ReversionTakeProfitTicks { get; set; }
+
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
 		[Display(Name="Periodo SMA Rápida", Order=1, GroupName="1. Parámetros de Estrategia")]
@@ -1049,7 +1137,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 			btnToggleTrading = new Button
 			{
-				Content = "PAUSADO",
+				Content = "PÁNICO (PAUSA)",
 				Background = Brushes.Red,
 				Foreground = Brushes.White,
 				FontWeight = FontWeights.Bold,
@@ -1113,16 +1201,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 			else
 			{
-				btnToggleTrading.Content = "PAUSADO";
+				btnToggleTrading.Content = "PÁNICO (PAUSA)";
 				btnToggleTrading.Background = Brushes.Red;
 				btnToggleTrading.BorderBrush = Brushes.DarkRed;
 				
-				// Opcional: Cerrar posiciones abiertas al pausar
-				// if (Position.MarketPosition != MarketPosition.Flat)
-				// {
-				//     ExitLong();
-				//     ExitShort();
-				// }
+				// Cierre de emergencia OBLIGATORIO de todas las posiciones
+				if (Position.MarketPosition != MarketPosition.Flat)
+				{
+				    ExitLong();
+				    ExitShort();
+					Print(string.Format("{0} - [BOTÓN DE PÁNICO] Activado. Todas las posiciones cerradas a mercado.", Time[0].ToString("HH:mm:ss")));
+				}
 			}
 			
 			// Forzamos actualización visual de la gráfica
