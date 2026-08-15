@@ -143,7 +143,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				DesplazamientoMuralla						= 10;
 				
 				// Reversión
-				EnableReversion								= true;
+				EnableContrarianTrade						= true;
 				ReversionStopLossTicks						= 8;
 				ReversionTakeProfitTicks					= 10;
 				TicksReboteContrario						= 2;
@@ -643,7 +643,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							validEntryDirection = true;
 							tradeDirectionToExecute = 1;
 						}
-						else if (EnableReversion && fastSlopeUp && !slowSlopeUp)
+						else if (EnableContrarianTrade && fastSlopeUp && !slowSlopeUp)
 						{
 							validEntryDirection = true;
 							tradeDirectionToExecute = -1;
@@ -665,7 +665,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 							validEntryDirection = true;
 							tradeDirectionToExecute = -1;
 						}
-						else if (EnableReversion && fastSlopeDown && !slowSlopeDown)
+						else if (EnableContrarianTrade && fastSlopeDown && !slowSlopeDown)
 						{
 							validEntryDirection = true;
 							tradeDirectionToExecute = 1;
@@ -931,7 +931,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 		#region Properties
 		[NinjaScriptProperty]
 		[Display(Name="Habilitar Reversión", Order=1, GroupName="2. AlphaCrossover: Reversión de Tendencia")]
-		public bool EnableReversion { get; set; }
+		public bool EnableContrarianTrade { get; set; }
 		
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
