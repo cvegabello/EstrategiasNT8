@@ -122,7 +122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution; // Separar SL/TP
 				BarsRequiredToTrade							= 89;
 
-				Version										= "12.0.0";
+				Version										= "12.0.2";
 				RealTimeActivated 							= true;
 
 				// Parámetros Base
@@ -185,19 +185,29 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 			else if (State == State.Historical)
 			{
-				Draw.TextFixed(this, "StrategyStatus", "🟢 ALPHA CROSSOVER: COMPILADO", TextPosition.TopRight, Brushes.LimeGreen, new Gui.Tools.SimpleFont("Arial", 12) { Bold = true }, Brushes.Transparent, Brushes.Transparent, 100);
-				
-				if (UserControlCollection.Contains(myGrid)) return;
-				
-				ChartControl.Dispatcher.InvokeAsync(() => {
-					InitWPF();
-				});
+				if (ChartControl != null)
+				{
+					if (UserControlCollection.Contains(myGrid)) return;
+					
+					ChartControl.Dispatcher.InvokeAsync(() => {
+						InitWPF();
+					});
+				}
+				else
+				{
+					// MODO STRATEGY ANALYZER (No hay gráfico, así que forzamos la activación)
+					isUIActive = true;
+					startTrading = true;
+				}
 			}
 			else if (State == State.Terminated)
 			{
-				ChartControl.Dispatcher.InvokeAsync(() => {
-					DisposeWPF();
-				});
+				if (ChartControl != null)
+				{
+					ChartControl.Dispatcher.InvokeAsync(() => {
+						DisposeWPF();
+					});
+				}
 			}
 			else if (State == State.Realtime)
 			{
