@@ -105,7 +105,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution;
 				
 				// Valores por Defecto
-				Version										= "1.0.2";
+				Version										= "1.0.3";
 				RealTimeActivated 							= true;
 				BarsRequiredToTrade							= 40; // Mayor al periodo de la EMA
 				
@@ -171,38 +171,56 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// ---------------------------------------------------------
 				// 1. CONDICIÓN PARA LARGOS (COMPRAS)
 				// ---------------------------------------------------------
-				// Verificamos que el "Río" (EMA) fluya hacia arriba con FUERZA. 
-				// La EMA actual debe ser mayor a la de hace 5 barras, por un mínimo de 'SlopeMinTicks'.
-				bool isUptrend = ema[0] >= ema[5] + (SlopeMinTicks * TickSize);
-				
-				// Verificamos si nuestro "Delfín" (HMA) acaba de romper la superficie del río hacia arriba.
 				bool crossUp = CrossAbove(hma, ema, 1);
 
-				if (isUptrend && crossUp)
+				if (crossUp)
 				{
-					SetStopLoss("Rebote Largo", CalculationMode.Ticks, StopLossTicks, false);
-					SetProfitTarget("Rebote Largo", CalculationMode.Ticks, TakeProfitTicks);
+					// Calculamos cuántos Ticks subió la EMA en las últimas 5 barras
+					double pendienteTicks = (ema[0] - ema[5]) / TickSize;
 					
-					EnterLong(ContractQty, "Rebote Largo");
-					Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado (Pendiente OK). HMA cruzó EMA hacia arriba.");
+					// Verificamos si cumple con el mínimo exigido por el usuario
+					bool isUptrend = pendienteTicks >= SlopeMinTicks;
+
+					if (isUptrend)
+					{
+						SetStopLoss("Rebote Largo", CalculationMode.Ticks, StopLossTicks, false);
+						SetProfitTarget("Rebote Largo", CalculationMode.Ticks, TakeProfitTicks);
+						
+						EnterLong(ContractQty, "Rebote Largo");
+						Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado (Pendiente OK). Pendiente actual: {Math.Round(pendienteTicks, 2)} Ticks.");
+					}
+					else
+					{
+						Print($"{Time[0]} - [CRUCE LARGO IGNORADO] Rebote detectado (Pendiente No OK). Pendiente actual: {Math.Round(pendienteTicks, 2)} Ticks. Requerido: {SlopeMinTicks}.");
+					}
 				}
 
 				// ---------------------------------------------------------
 				// 2. CONDICIÓN PARA CORTOS (VENTAS)
 				// ---------------------------------------------------------
-				// Verificamos que el "Río" fluya hacia abajo con FUERZA.
-				bool isDowntrend = ema[0] <= ema[5] - (SlopeMinTicks * TickSize);
-				
-				// Verificamos si el HMA acaba de cruzar la superficie hacia abajo.
 				bool crossDown = CrossBelow(hma, ema, 1);
 
-				if (isDowntrend && crossDown)
+				if (crossDown)
 				{
-					SetStopLoss("Rebote Corto", CalculationMode.Ticks, StopLossTicks, false);
-					SetProfitTarget("Rebote Corto", CalculationMode.Ticks, TakeProfitTicks);
+					// Calculamos cuántos Ticks cayó la EMA en las últimas 5 barras
+					// (ema[5] - ema[0]) nos da un número positivo que representa la fuerza de la caída.
+					double pendienteCaidaTicks = (ema[5] - ema[0]) / TickSize;
 					
-					EnterShort(ContractQty, "Rebote Corto");
-					Print($"{Time[0]} - [ENTRADA CORTO] Rebote bajista confirmado (Pendiente OK). HMA cruzó EMA hacia abajo.");
+					// Verificamos si cumple con el mínimo exigido
+					bool isDowntrend = pendienteCaidaTicks >= SlopeMinTicks;
+
+					if (isDowntrend)
+					{
+						SetStopLoss("Rebote Corto", CalculationMode.Ticks, StopLossTicks, false);
+						SetProfitTarget("Rebote Corto", CalculationMode.Ticks, TakeProfitTicks);
+						
+						EnterShort(ContractQty, "Rebote Corto");
+						Print($"{Time[0]} - [ENTRADA CORTO] Rebote bajista confirmado (Pendiente OK). Pendiente de caída: {Math.Round(pendienteCaidaTicks, 2)} Ticks.");
+					}
+					else
+					{
+						Print($"{Time[0]} - [CRUCE CORTO IGNORADO] Rebote detectado (Pendiente No OK). Pendiente de caída: {Math.Round(pendienteCaidaTicks, 2)} Ticks. Requerido: {SlopeMinTicks}.");
+					}
 				}
 			}
 		}
