@@ -36,22 +36,55 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[Display(Name="Activar RealTime", Description="Inicia operativa solo al conectar en tiempo real", Order=1, GroupName="0. Información")]
 		public bool RealTimeActivated { get; set; }
 
+		// ==========================================
+		// PARÁMETROS DE LA ESTRATEGIA (OPCIÓN B)
+		// ==========================================
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="1. Periodo HMA (Gatillo)", Description="Media móvil rápida que sigue al precio", Order=1, GroupName="1. Lógica del Gatillo")]
+		public int HMAPeriod { get; set; }
+
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="2. Periodo EMA (Ancla)", Description="Media móvil lenta que sirve como zona de rebote elástico", Order=2, GroupName="1. Lógica del Gatillo")]
+		public int EMAPeriod { get; set; }
+
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="3. Take Profit (Ticks)", Description="Ganancia esperada en ticks", Order=1, GroupName="2. Gestión de Riesgo")]
+		public int TakeProfitTicks { get; set; }
+
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="4. Stop Loss (Ticks)", Description="Pérdida máxima en ticks", Order=2, GroupName="2. Gestión de Riesgo")]
+		public int StopLossTicks { get; set; }
+
+		[NinjaScriptProperty]
+		[Range(1, int.MaxValue)]
+		[Display(Name="5. Cantidad de Contratos", Order=3, GroupName="2. Gestión de Riesgo")]
+		public int ContractQty { get; set; }
+
+
 		// UI WPF
 		private Button btnToggleTrading;
 		private Grid myGrid;
-		
-		// Estado del botón UI (Regla de Oro: Inicia en PAUSA por defecto)
-		private bool isUIActive = false; 
-		
+		private bool isUIActive = false; // Estado del botón UI (Inicia en PAUSA por defecto)
 		private bool startTrading = false;
+
+		// Variables de Indicadores
+		private HMA hma;
+		private EMA ema;
 
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)
 			{
-				Description									= @"Estrategia Base: Precio Crossover.";
+				Description									= @"Estrategia Scalper: Rebote de HMA contra EMA.";
 				Name										= "Tick610_PrecioCrossover";
-				Calculate									= Calculate.OnEachTick; // ARQUITECTURA HÍBRIDA (ALTA VELOCIDAD)
+				
+				// REGLA DE ORO: Cambiado a OnBarClose como solicitaste para mayor seguridad
+				Calculate									= Calculate.OnBarClose; 
+				
 				EntriesPerDirection							= 1;
 				EntryHandling								= EntryHandling.AllEntries;
 				IsExitOnSessionCloseStrategy				= true;
@@ -65,24 +98,27 @@ namespace NinjaTrader.NinjaScript.Strategies
 				TraceOrders									= false; 
 				RealtimeErrorHandling						= RealtimeErrorHandling.StopCancelClose;
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution;
-				BarsRequiredToTrade							= 20;
-
-				Version										= "1.0.0";
+				
+				// Valores por Defecto
+				Version										= "1.0.1";
 				RealTimeActivated 							= true;
+				BarsRequiredToTrade							= 40; // Mayor al periodo de la EMA
+				
+				HMAPeriod 									= 9;
+				EMAPeriod									= 34;
+				TakeProfitTicks								= 10;
+				StopLossTicks								= 15;
+				ContractQty									= 1;
 			}
 			else if (State == State.Historical)
 			{
 				if (ChartControl != null)
 				{
 					if (UserControlCollection.Contains(myGrid)) return;
-					
-					ChartControl.Dispatcher.InvokeAsync(() => {
-						InitWPF();
-					});
+					ChartControl.Dispatcher.InvokeAsync(() => { InitWPF(); });
 				}
 				else
 				{
-					// MODO STRATEGY ANALYZER (No hay gráfico, así que forzamos la activación)
 					isUIActive = true;
 					startTrading = true;
 				}
@@ -91,9 +127,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 			{
 				if (ChartControl != null)
 				{
-					ChartControl.Dispatcher.InvokeAsync(() => {
-						DisposeWPF();
-					});
+					ChartControl.Dispatcher.InvokeAsync(() => { DisposeWPF(); });
 				}
 			}
 			else if (State == State.Realtime)
@@ -106,36 +140,63 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 			else if (State == State.DataLoaded)
 			{				
-				// Inicialización de indicadores y objetos (vacío por ahora)
+				// Instanciamos los indicadores para poder leer sus valores
+				hma = HMA(HMAPeriod);
+				ema = EMA(EMAPeriod);
 			}
 		}
 
 		protected override void OnBarUpdate()
 		{
-			// BLOQUEO MAESTRO DEL BOTÓN UI (Gestión manual)
-			if (!isUIActive) return;
-			
-			// Esperar a que inicie el trading en RealTime si está configurado
-			if (!startTrading) return;
-			
-			// Asegurar que tenemos suficientes barras para procesar
-			if (CurrentBar < BarsRequiredToTrade) return;
+			// BLOQUEOS DE SEGURIDAD (WPF, RealTime, y Barras Mínimas)
+			if (!isUIActive || !startTrading || CurrentBar < BarsRequiredToTrade) return;
 
 			// FILTRO HORARIO (Regla de oro: RTH 09:30 AM - 04:00 PM EST)
 			int currentTime = ToTime(Time[0]);
 			if (currentTime < 93000 || currentTime >= 160000) return;
 
 			// ==========================================
-			// LÓGICA DE ESTRATEGIA (LIENZO EN BLANCO)
+			// LÓGICA DE ESTRATEGIA: SCALPER DE RETROCESO (OPCIÓN B)
 			// ==========================================
 
-			if (IsFirstTickOfBar)
+			// Solo buscamos entradas si no estamos ya en una posición activa
+			if (Position.MarketPosition == MarketPosition.Flat)
 			{
-				// Lógica de baja velocidad (se ejecuta una vez por barra completada)
-			}
-			else
-			{
-				// Lógica de alta velocidad (se ejecuta tick a tick)
+				// ---------------------------------------------------------
+				// 1. CONDICIÓN PARA LARGOS (COMPRAS)
+				// ---------------------------------------------------------
+				// Verificamos que el "Río" (EMA) fluya hacia arriba. La EMA actual es mayor a la de hace 5 barras.
+				bool isUptrend = ema[0] > ema[5];
+				
+				// Verificamos si nuestro "Delfín" (HMA) acaba de romper la superficie del río hacia arriba.
+				bool crossUp = CrossAbove(hma, ema, 1);
+
+				if (isUptrend && crossUp)
+				{
+					SetStopLoss("Rebote Largo", CalculationMode.Ticks, StopLossTicks, false);
+					SetProfitTarget("Rebote Largo", CalculationMode.Ticks, TakeProfitTicks);
+					
+					EnterLong(ContractQty, "Rebote Largo");
+					Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado. HMA cruzó EMA hacia arriba.");
+				}
+
+				// ---------------------------------------------------------
+				// 2. CONDICIÓN PARA CORTOS (VENTAS)
+				// ---------------------------------------------------------
+				// Verificamos que el "Río" fluya hacia abajo.
+				bool isDowntrend = ema[0] < ema[5];
+				
+				// Verificamos si el HMA acaba de cruzar la superficie hacia abajo.
+				bool crossDown = CrossBelow(hma, ema, 1);
+
+				if (isDowntrend && crossDown)
+				{
+					SetStopLoss("Rebote Corto", CalculationMode.Ticks, StopLossTicks, false);
+					SetProfitTarget("Rebote Corto", CalculationMode.Ticks, TakeProfitTicks);
+					
+					EnterShort(ContractQty, "Rebote Corto");
+					Print($"{Time[0]} - [ENTRADA CORTO] Rebote bajista confirmado. HMA cruzó EMA hacia abajo.");
+				}
 			}
 		}
 
@@ -143,14 +204,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 		private void InitWPF()
 		{
 			if (myGrid != null) return;
-
 			myGrid = new Grid
 			{
 				HorizontalAlignment = HorizontalAlignment.Right,
 				VerticalAlignment = VerticalAlignment.Top,
-				Margin = new Thickness(0, 30, 10, 0) // Debajo de las barras de herramientas
+				Margin = new Thickness(0, 30, 10, 0)
 			};
-
 			btnToggleTrading = new Button
 			{
 				Content = "PÁNICO (PAUSA)",
@@ -163,28 +222,19 @@ namespace NinjaTrader.NinjaScript.Strategies
 				BorderThickness = new Thickness(2),
 				Cursor = Cursors.Hand
 			};
-
 			btnToggleTrading.Click += OnButtonClick;
 			myGrid.Children.Add(btnToggleTrading);
-
 			if (ChartControl != null && ChartPanel != null)
 			{
 				ChartPanel.PreviewKeyDown += Chart_PreviewKeyDown;
 			}
-
 			UserControlCollection.Add(myGrid);
 		}
 
 		private void DisposeWPF()
 		{
-			if (btnToggleTrading != null)
-			{
-				btnToggleTrading.Click -= OnButtonClick;
-			}
-			if (ChartPanel != null)
-			{
-				ChartPanel.PreviewKeyDown -= Chart_PreviewKeyDown;
-			}
+			if (btnToggleTrading != null) btnToggleTrading.Click -= OnButtonClick;
+			if (ChartPanel != null) ChartPanel.PreviewKeyDown -= Chart_PreviewKeyDown;
 			if (myGrid != null)
 			{
 				UserControlCollection.Remove(myGrid);
@@ -192,10 +242,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 		}
 
-		private void OnButtonClick(object sender, RoutedEventArgs e)
-		{
-			ToggleTradingState();
-		}
+		private void OnButtonClick(object sender, RoutedEventArgs e) { ToggleTradingState(); }
 
 		private void Chart_PreviewKeyDown(object sender, KeyEventArgs e)
 		{
@@ -220,17 +267,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 				btnToggleTrading.Content = "PÁNICO (PAUSA)";
 				btnToggleTrading.Background = Brushes.Red;
 				btnToggleTrading.BorderBrush = Brushes.DarkRed;
-				
-				// Cierre de emergencia OBLIGATORIO de todas las posiciones
 				if (Position.MarketPosition != MarketPosition.Flat)
 				{
 					ExitLong();
 					ExitShort();
-					Print(string.Format("{0} - [BOTÓN DE PÁNICO] Activado. Todas las posiciones cerradas a mercado.", Time[0].ToString("HH:mm:ss")));
+					Print(string.Format("{0} - [BOTÓN DE PÁNICO] Activado. Posiciones cerradas.", Time[0].ToString("HH:mm:ss")));
 				}
 			}
-			
-			// Forzamos actualización visual de la gráfica
 			ForceRefresh();
 		}
 		#endregion
