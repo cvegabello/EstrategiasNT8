@@ -41,8 +41,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 		// ==========================================
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="1. Periodo HMA (Gatillo)", Description="Media móvil rápida que sigue al precio", Order=1, GroupName="1. Lógica del Gatillo")]
-		public int HMAPeriod { get; set; }
+		[Display(Name="1. Periodo WMA (Gatillo)", Description="Media móvil rápida (WMA) que cruza el ancla", Order=1, GroupName="1. Lógica del Gatillo")]
+		public int WMAPeriod { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
@@ -91,7 +91,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 		private bool startTrading = false;
 
 		// Variables de Indicadores
-		private HMA hma;
+		private WMA wma;
 		private EMA ema;
 		private EMA macroEma;
 
@@ -99,7 +99,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 		{
 			if (State == State.SetDefaults)
 			{
-				Description									= @"Estrategia Scalper: HMA vs EMA + Filtro Macro 200.";
+				Description									= @"Estrategia Scalper: WMA vs EMA + Filtro Macro 200.";
 				Name										= "Tick610_PrecioCrossover";
 				
 				Calculate									= Calculate.OnBarClose; 
@@ -117,14 +117,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 				RealtimeErrorHandling						= RealtimeErrorHandling.StopCancelClose;
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution;
 				
-				Version										= "1.0.6";
+				Version										= "1.0.7";
 				RealTimeActivated 							= true;
 				BarsRequiredToTrade							= 200; 
 				
-				HMAPeriod 									= 9;
+				WMAPeriod 									= 5;
 				EMAPeriod									= 34;
 				MacroEMAPeriod								= 200; 
-				SlopeStartBar								= 1; // Evaluamos desde 1 barra atrás por defecto
+				SlopeStartBar								= 1;
 				TrendLookbackBars							= 15;
 				SlopeMinTicks								= 0.5;
 				TakeProfitTicks								= 10;
@@ -161,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 			else if (State == State.DataLoaded)
 			{				
-				hma = HMA(HMAPeriod);
+				wma = WMA(WMAPeriod);
 				ema = EMA(EMAPeriod);
 				macroEma = EMA(MacroEMAPeriod);
 			}
@@ -185,11 +185,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// ---------------------------------------------------------
 				// 1. CONDICIÓN PARA LARGOS (COMPRAS)
 				// ---------------------------------------------------------
-				bool crossUp = CrossAbove(hma, ema, 1);
+				bool crossUp = CrossAbove(wma, ema, 1);
 
 				if (crossUp)
 				{
-					// Calculamos desde 'SlopeStartBar' hacia atrás
 					double pendienteTicks = (ema[SlopeStartBar] - ema[SlopeStartBar + TrendLookbackBars]) / TickSize;
 					bool isSlopeOK = pendienteTicks >= SlopeMinTicks;
 					bool isMacroUptrend = Close[0] > macroEma[0]; 
@@ -214,11 +213,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// ---------------------------------------------------------
 				// 2. CONDICIÓN PARA CORTOS (VENTAS)
 				// ---------------------------------------------------------
-				bool crossDown = CrossBelow(hma, ema, 1);
+				bool crossDown = CrossBelow(wma, ema, 1);
 
 				if (crossDown)
 				{
-					// Calculamos desde 'SlopeStartBar' hacia atrás
 					double pendienteCaidaTicks = (ema[SlopeStartBar + TrendLookbackBars] - ema[SlopeStartBar]) / TickSize;
 					bool isSlopeOK = pendienteCaidaTicks >= SlopeMinTicks;
 					bool isMacroDowntrend = Close[0] < macroEma[0]; 
