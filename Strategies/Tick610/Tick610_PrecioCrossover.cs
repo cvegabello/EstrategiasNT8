@@ -50,18 +50,23 @@ namespace NinjaTrader.NinjaScript.Strategies
 		public int EMAPeriod { get; set; }
 
 		[NinjaScriptProperty]
+		[Range(0, int.MaxValue)]
+		[Display(Name="3. Inclinación Mínima EMA (Ticks)", Description="Exige que la EMA se haya movido X ticks en 5 barras para validar tendencia", Order=3, GroupName="1. Lógica del Gatillo")]
+		public int SlopeMinTicks { get; set; }
+
+		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="3. Take Profit (Ticks)", Description="Ganancia esperada en ticks", Order=1, GroupName="2. Gestión de Riesgo")]
+		[Display(Name="4. Take Profit (Ticks)", Description="Ganancia esperada en ticks", Order=1, GroupName="2. Gestión de Riesgo")]
 		public int TakeProfitTicks { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="4. Stop Loss (Ticks)", Description="Pérdida máxima en ticks", Order=2, GroupName="2. Gestión de Riesgo")]
+		[Display(Name="5. Stop Loss (Ticks)", Description="Pérdida máxima en ticks", Order=2, GroupName="2. Gestión de Riesgo")]
 		public int StopLossTicks { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="5. Cantidad de Contratos", Order=3, GroupName="2. Gestión de Riesgo")]
+		[Display(Name="6. Cantidad de Contratos", Order=3, GroupName="2. Gestión de Riesgo")]
 		public int ContractQty { get; set; }
 
 
@@ -100,12 +105,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution;
 				
 				// Valores por Defecto
-				Version										= "1.0.1";
+				Version										= "1.0.2";
 				RealTimeActivated 							= true;
 				BarsRequiredToTrade							= 40; // Mayor al periodo de la EMA
 				
 				HMAPeriod 									= 9;
 				EMAPeriod									= 34;
+				SlopeMinTicks								= 2; // Por defecto pedimos 2 ticks de inclinación
 				TakeProfitTicks								= 10;
 				StopLossTicks								= 15;
 				ContractQty									= 1;
@@ -165,8 +171,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 				// ---------------------------------------------------------
 				// 1. CONDICIÓN PARA LARGOS (COMPRAS)
 				// ---------------------------------------------------------
-				// Verificamos que el "Río" (EMA) fluya hacia arriba. La EMA actual es mayor a la de hace 5 barras.
-				bool isUptrend = ema[0] > ema[5];
+				// Verificamos que el "Río" (EMA) fluya hacia arriba con FUERZA. 
+				// La EMA actual debe ser mayor a la de hace 5 barras, por un mínimo de 'SlopeMinTicks'.
+				bool isUptrend = ema[0] >= ema[5] + (SlopeMinTicks * TickSize);
 				
 				// Verificamos si nuestro "Delfín" (HMA) acaba de romper la superficie del río hacia arriba.
 				bool crossUp = CrossAbove(hma, ema, 1);
@@ -177,14 +184,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 					SetProfitTarget("Rebote Largo", CalculationMode.Ticks, TakeProfitTicks);
 					
 					EnterLong(ContractQty, "Rebote Largo");
-					Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado. HMA cruzó EMA hacia arriba.");
+					Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado (Pendiente OK). HMA cruzó EMA hacia arriba.");
 				}
 
 				// ---------------------------------------------------------
 				// 2. CONDICIÓN PARA CORTOS (VENTAS)
 				// ---------------------------------------------------------
-				// Verificamos que el "Río" fluya hacia abajo.
-				bool isDowntrend = ema[0] < ema[5];
+				// Verificamos que el "Río" fluya hacia abajo con FUERZA.
+				bool isDowntrend = ema[0] <= ema[5] - (SlopeMinTicks * TickSize);
 				
 				// Verificamos si el HMA acaba de cruzar la superficie hacia abajo.
 				bool crossDown = CrossBelow(hma, ema, 1);
@@ -195,7 +202,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					SetProfitTarget("Rebote Corto", CalculationMode.Ticks, TakeProfitTicks);
 					
 					EnterShort(ContractQty, "Rebote Corto");
-					Print($"{Time[0]} - [ENTRADA CORTO] Rebote bajista confirmado. HMA cruzó EMA hacia abajo.");
+					Print($"{Time[0]} - [ENTRADA CORTO] Rebote bajista confirmado (Pendiente OK). HMA cruzó EMA hacia abajo.");
 				}
 			}
 		}
