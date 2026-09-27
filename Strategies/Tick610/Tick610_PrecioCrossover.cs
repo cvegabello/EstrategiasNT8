@@ -55,28 +55,33 @@ namespace NinjaTrader.NinjaScript.Strategies
 		public int MacroEMAPeriod { get; set; }
 
 		[NinjaScriptProperty]
+		[Range(0, int.MaxValue)]
+		[Display(Name="4. Barra Inicial (Slope Start)", Description="0 = Evalúa desde la barra actual. 1 = Desde la barra anterior (evita ruido)", Order=4, GroupName="1. Lógica del Gatillo")]
+		public int SlopeStartBar { get; set; }
+
+		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="4. Barras a Evaluar (Lookback)", Description="Cuántas barras atrás mirar para calcular la pendiente", Order=4, GroupName="1. Lógica del Gatillo")]
+		[Display(Name="5. Barras a Evaluar (Lookback)", Description="Cuántas barras atrás mirar para calcular la pendiente", Order=5, GroupName="1. Lógica del Gatillo")]
 		public int TrendLookbackBars { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(0.0, double.MaxValue)]
-		[Display(Name="5. Inclinación Mínima (Ticks, ej: 0.5)", Description="Pendiente mínima exigida usando decimales", Order=5, GroupName="1. Lógica del Gatillo")]
+		[Display(Name="6. Inclinación Mínima (Ticks, ej: 0.5)", Description="Pendiente mínima exigida usando decimales", Order=6, GroupName="1. Lógica del Gatillo")]
 		public double SlopeMinTicks { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="6. Take Profit (Ticks)", Description="Ganancia esperada en ticks", Order=1, GroupName="2. Gestión de Riesgo")]
+		[Display(Name="7. Take Profit (Ticks)", Description="Ganancia esperada en ticks", Order=1, GroupName="2. Gestión de Riesgo")]
 		public int TakeProfitTicks { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="7. Stop Loss (Ticks)", Description="Pérdida máxima en ticks", Order=2, GroupName="2. Gestión de Riesgo")]
+		[Display(Name="8. Stop Loss (Ticks)", Description="Pérdida máxima en ticks", Order=2, GroupName="2. Gestión de Riesgo")]
 		public int StopLossTicks { get; set; }
 
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
-		[Display(Name="8. Cantidad de Contratos", Order=3, GroupName="2. Gestión de Riesgo")]
+		[Display(Name="9. Cantidad de Contratos", Order=3, GroupName="2. Gestión de Riesgo")]
 		public int ContractQty { get; set; }
 
 		// UI WPF
@@ -112,13 +117,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 				RealtimeErrorHandling						= RealtimeErrorHandling.StopCancelClose;
 				StopTargetHandling							= StopTargetHandling.PerEntryExecution;
 				
-				Version										= "1.0.5";
+				Version										= "1.0.6";
 				RealTimeActivated 							= true;
-				BarsRequiredToTrade							= 200; // Ahora necesitamos 200 barras para que la Macro EMA cargue bien
+				BarsRequiredToTrade							= 200; 
 				
 				HMAPeriod 									= 9;
 				EMAPeriod									= 34;
-				MacroEMAPeriod								= 200; // Filtro Macro
+				MacroEMAPeriod								= 200; 
+				SlopeStartBar								= 1; // Evaluamos desde 1 barra atrás por defecto
 				TrendLookbackBars							= 15;
 				SlopeMinTicks								= 0.5;
 				TakeProfitTicks								= 10;
@@ -164,7 +170,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 		protected override void OnBarUpdate()
 		{
 			// BLOQUEOS DE SEGURIDAD
-			if (!isUIActive || !startTrading || CurrentBar < Math.Max(BarsRequiredToTrade, TrendLookbackBars + 1)) return;
+			if (!isUIActive || !startTrading || CurrentBar < Math.Max(BarsRequiredToTrade, SlopeStartBar + TrendLookbackBars + 1)) return;
 
 			// FILTRO HORARIO
 			int currentTime = ToTime(Time[0]);
@@ -183,16 +189,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 				if (crossUp)
 				{
-					double pendienteTicks = (ema[0] - ema[TrendLookbackBars]) / TickSize;
+					// Calculamos desde 'SlopeStartBar' hacia atrás
+					double pendienteTicks = (ema[SlopeStartBar] - ema[SlopeStartBar + TrendLookbackBars]) / TickSize;
 					bool isSlopeOK = pendienteTicks >= SlopeMinTicks;
-					bool isMacroUptrend = Close[0] > macroEma[0]; // Filtro Semáforo
+					bool isMacroUptrend = Close[0] > macroEma[0]; 
 
 					if (isSlopeOK && isMacroUptrend)
 					{
 						SetStopLoss("Rebote Largo", CalculationMode.Ticks, StopLossTicks, false);
 						SetProfitTarget("Rebote Largo", CalculationMode.Ticks, TakeProfitTicks);
 						EnterLong(ContractQty, "Rebote Largo");
-						Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado. Pendiente: {Math.Round(pendienteTicks, 2)} Ticks. Macro: OK.");
+						Print($"{Time[0]} - [ENTRADA LARGO] Rebote confirmado. Pendiente (desde barra [{SlopeStartBar}]): {Math.Round(pendienteTicks, 2)} Ticks. Macro: OK.");
 					}
 					else if (!isMacroUptrend)
 					{
@@ -200,7 +207,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					}
 					else if (!isSlopeOK)
 					{
-						Print($"{Time[0]} - [CRUCE LARGO IGNORADO] Pendiente débil. Actual: {Math.Round(pendienteTicks, 2)} Ticks. Requerido: {SlopeMinTicks}.");
+						Print($"{Time[0]} - [CRUCE LARGO IGNORADO] Pendiente débil. Actual (desde barra [{SlopeStartBar}]): {Math.Round(pendienteTicks, 2)} Ticks. Requerido: {SlopeMinTicks}.");
 					}
 				}
 
@@ -211,16 +218,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 				if (crossDown)
 				{
-					double pendienteCaidaTicks = (ema[TrendLookbackBars] - ema[0]) / TickSize;
+					// Calculamos desde 'SlopeStartBar' hacia atrás
+					double pendienteCaidaTicks = (ema[SlopeStartBar + TrendLookbackBars] - ema[SlopeStartBar]) / TickSize;
 					bool isSlopeOK = pendienteCaidaTicks >= SlopeMinTicks;
-					bool isMacroDowntrend = Close[0] < macroEma[0]; // Filtro Semáforo
+					bool isMacroDowntrend = Close[0] < macroEma[0]; 
 
 					if (isSlopeOK && isMacroDowntrend)
 					{
 						SetStopLoss("Rebote Corto", CalculationMode.Ticks, StopLossTicks, false);
 						SetProfitTarget("Rebote Corto", CalculationMode.Ticks, TakeProfitTicks);
 						EnterShort(ContractQty, "Rebote Corto");
-						Print($"{Time[0]} - [ENTRADA CORTO] Rebote confirmado. Pendiente: {Math.Round(pendienteCaidaTicks, 2)} Ticks. Macro: OK.");
+						Print($"{Time[0]} - [ENTRADA CORTO] Rebote confirmado. Pendiente (desde barra [{SlopeStartBar}]): {Math.Round(pendienteCaidaTicks, 2)} Ticks. Macro: OK.");
 					}
 					else if (!isMacroDowntrend)
 					{
@@ -228,7 +236,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					}
 					else if (!isSlopeOK)
 					{
-						Print($"{Time[0]} - [CRUCE CORTO IGNORADO] Pendiente débil. Caída: {Math.Round(pendienteCaidaTicks, 2)} Ticks. Requerido: {SlopeMinTicks}.");
+						Print($"{Time[0]} - [CRUCE CORTO IGNORADO] Pendiente débil. Caída (desde barra [{SlopeStartBar}]): {Math.Round(pendienteCaidaTicks, 2)} Ticks. Requerido: {SlopeMinTicks}.");
 					}
 				}
 			}
