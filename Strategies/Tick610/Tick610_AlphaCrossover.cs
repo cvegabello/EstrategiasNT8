@@ -135,12 +135,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 				DelayBars									= 5;
 				
 				// Nuevo Filtro de Techos y Pisos
-				LookbackTechosPisos							= 80;
+				LookbackTechosPisos							= 120;
 				DistanciaMinimaBorde						= 8;
 				TicksRompimientoRadar						= 8;
 				ToleranciaHmaBailout						= 2;
 				BarrasFiltroMuralla							= 4;
-				DesplazamientoMuralla						= 10;
+				DesplazamientoMuralla						= 15;
 				
 				// Reversión
 				EnableContrarianTrade						= true;
@@ -155,7 +155,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				
 				// Nuevo Filtro de Anomalías (Velas Gigantes)
 				LookbackAnomalia							= 25;
-				MaxTamanoBarra								= 20;
+				MaxTamanoBarra								= 25;
 				
 				// Filtro HMA
 				HMAPeriod									= 21;
