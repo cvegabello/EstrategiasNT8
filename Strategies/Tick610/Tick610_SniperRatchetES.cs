@@ -22,7 +22,7 @@ using NinjaTrader.NinjaScript.Indicators;
 using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
 
-namespace NinjaTrader.NinjaScript.Strategies.Tick610
+namespace NinjaTrader.NinjaScript.Strategies
 {
     public class Tick610_SniperRatchetES : Strategy
     {
@@ -79,6 +79,7 @@ namespace NinjaTrader.NinjaScript.Strategies.Tick610
                 Tp1LockTicks            = 2;  // Aseguramos +2 Ticks
                 Tp2Ticks                = 14; // Hito 2: Precio alcanza +14 Ticks
                 Tp2LockTicks            = 8;  // Aseguramos +8 Ticks
+                Version                 = "1.0";
             }
             else if (State == State.DataLoaded)
             {
@@ -338,6 +339,11 @@ namespace NinjaTrader.NinjaScript.Strategies.Tick610
         #endregion
 
         #region Propiedades Expuestas en NT8
+        [NinjaScriptProperty]
+        [Display(Name="Versión", Description="Versión actual de la estrategia", Order=0, GroupName="0. Información")]
+        [ReadOnly(true)]
+        public string Version { get; set; }
+
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
         [Display(Name="Periodo LinReg", Order=1, GroupName="1. Filtro Tendencia")]
