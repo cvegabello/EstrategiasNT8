@@ -26,17 +26,19 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public class Tick610_SniperRatchetES : Strategy
     {
-        // === VARIABLES DEL TRINQUETE (MÁQUINA DE ESTADOS) ===
-        private enum RatchetState { Flat, Initial, Phase1, Phase2 }
-        private RatchetState currentState = RatchetState.Flat;
-        private double currentStopPrice = 0;
+        // === MÁQUINA DE ESTADOS (SETUP Y TRAILING) ===
+        private enum SetupType { None, Long, Short }
+        private SetupType currentSetup = SetupType.None;
+        private int setupBarCounter = 0;
+
+        private enum TrailingState { None, Phase1_OuterBand, Phase2_Midline }
+        private TrailingState currentTrailingState = TrailingState.None;
 
         // === INDICADORES ===
-        private LinReg linReg;
-        private KeltnerChannel keltner;
-        private SMA volSma;
-        private MACD macd;
+        private EMA ema200;
         private TEMA temaTrigger;
+        private KeltnerChannel keltner;
+        private MACD macd;
 
         // === VARIABLES DE CONTROL (INTERFAZ WPF) ===
         private System.Windows.Controls.Button panicButton;
@@ -47,9 +49,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper de alta probabilidad para 610 Ticks. Gestión tipo Trinquete.";
+                Description                                 = @"Estrategia Sniper V2.1: Setup de rebote TEMA en extremos Keltner y SL Dinámico en fases.";
                 Name                                        = "Tick610_SniperRatchetES";
-                Calculate                                   = Calculate.OnBarClose; // Ideal para gráficas de Ticks para optimización
+                Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
                 EntryHandling                               = EntryHandling.AllEntries;
                 IsExitOnSessionCloseStrategy                = true;
@@ -63,219 +65,211 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TraceOrders                                 = false;
                 RealtimeErrorHandling                       = RealtimeErrorHandling.StopCancelClose;
                 StopTargetHandling                          = StopTargetHandling.PerEntryExecution;
-                BarsRequiredToTrade                         = 100; // Necesitamos al menos 89 para el LinReg
+                BarsRequiredToTrade                         = 200; // Necesitamos al menos 200 para la EMA 200
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Parámetros de Indicadores
-                SlopePeriod             = 89;
-                SlopeLookbackBars       = 20; // Barras atrás para medir la pendiente
-                SlopeThresholdTicks     = 20; // Diferencia mínima en Ticks para validar la fuerza de la pendiente
-                KeltnerPeriod           = 52;
-                TemaPeriod              = 13; // TEMA como gatillo alisado
-                VolSmaPeriod            = 20;
-                VolMultiplier           = 1.5;
+                // Propiedades por defecto
+                Version                 = "2.1";
                 
-                // Parámetros de Gestión de Riesgo (Trinquete)
-                SlTicks                 = 12; // Stop Loss Inicial detrás de la estructura
-                Tp1Ticks                = 8;  // Hito 1: Precio alcanza +8 Ticks
-                Tp1LockTicks            = 2;  // Aseguramos +2 Ticks
-                Tp2Ticks                = 14; // Hito 2: Precio alcanza +14 Ticks
-                Tp2LockTicks            = 8;  // Aseguramos +8 Ticks
-                Version                 = "2.0";
+                EmaPeriod               = 200;
+                TemaPeriod              = 9;
+                KeltnerPeriod           = 52;
+                KeltnerMultiplier       = 3.5;
+                CountdownBars           = 10;
+                
+                UseMacdFilter           = false;
+                MacdFast                = 8;
+                MacdSlow                = 17;
+                MacdSmooth              = 9;
+
+                SlOffsetTicks           = 1; // 1 tick "afuerita" del canal
+                TemaToleranceTicks      = 2; // Distancia máxima para considerar que el TEMA "tocó" la banda
             }
             else if (State == State.DataLoaded)
             {
-                // Instanciar Indicadores solo una vez para eficiencia en Ticks
-                linReg = LinReg(SlopePeriod);
-                keltner = KeltnerChannel(1.5, KeltnerPeriod); // Multiplicador de banda estándar, usaremos solo la línea media
-                volSma = SMA(VOL(), VolSmaPeriod);
-                macd = MACD(12, 26, 9);
+                // Instanciar Indicadores (Sin AddChartIndicator por solicitud del usuario)
+                ema200 = EMA(EmaPeriod);
                 temaTrigger = TEMA(TemaPeriod);
-
-                // Agregar indicadores a la gráfica para visualización
-                AddChartIndicator(linReg);
-                AddChartIndicator(keltner);
-                AddChartIndicator(temaTrigger);
+                keltner = KeltnerChannel(KeltnerMultiplier, KeltnerPeriod);
+                macd = MACD(MacdFast, MacdSlow, MacdSmooth);
             }
             else if (State == State.Historical)
             {
-                // Iniciar la UI en el hilo correcto al cargar la gráfica
                 if (UserControlCollection != null)
                 {
-                    Dispatcher.InvokeAsync((() =>
-                    {
-                        CreateWPFControls();
-                    }));
+                    Dispatcher.InvokeAsync((() => { CreateWPFControls(); }));
                 }
             }
             else if (State == State.Terminated)
             {
-                // Limpiar la UI al remover la estrategia
                 if (UserControlCollection != null)
                 {
-                    Dispatcher.InvokeAsync((() =>
-                    {
-                        DisposeWPFControls();
-                    }));
+                    Dispatcher.InvokeAsync((() => { DisposeWPFControls(); }));
                 }
             }
         }
 
         protected override void OnBarUpdate()
         {
-            if (CurrentBar < BarsRequiredToTrade)
-                return;
+            if (CurrentBar < BarsRequiredToTrade) return;
 
-            // 1. CONTROL DE LA INTERFAZ WPF Y ESTADO ACTIVO
-            if (!isStrategyActive)
-            {
-                // Si la estrategia está pausada y tenemos posición, dejamos que el Stop/Target la gestione
-                // pero evitamos nuevas evaluaciones de entrada.
-                return; 
-            }
+            // 1. CONTROL DE LA INTERFAZ WPF
+            if (!isStrategyActive) return; // Si está pausada, no evalúa ni gestiona.
 
-            // 2. FILTRO HORARIO RTH ESTRICTO (10:00 AM - 1:00 PM EST)
+            // 2. FILTRO HORARIO RTH EXTENDIDO (10:00 AM - 4:00 PM EST)
             int timeNow = ToTime(Time[0]);
-            bool isRTH = timeNow >= 100000 && timeNow < 130000;
+            bool isRTH = timeNow >= 100000 && timeNow < 160000;
 
             if (!isRTH)
             {
-                // Si estamos fuera de horario y hay posición abierta, forzar el cierre
                 if (Position.MarketPosition != MarketPosition.Flat)
                 {
                     ExitLong("Cierre Fuera Horario", "SniperLong");
                     ExitShort("Cierre Fuera Horario", "SniperShort");
-                    Print(Time[0] + " - Posición cerrada por seguridad horaria (Fuera de 10AM-1PM).");
+                    Print(Time[0] + " - Posición cerrada por seguridad horaria (Fuera de 10AM-4PM).");
                 }
-                return; // Ignorar la evaluación de nuevas entradas
-            }
-
-            // 3. GESTIÓN DE RIESGO: MÁQUINA DE ESTADOS (TRINQUETE / RATCHET)
-            ManageRatchetStops();
-
-            // 4. LÓGICA DE ENTRADA (SOLO SI ESTAMOS FLAT - SIN POSICIÓN)
-            if (Position.MarketPosition == MarketPosition.Flat)
-            {
-                // --- Variables de Condiciones ---
-                
-                // A) Pendiente de la Regresión Lineal calculada matemáticamente en Ticks
-                double currentLinReg = linReg[0];
-                double oldLinReg = linReg[SlopeLookbackBars];
-                double linRegDiffTicks = (currentLinReg - oldLinReg) / TickSize; // Diferencia neta en Ticks
-                
-                bool strongUptrend = linRegDiffTicks > SlopeThresholdTicks;
-                bool strongDowntrend = linRegDiffTicks < -SlopeThresholdTicks;
-
-                // B) Retroceso y Cruce usando TEMA como "Precio Alisado"
-                bool touchKeltnerMidLong = temaTrigger[1] <= keltner.Midline[1] && temaTrigger[0] > keltner.Midline[0];
-                bool touchKeltnerMidShort = temaTrigger[1] >= keltner.Midline[1] && temaTrigger[0] < keltner.Midline[0];
-
-                // C) Explosión de Volumen Institucional
-                bool extremeVolume = Volume[0] > (volSma[0] * VolMultiplier);
-
-                // D) Momento MACD a favor (Aceleración)
-                bool macdAccelUp = macd.Diff[0] > macd.Diff[1];
-                bool macdAccelDown = macd.Diff[0] < macd.Diff[1];
-
-                // --- Log de Diagnóstico (Solo cuando hay toque Keltner) ---
-                if (touchKeltnerMidLong || touchKeltnerMidShort)
-                {
-                    string dir = touchKeltnerMidLong ? "LONG" : "SHORT";
-                    string msg = string.Format("{0} - [EVALUANDO {1}] Toque Keltner Detectado.\n", Time[0], dir);
-                    
-                    bool trendPass = dir == "LONG" ? strongUptrend : strongDowntrend;
-                    string reqTrend = dir == "LONG" ? "> " + SlopeThresholdTicks : "< -" + SlopeThresholdTicks;
-                    msg += string.Format("   - Tendencia (LinReg Diff): {0:F2} Ticks. Requisito ({1}): {2}\n", 
-                        linRegDiffTicks, reqTrend, trendPass ? "PASÓ" : "FALLÓ");
-                    
-                    double volThreshold = volSma[0] * VolMultiplier;
-                    msg += string.Format("   - Volumen: {0}. Requisito (> {1:F2}): {2}\n", 
-                        Volume[0], volThreshold, extremeVolume ? "PASÓ" : "FALLÓ");
-
-                    bool macdPass = dir == "LONG" ? macdAccelUp : macdAccelDown;
-                    msg += string.Format("   - MACD Aceleración: Diff[0]={0:F4}, Diff[1]={1:F4}. Requisito a favor: {2}", 
-                        macd.Diff[0], macd.Diff[1], macdPass ? "PASÓ" : "FALLÓ");
-
-                    Print(msg);
-                }
-
-                // --- Ejecución de Entradas ---
-
-                // COMPRAS (Long)
-                if (strongUptrend && touchKeltnerMidLong && extremeVolume && macdAccelUp)
-                {
-                    EnterLong("SniperLong");
-                    currentStopPrice = Close[0] - (SlTicks * TickSize); // Calcular precio exacto del Stop Loss inicial
-                    currentState = RatchetState.Initial;
-                    SetStopLoss("SniperLong", CalculationMode.Price, currentStopPrice, false);
-                    Print(Time[0] + " - ENTRADA LONG. Pendiente: " + linRegDiffTicks.ToString("F2") + " Ticks.");
-                }
-                // VENTAS (Short)
-                else if (strongDowntrend && touchKeltnerMidShort && extremeVolume && macdAccelDown)
-                {
-                    EnterShort("SniperShort");
-                    currentStopPrice = Close[0] + (SlTicks * TickSize); // Calcular precio exacto del Stop Loss inicial
-                    currentState = RatchetState.Initial;
-                    SetStopLoss("SniperShort", CalculationMode.Price, currentStopPrice, false);
-                    Print(Time[0] + " - ENTRADA SHORT. Pendiente: " + linRegDiffTicks.ToString("F2") + " Ticks.");
-                }
-            }
-        }
-
-        // --- FUNCIÓN DE GESTIÓN DEL TRINQUETE ---
-        // Se encarga de mover el Stop Loss en bloques irrecuperables (como un trinquete físico)
-        private void ManageRatchetStops()
-        {
-            if (Position.MarketPosition == MarketPosition.Flat)
-            {
-                currentState = RatchetState.Flat;
+                currentSetup = SetupType.None; // Resetear setups pendientes
                 return;
             }
 
-            double avgPrice = Position.AveragePrice;
+            // 3. GESTIÓN DE RIESGO: SL DINÁMICO EN FASES
+            ManageDynamicTrailingStop();
+
+            // 4. LÓGICA DE ALERTA (SETUP) Y DISPARO (TRIGGER)
+            if (Position.MarketPosition == MarketPosition.Flat)
+            {
+                // A) Verificar Filtro Macro (EMA 200) de las últimas N barras
+                bool emaShortValid = true;
+                bool emaLongValid = true;
+                for (int i = 0; i <= CountdownBars; i++)
+                {
+                    if (High[i] >= ema200[i]) emaShortValid = false; // Todo debe estar debajo para cortos
+                    if (Low[i] <= ema200[i]) emaLongValid = false;   // Todo debe estar arriba para largos
+                }
+
+                // B) Detectar Gancho del TEMA en Bandas Extremas (Setup Alert)
+                double upperBandTolerance = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
+                double lowerBandTolerance = keltner.Lower[1] + (TemaToleranceTicks * TickSize);
+
+                // Setup Corto: TEMA estaba muy arriba y acaba de enganchar hacia abajo
+                bool hookDown = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < temaTrigger[1];
+                if (hookDown && emaShortValid)
+                {
+                    currentSetup = SetupType.Short;
+                    setupBarCounter = 0;
+                    Print(Time[0] + " - [ALERTA CORTO] Gancho TEMA detectado en Banda Superior. Iniciando reloj de " + CountdownBars + " barras.");
+                }
+
+                // Setup Largo: TEMA estaba muy abajo y acaba de enganchar hacia arriba
+                bool hookUp = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
+                if (hookUp && emaLongValid)
+                {
+                    currentSetup = SetupType.Long;
+                    setupBarCounter = 0;
+                    Print(Time[0] + " - [ALERTA LARGO] Gancho TEMA detectado en Banda Inferior. Iniciando reloj de " + CountdownBars + " barras.");
+                }
+
+                // C) Evaluar Conteo y Disparo
+                if (currentSetup != SetupType.None)
+                {
+                    setupBarCounter++;
+
+                    if (setupBarCounter > CountdownBars)
+                    {
+                        Print(Time[0] + " - [SETUP CANCELADO] Pasaron " + CountdownBars + " barras sin cruzar la Línea Media.");
+                        currentSetup = SetupType.None;
+                    }
+                    else
+                    {
+                        // MACD Opcional
+                        bool macdValidLong = !UseMacdFilter || (macd.Diff[0] > macd.Diff[1]);
+                        bool macdValidShort = !UseMacdFilter || (macd.Diff[0] < macd.Diff[1]);
+
+                        // Disparo Largo: TEMA cruza Línea Media hacia arriba
+                        if (currentSetup == SetupType.Long && CrossAbove(temaTrigger, keltner.Midline, 1) && macdValidLong)
+                        {
+                            EnterLong("SniperLong");
+                            currentTrailingState = TrailingState.Phase1_OuterBand;
+                            currentSetup = SetupType.None;
+                            
+                            // Colocar Stop Loss Inicial inmediatamente
+                            double slPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
+                            SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
+                            Print(Time[0] + " - [DISPARO LARGO] TEMA cruzó Midline. SL Inicial en Banda Inferior: " + slPrice);
+                        }
+                        // Disparo Corto: TEMA cruza Línea Media hacia abajo
+                        else if (currentSetup == SetupType.Short && CrossBelow(temaTrigger, keltner.Midline, 1) && macdValidShort)
+                        {
+                            EnterShort("SniperShort");
+                            currentTrailingState = TrailingState.Phase1_OuterBand;
+                            currentSetup = SetupType.None;
+
+                            // Colocar Stop Loss Inicial inmediatamente
+                            double slPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
+                            SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
+                            Print(Time[0] + " - [DISPARO CORTO] TEMA cruzó Midline. SL Inicial en Banda Superior: " + slPrice);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Si tenemos posición, apagamos cualquier setup pendiente por si acaso.
+                currentSetup = SetupType.None;
+            }
+        }
+
+        // --- GESTIÓN DEL STOP LOSS DINÁMICO ---
+        private void ManageDynamicTrailingStop()
+        {
+            if (Position.MarketPosition == MarketPosition.Flat)
+            {
+                currentTrailingState = TrailingState.None;
+                return;
+            }
 
             if (Position.MarketPosition == MarketPosition.Long)
             {
-                // Calcular cuántos Ticks a favor hemos alcanzado como máximo
-                double maxFavTicks = (High[0] - avgPrice) / TickSize;
+                if (currentTrailingState == TrailingState.Phase1_OuterBand)
+                {
+                    // SL anclado a la Banda Inferior
+                    double slPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
+                    SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
 
-                // Fase 1: Llegamos al primer hito (Ej. 8 Ticks)
-                if (currentState == RatchetState.Initial && maxFavTicks >= Tp1Ticks)
-                {
-                    currentState = RatchetState.Phase1;
-                    currentStopPrice = avgPrice + (Tp1LockTicks * TickSize);
-                    SetStopLoss("SniperLong", CalculationMode.Price, currentStopPrice, false);
-                    Print(Time[0] + " - Trinquete Fase 1 LONG: Stop asegurado en +" + Tp1LockTicks + " Ticks.");
+                    // Verificar transición a Fase 2 (Precio toca Banda Superior)
+                    if (High[0] >= keltner.Upper[0])
+                    {
+                        currentTrailingState = TrailingState.Phase2_Midline;
+                        Print(Time[0] + " - [Fase 2 LARGO] El precio tocó la Banda Superior. El SL salta a perseguir la Línea Media.");
+                    }
                 }
-                // Fase 2: Llegamos al segundo hito (Ej. 14 Ticks)
-                else if (currentState == RatchetState.Phase1 && maxFavTicks >= Tp2Ticks)
+                else if (currentTrailingState == TrailingState.Phase2_Midline)
                 {
-                    currentState = RatchetState.Phase2;
-                    currentStopPrice = avgPrice + (Tp2LockTicks * TickSize);
-                    SetStopLoss("SniperLong", CalculationMode.Price, currentStopPrice, false);
-                    Print(Time[0] + " - Trinquete Fase 2 LONG: Stop asegurado en +" + Tp2LockTicks + " Ticks.");
+                    // SL anclado a la Línea Media
+                    double slPrice = keltner.Midline[0] - (SlOffsetTicks * TickSize);
+                    SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
                 }
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
-                // Calcular cuántos Ticks a favor hemos alcanzado como máximo
-                double maxFavTicks = (avgPrice - Low[0]) / TickSize;
+                if (currentTrailingState == TrailingState.Phase1_OuterBand)
+                {
+                    // SL anclado a la Banda Superior
+                    double slPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
+                    SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
 
-                // Fase 1: Llegamos al primer hito
-                if (currentState == RatchetState.Initial && maxFavTicks >= Tp1Ticks)
-                {
-                    currentState = RatchetState.Phase1;
-                    currentStopPrice = avgPrice - (Tp1LockTicks * TickSize);
-                    SetStopLoss("SniperShort", CalculationMode.Price, currentStopPrice, false);
-                    Print(Time[0] + " - Trinquete Fase 1 SHORT: Stop asegurado en +" + Tp1LockTicks + " Ticks.");
+                    // Verificar transición a Fase 2 (Precio toca Banda Inferior)
+                    if (Low[0] <= keltner.Lower[0])
+                    {
+                        currentTrailingState = TrailingState.Phase2_Midline;
+                        Print(Time[0] + " - [Fase 2 CORTO] El precio tocó la Banda Inferior. El SL salta a perseguir la Línea Media.");
+                    }
                 }
-                // Fase 2: Llegamos al segundo hito
-                else if (currentState == RatchetState.Phase1 && maxFavTicks >= Tp2Ticks)
+                else if (currentTrailingState == TrailingState.Phase2_Midline)
                 {
-                    currentState = RatchetState.Phase2;
-                    currentStopPrice = avgPrice - (Tp2LockTicks * TickSize);
-                    SetStopLoss("SniperShort", CalculationMode.Price, currentStopPrice, false);
-                    Print(Time[0] + " - Trinquete Fase 2 SHORT: Stop asegurado en +" + Tp2LockTicks + " Ticks.");
+                    // SL anclado a la Línea Media
+                    double slPrice = keltner.Midline[0] + (SlOffsetTicks * TickSize);
+                    SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
                 }
             }
         }
@@ -283,82 +277,35 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Interfaz UI y Botón de Pánico (WPF)
         private void CreateWPFControls()
         {
-            chartGrid = new System.Windows.Controls.Grid
-            {
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 10, 10)
-            };
-
-            panicButton = new System.Windows.Controls.Button
-            {
-                Content = "Sniper: PAUSADO",
-                Foreground = Brushes.White,
-                Background = Brushes.Red,
-                FontWeight = FontWeights.Bold,
-                Padding = new Thickness(10, 5, 10, 5),
-                BorderThickness = new Thickness(2),
-                BorderBrush = Brushes.DarkRed
-            };
-
+            chartGrid = new System.Windows.Controls.Grid { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 10, 10) };
+            panicButton = new System.Windows.Controls.Button { Content = "Sniper: PAUSADO", Foreground = Brushes.White, Background = Brushes.Red, FontWeight = FontWeights.Bold, Padding = new Thickness(10, 5, 10, 5), BorderThickness = new Thickness(2), BorderBrush = Brushes.DarkRed };
             panicButton.Click += OnPanicButtonClick;
             chartGrid.Children.Add(panicButton);
             UserControlCollection.Add(chartGrid);
-
-            // Escuchar el evento de teclado global en la gráfica
             ChartPanel.PreviewKeyDown += ChartPanel_PreviewKeyDown;
         }
 
         private void DisposeWPFControls()
         {
-            if (panicButton != null)
-                panicButton.Click -= OnPanicButtonClick;
-
-            if (ChartPanel != null)
-                ChartPanel.PreviewKeyDown -= ChartPanel_PreviewKeyDown;
-
-            if (chartGrid != null && UserControlCollection.Contains(chartGrid))
-                UserControlCollection.Remove(chartGrid);
+            if (panicButton != null) panicButton.Click -= OnPanicButtonClick;
+            if (ChartPanel != null) ChartPanel.PreviewKeyDown -= ChartPanel_PreviewKeyDown;
+            if (chartGrid != null && UserControlCollection.Contains(chartGrid)) UserControlCollection.Remove(chartGrid);
         }
 
-        private void OnPanicButtonClick(object sender, RoutedEventArgs e)
-        {
-            ToggleStrategyStatus();
-            e.Handled = true; // Evitar que el click haga focus en otras cosas de la gráfica
-        }
-
-        private void ChartPanel_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            // Atajo de teclado: Ctrl + Espacio
-            if (e.Key == Key.Space && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-            {
-                ToggleStrategyStatus();
-                e.Handled = true;
-            }
-        }
+        private void OnPanicButtonClick(object sender, RoutedEventArgs e) { ToggleStrategyStatus(); e.Handled = true; }
+        private void ChartPanel_PreviewKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Space && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control) { ToggleStrategyStatus(); e.Handled = true; } }
 
         private void ToggleStrategyStatus()
         {
             isStrategyActive = !isStrategyActive;
-
             if (panicButton != null)
             {
                 Dispatcher.InvokeAsync(() =>
                 {
-                    if (isStrategyActive)
-                    {
-                        panicButton.Content = "Sniper: ACTIVO";
-                        panicButton.Background = Brushes.Green;
-                        panicButton.BorderBrush = Brushes.DarkGreen;
-                        Print(Time[0] + " - Estrategia Sniper ACTIVADA manualmente.");
-                    }
-                    else
-                    {
-                        panicButton.Content = "Sniper: PAUSADO";
-                        panicButton.Background = Brushes.Red;
-                        panicButton.BorderBrush = Brushes.DarkRed;
-                        Print(Time[0] + " - Estrategia Sniper PAUSADA manualmente.");
-                    }
+                    panicButton.Content = isStrategyActive ? "Sniper: ACTIVO" : "Sniper: PAUSADO";
+                    panicButton.Background = isStrategyActive ? Brushes.Green : Brushes.Red;
+                    panicButton.BorderBrush = isStrategyActive ? Brushes.DarkGreen : Brushes.DarkRed;
+                    Print(Time[0] + (isStrategyActive ? " - Estrategia Sniper ACTIVADA." : " - Estrategia Sniper PAUSADA."));
                 });
             }
         }
@@ -372,63 +319,47 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo LinReg", Order=1, GroupName="1. Filtro Tendencia")]
-        public int SlopePeriod { get; set; }
+        [Display(Name="Periodo EMA (Maestro)", Order=1, GroupName="1. Filtro Macro")]
+        public int EmaPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Usar MACD Opcional", Description="¿Validar que el MACD esté a favor en el cruce?", Order=2, GroupName="1. Filtro Macro")]
+        public bool UseMacdFilter { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Barras Atrás (Slope)", Description="Para medir la pendiente", Order=2, GroupName="1. Filtro Tendencia")]
-        public int SlopeLookbackBars { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Ticks de Pendiente Mínima", Description="Diferencia en ticks para validar la fuerza", Order=3, GroupName="1. Filtro Tendencia")]
-        public int SlopeThresholdTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Periodo Keltner", Order=1, GroupName="2. Estructura y Pullback")]
+        [Display(Name="Periodo Keltner", Order=1, GroupName="2. Estructura Keltner")]
         public int KeltnerPeriod { get; set; }
 
         [NinjaScriptProperty]
+        [Range(0.1, double.MaxValue)]
+        [Display(Name="Multiplicador Keltner", Order=2, GroupName="2. Estructura Keltner")]
+        public double KeltnerMultiplier { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo TEMA (Gatillo)", Description="TEMA actuando como precio alisado", Order=2, GroupName="2. Estructura y Pullback")]
+        [Display(Name="Periodo TEMA (Gatillo)", Order=1, GroupName="3. Lógica de Disparo")]
         public int TemaPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo SMA Volumen", Order=1, GroupName="3. Volumen")]
-        public int VolSmaPeriod { get; set; }
+        [Display(Name="Barras Máximas (Conteo)", Description="Máximo de barras esperando cruce tras alerta", Order=2, GroupName="3. Lógica de Disparo")]
+        public int CountdownBars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(0.1, double.MaxValue)]
-        [Display(Name="Multiplicador Volumen", Description="Ej: 1.5 es 50% más que el promedio", Order=2, GroupName="3. Volumen")]
-        public double VolMultiplier { get; set; }
+        [Range(0, int.MaxValue)]
+        [Display(Name="Tolerancia Gancho (Ticks)", Description="Distancia máx a la banda para considerar rebote", Order=3, GroupName="3. Lógica de Disparo")]
+        public int TemaToleranceTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Stop Loss Inicial (Ticks)", Order=1, GroupName="4. Riesgo (Trinquete)")]
-        public int SlTicks { get; set; }
+        [Range(-100, int.MaxValue)]
+        [Display(Name="Offset SL (Ticks)", Description="Ticks para poner SL 'afuerita' (positivos) o 'adentrico' (negativos)", Order=1, GroupName="4. Gestión de Riesgo Dinámica")]
+        public int SlOffsetTicks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Hito 1: Llegar a (Ticks)", Order=2, GroupName="4. Riesgo (Trinquete)")]
-        public int Tp1Ticks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Hito 1: Asegurar (Ticks)", Order=3, GroupName="4. Riesgo (Trinquete)")]
-        public int Tp1LockTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Hito 2: Llegar a (Ticks)", Order=4, GroupName="4. Riesgo (Trinquete)")]
-        public int Tp2Ticks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name="Hito 2: Asegurar (Ticks)", Order=5, GroupName="4. Riesgo (Trinquete)")]
-        public int Tp2LockTicks { get; set; }
+        // --- Parámetros MACD ocultos si no se usan, pero requeridos para instanciar ---
+        [Browsable(false)] public int MacdFast { get; set; }
+        [Browsable(false)] public int MacdSlow { get; set; }
+        [Browsable(false)] public int MacdSmooth { get; set; }
         #endregion
     }
 }
