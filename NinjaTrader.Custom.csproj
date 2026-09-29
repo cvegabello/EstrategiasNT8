@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -378,6 +378,7 @@
     <Compile Include="Indicators\RTHBackground.cs" />
     <Compile Include="Strategies\Tick610\Tick610_AlphaCrossover.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PrecioCrossover.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_SniperRatchetES.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resource.resx">

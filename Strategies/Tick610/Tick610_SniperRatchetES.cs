@@ -81,7 +81,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Tp1LockTicks            = 2;  // Aseguramos +2 Ticks
                 Tp2Ticks                = 14; // Hito 2: Precio alcanza +14 Ticks
                 Tp2LockTicks            = 8;  // Aseguramos +8 Ticks
-                Version                 = "1.1";
+                Version                 = "2.0";
             }
             else if (State == State.DataLoaded)
             {
