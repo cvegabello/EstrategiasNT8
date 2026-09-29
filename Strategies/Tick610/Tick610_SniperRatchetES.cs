@@ -84,7 +84,7 @@ namespace NinjaTrader.NinjaScript.Strategies.Tick610
             {
                 // Instanciar Indicadores solo una vez para eficiencia en Ticks
                 linReg = LinReg(SlopePeriod);
-                keltner = KeltnerChannel(KeltnerPeriod, 1.5); // Multiplicador de banda estándar, usaremos solo la línea media
+                keltner = KeltnerChannel(1.5, KeltnerPeriod); // Multiplicador de banda estándar, usaremos solo la línea media
                 volSma = SMA(VOL(), VolSmaPeriod);
                 macd = MACD(12, 26, 9);
 
