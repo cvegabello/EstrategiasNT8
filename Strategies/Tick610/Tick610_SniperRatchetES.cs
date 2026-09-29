@@ -36,6 +36,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private KeltnerChannel keltner;
         private SMA volSma;
         private MACD macd;
+        private TEMA temaTrigger;
 
         // === VARIABLES DE CONTROL (INTERFAZ WPF) ===
         private System.Windows.Controls.Button panicButton;
@@ -70,6 +71,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SlopeLookbackBars       = 20; // Barras atrás para medir la pendiente
                 SlopeThresholdTicks     = 20; // Diferencia mínima en Ticks para validar la fuerza de la pendiente
                 KeltnerPeriod           = 52;
+                TemaPeriod              = 13; // TEMA como gatillo alisado
                 VolSmaPeriod            = 20;
                 VolMultiplier           = 1.5;
                 
@@ -79,7 +81,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Tp1LockTicks            = 2;  // Aseguramos +2 Ticks
                 Tp2Ticks                = 14; // Hito 2: Precio alcanza +14 Ticks
                 Tp2LockTicks            = 8;  // Aseguramos +8 Ticks
-                Version                 = "1.0";
+                Version                 = "1.1";
             }
             else if (State == State.DataLoaded)
             {
@@ -88,10 +90,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 keltner = KeltnerChannel(1.5, KeltnerPeriod); // Multiplicador de banda estándar, usaremos solo la línea media
                 volSma = SMA(VOL(), VolSmaPeriod);
                 macd = MACD(12, 26, 9);
+                temaTrigger = TEMA(TemaPeriod);
 
                 // Agregar indicadores a la gráfica para visualización
                 AddChartIndicator(linReg);
                 AddChartIndicator(keltner);
+                AddChartIndicator(temaTrigger);
             }
             else if (State == State.Historical)
             {
@@ -162,9 +166,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool strongUptrend = linRegDiffTicks > SlopeThresholdTicks;
                 bool strongDowntrend = linRegDiffTicks < -SlopeThresholdTicks;
 
-                // B) Retroceso y Toque del Keltner (Penetración de la mecha, Opción B)
-                bool touchKeltnerMidLong = Low[0] <= keltner.Midline[0] && Close[0] > keltner.Midline[0];
-                bool touchKeltnerMidShort = High[0] >= keltner.Midline[0] && Close[0] < keltner.Midline[0];
+                // B) Retroceso y Cruce usando TEMA como "Precio Alisado"
+                bool touchKeltnerMidLong = temaTrigger[1] <= keltner.Midline[1] && temaTrigger[0] > keltner.Midline[0];
+                bool touchKeltnerMidShort = temaTrigger[1] >= keltner.Midline[1] && temaTrigger[0] < keltner.Midline[0];
 
                 // C) Explosión de Volumen Institucional
                 bool extremeVolume = Volume[0] > (volSma[0] * VolMultiplier);
@@ -385,6 +389,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, int.MaxValue)]
         [Display(Name="Periodo Keltner", Order=1, GroupName="2. Estructura y Pullback")]
         public int KeltnerPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Periodo TEMA (Gatillo)", Description="TEMA actuando como precio alisado", Order=2, GroupName="2. Estructura y Pullback")]
+        public int TemaPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
