@@ -173,6 +173,28 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool macdAccelUp = macd.Diff[0] > macd.Diff[1];
                 bool macdAccelDown = macd.Diff[0] < macd.Diff[1];
 
+                // --- Log de Diagnóstico (Solo cuando hay toque Keltner) ---
+                if (touchKeltnerMidLong || touchKeltnerMidShort)
+                {
+                    string dir = touchKeltnerMidLong ? "LONG" : "SHORT";
+                    string msg = string.Format("{0} - [EVALUANDO {1}] Toque Keltner Detectado.\n", Time[0], dir);
+                    
+                    bool trendPass = dir == "LONG" ? strongUptrend : strongDowntrend;
+                    string reqTrend = dir == "LONG" ? "> " + SlopeThresholdTicks : "< -" + SlopeThresholdTicks;
+                    msg += string.Format("   - Tendencia (LinReg Diff): {0:F2} Ticks. Requisito ({1}): {2}\n", 
+                        linRegDiffTicks, reqTrend, trendPass ? "PASÓ" : "FALLÓ");
+                    
+                    double volThreshold = volSma[0] * VolMultiplier;
+                    msg += string.Format("   - Volumen: {0}. Requisito (> {1:F2}): {2}\n", 
+                        Volume[0], volThreshold, extremeVolume ? "PASÓ" : "FALLÓ");
+
+                    bool macdPass = dir == "LONG" ? macdAccelUp : macdAccelDown;
+                    msg += string.Format("   - MACD Aceleración: Diff[0]={0:F4}, Diff[1]={1:F4}. Requisito a favor: {2}", 
+                        macd.Diff[0], macd.Diff[1], macdPass ? "PASÓ" : "FALLÓ");
+
+                    Print(msg);
+                }
+
                 // --- Ejecución de Entradas ---
 
                 // COMPRAS (Long)
