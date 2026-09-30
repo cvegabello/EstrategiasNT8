@@ -69,7 +69,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades por defecto
-                Version                 = "2.1";
+                Version                 = "2.2";
                 
                 EmaPeriod               = 200;
                 TemaPeriod              = 9;
@@ -147,36 +147,48 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (Low[i] <= ema200[i]) emaLongValid = false;   // Todo debe estar arriba para largos
                 }
 
-                // B) Detectar Gancho del TEMA en Bandas Extremas (Setup Alert)
+                // B) Modelo Híbrido: Precio o TEMA en Extremo (últimas 3 barras) + Gancho/Cruce de Retorno
+                bool touchedUpperExtreme = false;
+                bool touchedLowerExtreme = false;
                 double upperBandTolerance = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
                 double lowerBandTolerance = keltner.Lower[1] + (TemaToleranceTicks * TickSize);
 
-                // Setup Corto: TEMA estaba muy arriba y acaba de enganchar hacia abajo
-                bool hookDown = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < temaTrigger[1];
-                if (hookDown)
+                for (int i = 1; i <= 3; i++)
+                {
+                    if (High[i] >= upperBandTolerance || temaTrigger[i] >= upperBandTolerance) touchedUpperExtreme = true;
+                    if (Low[i] <= lowerBandTolerance || temaTrigger[i] <= lowerBandTolerance) touchedLowerExtreme = true;
+                }
+
+                // Setup Corto: Gancho (Pico) o Cruce de Retorno bajista
+                bool isPeakShort = temaTrigger[2] < temaTrigger[1] && temaTrigger[0] < temaTrigger[1];
+                bool isCrossBackShort = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < upperBandTolerance && temaTrigger[0] < temaTrigger[1];
+                
+                if ((isPeakShort && touchedUpperExtreme) || isCrossBackShort)
                 {
                     if (!emaShortValid) 
-                        Print(Time[0] + " - [FILTRO MACRO] Gancho bajista ignorado. El precio tocó la EMA 200 recientemente.");
+                        Print(Time[0] + " - [FILTRO MACRO] Gancho bajista ignorado. El precio cruzó la EMA 200 en las últimas " + CountdownBars + " barras.");
                     else
                     {
                         if (currentSetup == SetupType.Short) Print(Time[0] + " - [RESETEO CORTO] Nuevo gancho bajista. Reloj reiniciado a 0.");
-                        else Print(Time[0] + " - [ALERTA CORTO] Gancho TEMA en Banda Superior. Iniciando reloj de " + CountdownBars + " barras.");
+                        else Print(Time[0] + " - [ALERTA CORTO] Zona Extrema + Gancho TEMA. Iniciando reloj de " + CountdownBars + " barras.");
                         
                         currentSetup = SetupType.Short;
                         setupBarCounter = 0;
                     }
                 }
 
-                // Setup Largo: TEMA estaba muy abajo y acaba de enganchar hacia arriba
-                bool hookUp = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
-                if (hookUp)
+                // Setup Largo: Gancho (Valle) o Cruce de Retorno alcista
+                bool isTroughLong = temaTrigger[2] > temaTrigger[1] && temaTrigger[0] > temaTrigger[1];
+                bool isCrossBackLong = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
+                
+                if ((isTroughLong && touchedLowerExtreme) || isCrossBackLong)
                 {
                     if (!emaLongValid) 
-                        Print(Time[0] + " - [FILTRO MACRO] Gancho alcista ignorado. El precio tocó la EMA 200 recientemente.");
+                        Print(Time[0] + " - [FILTRO MACRO] Gancho alcista ignorado. El precio cruzó la EMA 200 en las últimas " + CountdownBars + " barras.");
                     else
                     {
                         if (currentSetup == SetupType.Long) Print(Time[0] + " - [RESETEO LARGO] Nuevo gancho alcista. Reloj reiniciado a 0.");
-                        else Print(Time[0] + " - [ALERTA LARGO] Gancho TEMA en Banda Inferior. Iniciando reloj de " + CountdownBars + " barras.");
+                        else Print(Time[0] + " - [ALERTA LARGO] Zona Extrema + Gancho TEMA. Iniciando reloj de " + CountdownBars + " barras.");
                         
                         currentSetup = SetupType.Long;
                         setupBarCounter = 0;
