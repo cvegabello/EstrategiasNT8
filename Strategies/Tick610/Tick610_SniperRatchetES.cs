@@ -153,20 +153,34 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Setup Corto: TEMA estaba muy arriba y acaba de enganchar hacia abajo
                 bool hookDown = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < temaTrigger[1];
-                if (hookDown && emaShortValid)
+                if (hookDown)
                 {
-                    currentSetup = SetupType.Short;
-                    setupBarCounter = 0;
-                    Print(Time[0] + " - [ALERTA CORTO] Gancho TEMA detectado en Banda Superior. Iniciando reloj de " + CountdownBars + " barras.");
+                    if (!emaShortValid) 
+                        Print(Time[0] + " - [FILTRO MACRO] Gancho bajista ignorado. El precio tocó la EMA 200 recientemente.");
+                    else
+                    {
+                        if (currentSetup == SetupType.Short) Print(Time[0] + " - [RESETEO CORTO] Nuevo gancho bajista. Reloj reiniciado a 0.");
+                        else Print(Time[0] + " - [ALERTA CORTO] Gancho TEMA en Banda Superior. Iniciando reloj de " + CountdownBars + " barras.");
+                        
+                        currentSetup = SetupType.Short;
+                        setupBarCounter = 0;
+                    }
                 }
 
                 // Setup Largo: TEMA estaba muy abajo y acaba de enganchar hacia arriba
                 bool hookUp = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
-                if (hookUp && emaLongValid)
+                if (hookUp)
                 {
-                    currentSetup = SetupType.Long;
-                    setupBarCounter = 0;
-                    Print(Time[0] + " - [ALERTA LARGO] Gancho TEMA detectado en Banda Inferior. Iniciando reloj de " + CountdownBars + " barras.");
+                    if (!emaLongValid) 
+                        Print(Time[0] + " - [FILTRO MACRO] Gancho alcista ignorado. El precio tocó la EMA 200 recientemente.");
+                    else
+                    {
+                        if (currentSetup == SetupType.Long) Print(Time[0] + " - [RESETEO LARGO] Nuevo gancho alcista. Reloj reiniciado a 0.");
+                        else Print(Time[0] + " - [ALERTA LARGO] Gancho TEMA en Banda Inferior. Iniciando reloj de " + CountdownBars + " barras.");
+                        
+                        currentSetup = SetupType.Long;
+                        setupBarCounter = 0;
+                    }
                 }
 
                 // C) Evaluar Conteo y Disparo
