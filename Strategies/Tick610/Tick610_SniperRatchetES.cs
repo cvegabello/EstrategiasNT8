@@ -53,7 +53,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper V3.0: Setup Híbrido, Filtros desvinculados, Break-Even y Ahogo Parabólico.";
+                Description                                 = @"Estrategia Sniper V3.1: Setup Híbrido, Break-Even Blindado y Ahogo Parabólico.";
                 Name                                        = "Tick610_SniperRatchetES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -72,8 +72,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V3.0
-                Version                 = "3.0";
+                // Propiedades por defecto V3.1
+                Version                 = "3.1";
                 
                 // Horarios
                 StartTime               = 93500;   // 9:35 AM
@@ -316,6 +316,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         slPrice = highestPriceSinceEntry - (ChokeTrailTicks * TickSize);
                 }
 
+                // === BLINDAJE DE BREAK-EVEN (NUEVO V3.1) ===
+                if (maxProfitTicks >= BreakEvenTicks)
+                {
+                    double bePrice = entryPrice + (1 * TickSize);
+                    if (slPrice < bePrice) 
+                    {
+                        slPrice = bePrice; // Forzamos a que nunca sea peor que el Break-Even
+                    }
+                }
+
                 if (slPrice > 0) SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
             }
             else if (Position.MarketPosition == MarketPosition.Short)
@@ -359,6 +369,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         slPrice = keltner.Lower[0] + (SlOffsetTicks * TickSize);
                     else // Si está dentro (Trail Matemático)
                         slPrice = lowestPriceSinceEntry + (ChokeTrailTicks * TickSize);
+                }
+
+                // === BLINDAJE DE BREAK-EVEN (NUEVO V3.1) ===
+                if (maxProfitTicks >= BreakEvenTicks)
+                {
+                    double bePrice = entryPrice - (1 * TickSize);
+                    if (slPrice > bePrice) 
+                    {
+                        slPrice = bePrice; // Forzamos a que nunca sea peor que el Break-Even
+                    }
                 }
 
                 if (slPrice < double.MaxValue) SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
