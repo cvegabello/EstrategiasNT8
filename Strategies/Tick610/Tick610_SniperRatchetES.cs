@@ -53,7 +53,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper V3.3: Toggle para activar/desactivar la Fase 1.5 de Break-Even.";
+                Description                                 = @"Estrategia Sniper V3.4: 'El Chicle Parabólico'. Atrapa los centavos finales en explosiones fuera de la banda Keltner.";
                 Name                                        = "Tick610_SniperRatchetES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -72,8 +72,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V3.3
-                Version                 = "3.3";
+                // Propiedades por defecto V3.4
+                Version                 = "3.4";
                 
                 // Horarios
                 StartTime               = 93500;   // 9:35 AM
@@ -94,11 +94,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MacdSmooth              = 9;
 
                 // Gestión de Riesgo Dinámica
-                UseBreakEven            = true;    // V3.3: Toggle activado por defecto
+                UseBreakEven            = true;    
                 SlOffsetTicks           = 1;
-                BreakEvenTicks          = 16;      // Fase 1.5 a los $200
+                BreakEvenTicks          = 18;      // Ajustado a 18 por defecto
                 ChokeThresholdTicks     = 72;      // Fase 3 a los $900
-                ChokeTrailTicks         = 15;      // Trail matemático de la Fase 3
+                ChokeTrailTicks         = 15;      // Trail matemático interno de la Fase 3
+                
+                // Nuevos parámetros V3.4 (Chicle Parabólico)
+                ParabolicTriggerTicks   = 4;       // A cuántos ticks por fuera de la banda se activa el chicle
+                ParabolicChicleTicks    = 4;       // Qué tan pegado al precio extremo va el chicle
             }
             else if (State == State.DataLoaded)
             {
@@ -107,7 +111,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 keltner = KeltnerChannel(KeltnerMultiplier, KeltnerPeriod);
                 macd = MACD(MacdFast, MacdSlow, MacdSmooth);
 
-                // AUTO-ARRANQUE PARA STRATEGY ANALYZER
                 if (ChartControl == null)
                 {
                     isStrategyActive = true; 
@@ -154,7 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // Actualizar MFE si estamos en posición
+            // Actualizar MFE
             if (Position.MarketPosition == MarketPosition.Long)
             {
                 if (High[0] > highestPriceSinceEntry) highestPriceSinceEntry = High[0];
@@ -164,22 +167,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (Low[0] < lowestPriceSinceEntry) lowestPriceSinceEntry = Low[0];
             }
 
-            // 3. GESTIÓN DE RIESGO: SL DINÁMICO EN FASES
+            // 3. GESTIÓN DE RIESGO
             ManageDynamicTrailingStop();
 
-            // 4. LÓGICA DE ENTRADA (Solo si estamos planos y es hora de operar)
+            // 4. LÓGICA DE ENTRADA
             if (Position.MarketPosition == MarketPosition.Flat && isTradingTime)
             {
-                // A) Verificar Filtro Macro Desacoplado (EMA 200 en últimas EmaFilterBars)
                 bool emaShortValid = true;
                 bool emaLongValid = true;
                 for (int i = 0; i <= EmaFilterBars; i++)
                 {
-                    if (High[i] >= ema200[i]) emaShortValid = false; // Todo debe estar debajo
-                    if (Low[i] <= ema200[i]) emaLongValid = false;   // Todo debe estar arriba
+                    if (High[i] >= ema200[i]) emaShortValid = false; 
+                    if (Low[i] <= ema200[i]) emaLongValid = false;   
                 }
 
-                // B) Modelo Híbrido: Precio o TEMA en Extremo (últimas 3 barras)
                 bool touchedUpperExtreme = false;
                 bool touchedLowerExtreme = false;
                 double upperBandTolerance = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
@@ -191,7 +192,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (Low[i] <= lowerBandTolerance || temaTrigger[i] <= lowerBandTolerance) touchedLowerExtreme = true;
                 }
 
-                // Setup Corto
                 bool isPeakShort = temaTrigger[2] < temaTrigger[1] && temaTrigger[0] < temaTrigger[1];
                 bool isCrossBackShort = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < upperBandTolerance && temaTrigger[0] < temaTrigger[1];
                 
@@ -208,7 +208,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Setup Largo
                 bool isTroughLong = temaTrigger[2] > temaTrigger[1] && temaTrigger[0] > temaTrigger[1];
                 bool isCrossBackLong = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
                 
@@ -225,7 +224,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // C) Evaluar Conteo y Disparo
                 if (currentSetup != SetupType.None)
                 {
                     setupBarCounter++;
@@ -243,7 +241,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             EnterLong("SniperLong");
                             currentTrailingState = TrailingState.Phase1_OuterBand;
-                            highestPriceSinceEntry = High[0]; // Reset tracking
+                            highestPriceSinceEntry = High[0]; 
                             currentSetup = SetupType.None;
                             SetStopLoss("SniperLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); 
                         }
@@ -251,7 +249,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             EnterShort("SniperShort");
                             currentTrailingState = TrailingState.Phase1_OuterBand;
-                            lowestPriceSinceEntry = Low[0]; // Reset tracking
+                            lowestPriceSinceEntry = Low[0]; 
                             currentSetup = SetupType.None;
                             SetStopLoss("SniperShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); 
                         }
@@ -260,7 +258,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else if (Position.MarketPosition != MarketPosition.Flat)
             {
-                currentSetup = SetupType.None; // Reset si ya estamos dentro
+                currentSetup = SetupType.None; 
             }
         }
 
@@ -278,7 +276,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
 
-                // --- EVALUAR UPGRADES DE FASE ---
                 if (maxProfitTicks >= ChokeThresholdTicks && currentTrailingState < TrailingState.Phase3_Choke)
                 {
                     currentTrailingState = TrailingState.Phase3_Choke;
@@ -295,7 +292,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(Time[0] + " - [Fase 1.5 LARGO] Asegurando Break-Even.");
                 }
 
-                // --- APLICAR STOP LOSS SEGÚN FASE ---
                 double slPrice = 0;
                 if (currentTrailingState == TrailingState.Phase1_OuterBand)
                 {
@@ -303,7 +299,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTrailingState == TrailingState.Phase1_5_BreakEven)
                 {
-                    slPrice = entryPrice + (1 * TickSize); // Break Even + 1 tick
+                    slPrice = entryPrice + (1 * TickSize); 
                 }
                 else if (currentTrailingState == TrailingState.Phase2_Midline)
                 {
@@ -311,13 +307,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTrailingState == TrailingState.Phase3_Choke)
                 {
-                    if (Close[0] >= keltner.Upper[0]) // Si está fuera
-                        slPrice = keltner.Upper[0] - (SlOffsetTicks * TickSize);
-                    else // Si está dentro (Trail Matemático)
-                        slPrice = highestPriceSinceEntry - (ChokeTrailTicks * TickSize);
+                    double keltnerSl = keltner.Upper[0] - (SlOffsetTicks * TickSize);
+                    double mathSlInside = highestPriceSinceEntry - (ChokeTrailTicks * TickSize);
+                    double parabolicSl = highestPriceSinceEntry - (ParabolicChicleTicks * TickSize);
+
+                    // Lógica del "Chicle Parabólico" (V3.4)
+                    if (highestPriceSinceEntry >= keltner.Upper[0] + (ParabolicTriggerTicks * TickSize))
+                    {
+                        // Si vuela lejos de la banda, tomamos el chicle parabólico o la banda (el que esté más arriba)
+                        slPrice = Math.Max(keltnerSl, parabolicSl);
+                    }
+                    else if (Close[0] >= keltner.Upper[0]) 
+                    {
+                        slPrice = keltnerSl; // Pegado normal a la banda externa
+                    }
+                    else 
+                    {
+                        slPrice = mathSlInside; // Trail interno de holgura
+                    }
                 }
 
-                // BLINDAJE DE BREAK-EVEN
                 if (UseBreakEven && maxProfitTicks >= BreakEvenTicks)
                 {
                     double bePrice = entryPrice + (1 * TickSize);
@@ -330,7 +339,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
 
-                // --- EVALUAR UPGRADES DE FASE ---
                 if (maxProfitTicks >= ChokeThresholdTicks && currentTrailingState < TrailingState.Phase3_Choke)
                 {
                     currentTrailingState = TrailingState.Phase3_Choke;
@@ -347,7 +355,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(Time[0] + " - [Fase 1.5 CORTO] Asegurando Break-Even.");
                 }
 
-                // --- APLICAR STOP LOSS SEGÚN FASE ---
                 double slPrice = double.MaxValue;
                 if (currentTrailingState == TrailingState.Phase1_OuterBand)
                 {
@@ -355,7 +362,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTrailingState == TrailingState.Phase1_5_BreakEven)
                 {
-                    slPrice = entryPrice - (1 * TickSize); // Break Even - 1 tick
+                    slPrice = entryPrice - (1 * TickSize); 
                 }
                 else if (currentTrailingState == TrailingState.Phase2_Midline)
                 {
@@ -363,13 +370,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTrailingState == TrailingState.Phase3_Choke)
                 {
-                    if (Close[0] <= keltner.Lower[0]) // Si está fuera
-                        slPrice = keltner.Lower[0] + (SlOffsetTicks * TickSize);
-                    else // Si está dentro (Trail Matemático)
-                        slPrice = lowestPriceSinceEntry + (ChokeTrailTicks * TickSize);
+                    double keltnerSl = keltner.Lower[0] + (SlOffsetTicks * TickSize);
+                    double mathSlInside = lowestPriceSinceEntry + (ChokeTrailTicks * TickSize);
+                    double parabolicSl = lowestPriceSinceEntry + (ParabolicChicleTicks * TickSize);
+
+                    // Lógica del "Chicle Parabólico" (V3.4)
+                    if (lowestPriceSinceEntry <= keltner.Lower[0] - (ParabolicTriggerTicks * TickSize))
+                    {
+                        // Si vuela lejos de la banda, tomamos el chicle parabólico o la banda (el que esté más abajo)
+                        slPrice = Math.Min(keltnerSl, parabolicSl);
+                    }
+                    else if (Close[0] <= keltner.Lower[0]) 
+                    {
+                        slPrice = keltnerSl; // Pegado normal a la banda externa
+                    }
+                    else 
+                    {
+                        slPrice = mathSlInside; // Trail interno de holgura
+                    }
                 }
 
-                // BLINDAJE DE BREAK-EVEN
                 if (UseBreakEven && maxProfitTicks >= BreakEvenTicks)
                 {
                     double bePrice = entryPrice - (1 * TickSize);
@@ -381,7 +401,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         #region Interfaz UI y Botón de Pánico (WPF)
-        // ... WPF methods ...
+        // ... WPF
         private void CreateWPFControls()
         {
             chartGrid = new System.Windows.Controls.Grid { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 10, 10) };
@@ -450,7 +470,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Barras Filtro EMA", Description="Lookback para asegurar tendencia pura", Order=2, GroupName="2. Filtro Macro")]
+        [Display(Name="Barras Filtro EMA", Order=2, GroupName="2. Filtro Macro")]
         public int EmaFilterBars { get; set; }
 
         [NinjaScriptProperty]
@@ -502,6 +522,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, int.MaxValue)]
         [Display(Name="Trail de Ahogo Ticks", Order=5, GroupName="5. Gestión de Riesgo Dinámica")]
         public int ChokeTrailTicks { get; set; }
+        
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Activación Chicle (Ticks Extremos)", Order=6, GroupName="5. Gestión de Riesgo Dinámica")]
+        public int ParabolicTriggerTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Distancia Chicle Ticks", Order=7, GroupName="5. Gestión de Riesgo Dinámica")]
+        public int ParabolicChicleTicks { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name="Usar MACD Opcional", Order=1, GroupName="6. Opcionales")]
