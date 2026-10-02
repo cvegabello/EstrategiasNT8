@@ -53,7 +53,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper V3.1: Setup Híbrido, Break-Even Blindado y Ahogo Parabólico.";
+                Description                                 = @"Estrategia Sniper V3.2: Stops Simulados para evitar rechazos de bróker en alta volatilidad.";
                 Name                                        = "Tick610_SniperRatchetES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -72,8 +72,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V3.1
-                Version                 = "3.1";
+                // Propiedades por defecto V3.2
+                Version                 = "3.2";
                 
                 // Horarios
                 StartTime               = 93500;   // 9:35 AM
@@ -244,7 +244,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             currentTrailingState = TrailingState.Phase1_OuterBand;
                             highestPriceSinceEntry = High[0]; // Reset tracking
                             currentSetup = SetupType.None;
-                            SetStopLoss("SniperLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), false);
+                            SetStopLoss("SniperLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); // V3.2 Simulated
                         }
                         else if (currentSetup == SetupType.Short && CrossBelow(temaTrigger, keltner.Midline, 1) && macdValidShort)
                         {
@@ -252,7 +252,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             currentTrailingState = TrailingState.Phase1_OuterBand;
                             lowestPriceSinceEntry = Low[0]; // Reset tracking
                             currentSetup = SetupType.None;
-                            SetStopLoss("SniperShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), false);
+                            SetStopLoss("SniperShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); // V3.2 Simulated
                         }
                     }
                 }
@@ -316,17 +316,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                         slPrice = highestPriceSinceEntry - (ChokeTrailTicks * TickSize);
                 }
 
-                // === BLINDAJE DE BREAK-EVEN (NUEVO V3.1) ===
+                // BLINDAJE DE BREAK-EVEN
                 if (maxProfitTicks >= BreakEvenTicks)
                 {
                     double bePrice = entryPrice + (1 * TickSize);
-                    if (slPrice < bePrice) 
-                    {
-                        slPrice = bePrice; // Forzamos a que nunca sea peor que el Break-Even
-                    }
+                    if (slPrice < bePrice) slPrice = bePrice; 
                 }
 
-                if (slPrice > 0) SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
+                // V3.2 Simulated Stop = true
+                if (slPrice > 0) SetStopLoss("SniperLong", CalculationMode.Price, slPrice, true);
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
@@ -371,21 +369,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                         slPrice = lowestPriceSinceEntry + (ChokeTrailTicks * TickSize);
                 }
 
-                // === BLINDAJE DE BREAK-EVEN (NUEVO V3.1) ===
+                // BLINDAJE DE BREAK-EVEN
                 if (maxProfitTicks >= BreakEvenTicks)
                 {
                     double bePrice = entryPrice - (1 * TickSize);
-                    if (slPrice > bePrice) 
-                    {
-                        slPrice = bePrice; // Forzamos a que nunca sea peor que el Break-Even
-                    }
+                    if (slPrice > bePrice) slPrice = bePrice; 
                 }
 
-                if (slPrice < double.MaxValue) SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
+                // V3.2 Simulated Stop = true
+                if (slPrice < double.MaxValue) SetStopLoss("SniperShort", CalculationMode.Price, slPrice, true);
             }
         }
 
         #region Interfaz UI y Botón de Pánico (WPF)
+        // ... (WPF logic remains identical)
         private void CreateWPFControls()
         {
             chartGrid = new System.Windows.Controls.Grid { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 10, 10) };
@@ -395,7 +392,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             UserControlCollection.Add(chartGrid);
             ChartPanel.PreviewKeyDown += ChartPanel_PreviewKeyDown;
 
-            // Asegurar sincronización UI si arranca activo por Strategy Analyzer
             if (isStrategyActive)
             {
                 panicButton.Content = "Sniper: ACTIVO";
