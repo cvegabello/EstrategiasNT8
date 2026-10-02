@@ -31,8 +31,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         private SetupType currentSetup = SetupType.None;
         private int setupBarCounter = 0;
 
-        private enum TrailingState { None, Phase1_OuterBand, Phase2_Midline }
+        private enum TrailingState { None, Phase1_OuterBand, Phase1_5_BreakEven, Phase2_Midline, Phase3_Choke }
         private TrailingState currentTrailingState = TrailingState.None;
+
+        // Variables para tracking de MFE (Máxima excursión a favor)
+        private double highestPriceSinceEntry = 0;
+        private double lowestPriceSinceEntry = double.MaxValue;
 
         // === INDICADORES ===
         private EMA ema200;
@@ -43,13 +47,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         // === VARIABLES DE CONTROL (INTERFAZ WPF) ===
         private System.Windows.Controls.Button panicButton;
         private System.Windows.Controls.Grid chartGrid;
-        private bool isStrategyActive = false; // Inicia pausada por defecto
+        private bool isStrategyActive = false; 
 
         protected override void OnStateChange()
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper V2.1: Setup de rebote TEMA en extremos Keltner y SL Dinámico en fases.";
+                Description                                 = @"Estrategia Sniper V3.0: Setup Híbrido, Filtros desvinculados, Break-Even y Ahogo Parabólico.";
                 Name                                        = "Tick610_SniperRatchetES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -65,13 +69,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TraceOrders                                 = false;
                 RealtimeErrorHandling                       = RealtimeErrorHandling.StopCancelClose;
                 StopTargetHandling                          = StopTargetHandling.PerEntryExecution;
-                BarsRequiredToTrade                         = 200; // Necesitamos al menos 200 para la EMA 200
+                BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto
-                Version                 = "2.2";
+                // Propiedades por defecto V3.0
+                Version                 = "3.0";
                 
+                // Horarios
+                StartTime               = 93500;   // 9:35 AM
+                StopEntriesTime         = 154500;  // 3:45 PM
+                ForceCloseTime          = 160000;  // 4:00 PM
+
                 EmaPeriod               = 200;
+                EmaFilterBars           = 20;      // N barras hacia atrás para validar tendencia pura
                 TemaPeriod              = 9;
                 KeltnerPeriod           = 52;
                 KeltnerMultiplier       = 3.5;
@@ -82,27 +92,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MacdSlow                = 17;
                 MacdSmooth              = 9;
 
-                SlOffsetTicks           = 1; // 1 tick "afuerita" del canal
-                TemaToleranceTicks      = 2; // Distancia máxima para considerar que el TEMA "tocó" la banda
+                // Gestión de Riesgo Dinámica
+                SlOffsetTicks           = 1;
+                TemaToleranceTicks      = 2;
+                BreakEvenTicks          = 16;      // Fase 1.5 a los $200
+                ChokeThresholdTicks     = 72;      // Fase 3 a los $900
+                ChokeTrailTicks         = 15;      // Trail matemático de la Fase 3
             }
             else if (State == State.DataLoaded)
             {
-                // Instanciar Indicadores (Sin AddChartIndicator por solicitud del usuario)
                 ema200 = EMA(EmaPeriod);
                 temaTrigger = TEMA(TemaPeriod);
                 keltner = KeltnerChannel(KeltnerMultiplier, KeltnerPeriod);
                 macd = MACD(MacdFast, MacdSlow, MacdSmooth);
+
+                // AUTO-ARRANQUE PARA STRATEGY ANALYZER
+                if (ChartControl == null)
+                {
+                    isStrategyActive = true; 
+                    Print("Entorno Headless (Analyzer) detectado. Estrategia auto-activada.");
+                }
             }
             else if (State == State.Historical)
             {
-                if (UserControlCollection != null)
+                if (ChartControl != null && UserControlCollection != null)
                 {
                     Dispatcher.InvokeAsync((() => { CreateWPFControls(); }));
                 }
             }
             else if (State == State.Terminated)
             {
-                if (UserControlCollection != null)
+                if (ChartControl != null && UserControlCollection != null)
                 {
                     Dispatcher.InvokeAsync((() => { DisposeWPFControls(); }));
                 }
@@ -111,43 +131,54 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnBarUpdate()
         {
-            if (CurrentBar < BarsRequiredToTrade) return;
+            if (CurrentBar < Math.Max(BarsRequiredToTrade, EmaFilterBars)) return;
 
             // 1. CONTROL DE LA INTERFAZ WPF
-            if (!isStrategyActive) return; // Si está pausada, no evalúa ni gestiona.
+            if (!isStrategyActive) return;
 
-            // 2. FILTRO HORARIO RTH EXTENDIDO (10:00 AM - 4:00 PM EST)
+            // 2. CONTROL HORARIO
             int timeNow = ToTime(Time[0]);
-            bool isRTH = timeNow >= 100000 && timeNow < 160000;
+            bool isForceCloseTime = timeNow >= ForceCloseTime;
+            bool isTradingTime = timeNow >= StartTime && timeNow <= StopEntriesTime;
 
-            if (!isRTH)
+            if (isForceCloseTime)
             {
                 if (Position.MarketPosition != MarketPosition.Flat)
                 {
                     ExitLong("Cierre Fuera Horario", "SniperLong");
                     ExitShort("Cierre Fuera Horario", "SniperShort");
-                    Print(Time[0] + " - Posición cerrada por seguridad horaria (Fuera de 10AM-4PM).");
+                    Print(Time[0] + " - Posición cerrada por seguridad (4:00 PM).");
                 }
-                currentSetup = SetupType.None; // Resetear setups pendientes
+                currentSetup = SetupType.None;
                 return;
+            }
+
+            // Actualizar MFE si estamos en posición
+            if (Position.MarketPosition == MarketPosition.Long)
+            {
+                if (High[0] > highestPriceSinceEntry) highestPriceSinceEntry = High[0];
+            }
+            else if (Position.MarketPosition == MarketPosition.Short)
+            {
+                if (Low[0] < lowestPriceSinceEntry) lowestPriceSinceEntry = Low[0];
             }
 
             // 3. GESTIÓN DE RIESGO: SL DINÁMICO EN FASES
             ManageDynamicTrailingStop();
 
-            // 4. LÓGICA DE ALERTA (SETUP) Y DISPARO (TRIGGER)
-            if (Position.MarketPosition == MarketPosition.Flat)
+            // 4. LÓGICA DE ENTRADA (Solo si estamos planos y es hora de operar)
+            if (Position.MarketPosition == MarketPosition.Flat && isTradingTime)
             {
-                // A) Verificar Filtro Macro (EMA 200) de las últimas N barras
+                // A) Verificar Filtro Macro Desacoplado (EMA 200 en últimas EmaFilterBars)
                 bool emaShortValid = true;
                 bool emaLongValid = true;
-                for (int i = 0; i <= CountdownBars; i++)
+                for (int i = 0; i <= EmaFilterBars; i++)
                 {
-                    if (High[i] >= ema200[i]) emaShortValid = false; // Todo debe estar debajo para cortos
-                    if (Low[i] <= ema200[i]) emaLongValid = false;   // Todo debe estar arriba para largos
+                    if (High[i] >= ema200[i]) emaShortValid = false; // Todo debe estar debajo
+                    if (Low[i] <= ema200[i]) emaLongValid = false;   // Todo debe estar arriba
                 }
 
-                // B) Modelo Híbrido: Precio o TEMA en Extremo (últimas 3 barras) + Gancho/Cruce de Retorno
+                // B) Modelo Híbrido: Precio o TEMA en Extremo (últimas 3 barras)
                 bool touchedUpperExtreme = false;
                 bool touchedLowerExtreme = false;
                 double upperBandTolerance = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
@@ -159,37 +190,35 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (Low[i] <= lowerBandTolerance || temaTrigger[i] <= lowerBandTolerance) touchedLowerExtreme = true;
                 }
 
-                // Setup Corto: Gancho (Pico) o Cruce de Retorno bajista
+                // Setup Corto
                 bool isPeakShort = temaTrigger[2] < temaTrigger[1] && temaTrigger[0] < temaTrigger[1];
                 bool isCrossBackShort = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < upperBandTolerance && temaTrigger[0] < temaTrigger[1];
                 
                 if ((isPeakShort && touchedUpperExtreme) || isCrossBackShort)
                 {
                     if (!emaShortValid) 
-                        Print(Time[0] + " - [FILTRO MACRO] Gancho bajista ignorado. El precio cruzó la EMA 200 en las últimas " + CountdownBars + " barras.");
+                        Print(Time[0] + " - [FILTRO MACRO] Corto ignorado. Precio cruzó EMA 200 en las últimas " + EmaFilterBars + " barras.");
                     else
                     {
-                        if (currentSetup == SetupType.Short) Print(Time[0] + " - [RESETEO CORTO] Nuevo gancho bajista. Reloj reiniciado a 0.");
-                        else Print(Time[0] + " - [ALERTA CORTO] Zona Extrema + Gancho TEMA. Iniciando reloj de " + CountdownBars + " barras.");
-                        
+                        if (currentSetup == SetupType.Short) Print(Time[0] + " - [RESETEO CORTO] Reloj a 0.");
+                        else Print(Time[0] + " - [ALERTA CORTO] Iniciando reloj de " + CountdownBars + " barras.");
                         currentSetup = SetupType.Short;
                         setupBarCounter = 0;
                     }
                 }
 
-                // Setup Largo: Gancho (Valle) o Cruce de Retorno alcista
+                // Setup Largo
                 bool isTroughLong = temaTrigger[2] > temaTrigger[1] && temaTrigger[0] > temaTrigger[1];
                 bool isCrossBackLong = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
                 
                 if ((isTroughLong && touchedLowerExtreme) || isCrossBackLong)
                 {
                     if (!emaLongValid) 
-                        Print(Time[0] + " - [FILTRO MACRO] Gancho alcista ignorado. El precio cruzó la EMA 200 en las últimas " + CountdownBars + " barras.");
+                        Print(Time[0] + " - [FILTRO MACRO] Largo ignorado. Precio cruzó EMA 200 en las últimas " + EmaFilterBars + " barras.");
                     else
                     {
-                        if (currentSetup == SetupType.Long) Print(Time[0] + " - [RESETEO LARGO] Nuevo gancho alcista. Reloj reiniciado a 0.");
-                        else Print(Time[0] + " - [ALERTA LARGO] Zona Extrema + Gancho TEMA. Iniciando reloj de " + CountdownBars + " barras.");
-                        
+                        if (currentSetup == SetupType.Long) Print(Time[0] + " - [RESETEO LARGO] Reloj a 0.");
+                        else Print(Time[0] + " - [ALERTA LARGO] Iniciando reloj de " + CountdownBars + " barras.");
                         currentSetup = SetupType.Long;
                         setupBarCounter = 0;
                     }
@@ -199,53 +228,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (currentSetup != SetupType.None)
                 {
                     setupBarCounter++;
-
                     if (setupBarCounter > CountdownBars)
                     {
-                        Print(Time[0] + " - [SETUP CANCELADO] Pasaron " + CountdownBars + " barras sin cruzar la Línea Media.");
+                        Print(Time[0] + " - [SETUP CANCELADO] Pasaron " + CountdownBars + " barras.");
                         currentSetup = SetupType.None;
                     }
                     else
                     {
-                        // MACD Opcional
                         bool macdValidLong = !UseMacdFilter || (macd.Diff[0] > macd.Diff[1]);
                         bool macdValidShort = !UseMacdFilter || (macd.Diff[0] < macd.Diff[1]);
 
-                        // Disparo Largo: TEMA cruza Línea Media hacia arriba
                         if (currentSetup == SetupType.Long && CrossAbove(temaTrigger, keltner.Midline, 1) && macdValidLong)
                         {
                             EnterLong("SniperLong");
                             currentTrailingState = TrailingState.Phase1_OuterBand;
+                            highestPriceSinceEntry = High[0]; // Reset tracking
                             currentSetup = SetupType.None;
-                            
-                            // Colocar Stop Loss Inicial inmediatamente
-                            double slPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
-                            SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
-                            Print(Time[0] + " - [DISPARO LARGO] TEMA cruzó Midline. SL Inicial en Banda Inferior: " + slPrice);
+                            SetStopLoss("SniperLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), false);
                         }
-                        // Disparo Corto: TEMA cruza Línea Media hacia abajo
                         else if (currentSetup == SetupType.Short && CrossBelow(temaTrigger, keltner.Midline, 1) && macdValidShort)
                         {
                             EnterShort("SniperShort");
                             currentTrailingState = TrailingState.Phase1_OuterBand;
+                            lowestPriceSinceEntry = Low[0]; // Reset tracking
                             currentSetup = SetupType.None;
-
-                            // Colocar Stop Loss Inicial inmediatamente
-                            double slPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
-                            SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
-                            Print(Time[0] + " - [DISPARO CORTO] TEMA cruzó Midline. SL Inicial en Banda Superior: " + slPrice);
+                            SetStopLoss("SniperShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), false);
                         }
                     }
                 }
             }
-            else
+            else if (Position.MarketPosition != MarketPosition.Flat)
             {
-                // Si tenemos posición, apagamos cualquier setup pendiente por si acaso.
-                currentSetup = SetupType.None;
+                currentSetup = SetupType.None; // Reset si ya estamos dentro
             }
         }
 
-        // --- GESTIÓN DEL STOP LOSS DINÁMICO ---
         private void ManageDynamicTrailingStop()
         {
             if (Position.MarketPosition == MarketPosition.Flat)
@@ -254,49 +271,97 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
+            double entryPrice = Position.AveragePrice;
+
             if (Position.MarketPosition == MarketPosition.Long)
             {
+                double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
+
+                // --- EVALUAR UPGRADES DE FASE ---
+                if (maxProfitTicks >= ChokeThresholdTicks && currentTrailingState < TrailingState.Phase3_Choke)
+                {
+                    currentTrailingState = TrailingState.Phase3_Choke;
+                    Print(Time[0] + " - [Fase 3 LARGO] Límite de estrangulamiento alcanzado (" + ChokeThresholdTicks + " tks).");
+                }
+                else if (High[0] >= keltner.Upper[0] && currentTrailingState < TrailingState.Phase2_Midline && currentTrailingState != TrailingState.Phase3_Choke)
+                {
+                    currentTrailingState = TrailingState.Phase2_Midline;
+                    Print(Time[0] + " - [Fase 2 LARGO] Banda tocada. Persiguiendo Línea Media.");
+                }
+                else if (maxProfitTicks >= BreakEvenTicks && currentTrailingState < TrailingState.Phase1_5_BreakEven && currentTrailingState != TrailingState.Phase3_Choke)
+                {
+                    currentTrailingState = TrailingState.Phase1_5_BreakEven;
+                    Print(Time[0] + " - [Fase 1.5 LARGO] Asegurando Break-Even.");
+                }
+
+                // --- APLICAR STOP LOSS SEGÚN FASE ---
+                double slPrice = 0;
                 if (currentTrailingState == TrailingState.Phase1_OuterBand)
                 {
-                    // SL anclado a la Banda Inferior
-                    double slPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
-                    SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
-
-                    // Verificar transición a Fase 2 (Precio toca Banda Superior)
-                    if (High[0] >= keltner.Upper[0])
-                    {
-                        currentTrailingState = TrailingState.Phase2_Midline;
-                        Print(Time[0] + " - [Fase 2 LARGO] El precio tocó la Banda Superior. El SL salta a perseguir la Línea Media.");
-                    }
+                    slPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
+                }
+                else if (currentTrailingState == TrailingState.Phase1_5_BreakEven)
+                {
+                    slPrice = entryPrice + (1 * TickSize); // Break Even + 1 tick
                 }
                 else if (currentTrailingState == TrailingState.Phase2_Midline)
                 {
-                    // SL anclado a la Línea Media
-                    double slPrice = keltner.Midline[0] - (SlOffsetTicks * TickSize);
-                    SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
+                    slPrice = keltner.Midline[0] - (SlOffsetTicks * TickSize);
                 }
+                else if (currentTrailingState == TrailingState.Phase3_Choke)
+                {
+                    if (Close[0] >= keltner.Upper[0]) // Si está fuera
+                        slPrice = keltner.Upper[0] - (SlOffsetTicks * TickSize);
+                    else // Si está dentro (Trail Matemático)
+                        slPrice = highestPriceSinceEntry - (ChokeTrailTicks * TickSize);
+                }
+
+                if (slPrice > 0) SetStopLoss("SniperLong", CalculationMode.Price, slPrice, false);
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
+                double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
+
+                // --- EVALUAR UPGRADES DE FASE ---
+                if (maxProfitTicks >= ChokeThresholdTicks && currentTrailingState < TrailingState.Phase3_Choke)
+                {
+                    currentTrailingState = TrailingState.Phase3_Choke;
+                    Print(Time[0] + " - [Fase 3 CORTO] Límite de estrangulamiento alcanzado (" + ChokeThresholdTicks + " tks).");
+                }
+                else if (Low[0] <= keltner.Lower[0] && currentTrailingState < TrailingState.Phase2_Midline && currentTrailingState != TrailingState.Phase3_Choke)
+                {
+                    currentTrailingState = TrailingState.Phase2_Midline;
+                    Print(Time[0] + " - [Fase 2 CORTO] Banda tocada. Persiguiendo Línea Media.");
+                }
+                else if (maxProfitTicks >= BreakEvenTicks && currentTrailingState < TrailingState.Phase1_5_BreakEven && currentTrailingState != TrailingState.Phase3_Choke)
+                {
+                    currentTrailingState = TrailingState.Phase1_5_BreakEven;
+                    Print(Time[0] + " - [Fase 1.5 CORTO] Asegurando Break-Even.");
+                }
+
+                // --- APLICAR STOP LOSS SEGÚN FASE ---
+                double slPrice = double.MaxValue;
                 if (currentTrailingState == TrailingState.Phase1_OuterBand)
                 {
-                    // SL anclado a la Banda Superior
-                    double slPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
-                    SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
-
-                    // Verificar transición a Fase 2 (Precio toca Banda Inferior)
-                    if (Low[0] <= keltner.Lower[0])
-                    {
-                        currentTrailingState = TrailingState.Phase2_Midline;
-                        Print(Time[0] + " - [Fase 2 CORTO] El precio tocó la Banda Inferior. El SL salta a perseguir la Línea Media.");
-                    }
+                    slPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
+                }
+                else if (currentTrailingState == TrailingState.Phase1_5_BreakEven)
+                {
+                    slPrice = entryPrice - (1 * TickSize); // Break Even - 1 tick
                 }
                 else if (currentTrailingState == TrailingState.Phase2_Midline)
                 {
-                    // SL anclado a la Línea Media
-                    double slPrice = keltner.Midline[0] + (SlOffsetTicks * TickSize);
-                    SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
+                    slPrice = keltner.Midline[0] + (SlOffsetTicks * TickSize);
                 }
+                else if (currentTrailingState == TrailingState.Phase3_Choke)
+                {
+                    if (Close[0] <= keltner.Lower[0]) // Si está fuera
+                        slPrice = keltner.Lower[0] + (SlOffsetTicks * TickSize);
+                    else // Si está dentro (Trail Matemático)
+                        slPrice = lowestPriceSinceEntry + (ChokeTrailTicks * TickSize);
+                }
+
+                if (slPrice < double.MaxValue) SetStopLoss("SniperShort", CalculationMode.Price, slPrice, false);
             }
         }
 
@@ -309,6 +374,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             chartGrid.Children.Add(panicButton);
             UserControlCollection.Add(chartGrid);
             ChartPanel.PreviewKeyDown += ChartPanel_PreviewKeyDown;
+
+            // Asegurar sincronización UI si arranca activo por Strategy Analyzer
+            if (isStrategyActive)
+            {
+                panicButton.Content = "Sniper: ACTIVO";
+                panicButton.Background = Brushes.Green;
+                panicButton.BorderBrush = Brushes.DarkGreen;
+            }
         }
 
         private void DisposeWPFControls()
@@ -337,52 +410,83 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
         #endregion
 
-        #region Propiedades Expuestas en NT8
+        #region Propiedades
         [NinjaScriptProperty]
-        [Display(Name="Versión", Description="Versión actual de la estrategia", Order=0, GroupName="0. Información")]
+        [Display(Name="Versión", Order=0, GroupName="0. Información")]
         [ReadOnly(true)]
         public string Version { get; set; }
 
         [NinjaScriptProperty]
+        [Display(Name="Inicio de Entradas", Order=1, GroupName="1. Horarios (HHMMSS)")]
+        public int StartTime { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Límite Entradas Nuevas", Order=2, GroupName="1. Horarios (HHMMSS)")]
+        public int StopEntriesTime { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Cierre Forzoso Total", Order=3, GroupName="1. Horarios (HHMMSS)")]
+        public int ForceCloseTime { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo EMA (Maestro)", Order=1, GroupName="1. Filtro Macro")]
+        [Display(Name="Periodo EMA", Order=1, GroupName="2. Filtro Macro")]
         public int EmaPeriod { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name="Usar MACD Opcional", Description="¿Validar que el MACD esté a favor en el cruce?", Order=2, GroupName="1. Filtro Macro")]
-        public bool UseMacdFilter { get; set; }
+        [Range(1, int.MaxValue)]
+        [Display(Name="Barras Filtro EMA", Description="Lookback para asegurar tendencia pura", Order=2, GroupName="2. Filtro Macro")]
+        public int EmaFilterBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo Keltner", Order=1, GroupName="2. Estructura Keltner")]
+        [Display(Name="Periodo Keltner", Order=1, GroupName="3. Keltner")]
         public int KeltnerPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(0.1, double.MaxValue)]
-        [Display(Name="Multiplicador Keltner", Order=2, GroupName="2. Estructura Keltner")]
+        [Display(Name="Multiplicador Keltner", Order=2, GroupName="3. Keltner")]
         public double KeltnerMultiplier { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo TEMA (Gatillo)", Order=1, GroupName="3. Lógica de Disparo")]
+        [Display(Name="Periodo TEMA", Order=1, GroupName="4. Disparo")]
         public int TemaPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Barras Máximas (Conteo)", Description="Máximo de barras esperando cruce tras alerta", Order=2, GroupName="3. Lógica de Disparo")]
+        [Display(Name="Barras de Reloj", Order=2, GroupName="4. Disparo")]
         public int CountdownBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, int.MaxValue)]
-        [Display(Name="Tolerancia Gancho (Ticks)", Description="Distancia máx a la banda para considerar rebote", Order=3, GroupName="3. Lógica de Disparo")]
+        [Display(Name="Tolerancia Gancho", Order=3, GroupName="4. Disparo")]
         public int TemaToleranceTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(-100, int.MaxValue)]
-        [Display(Name="Offset SL (Ticks)", Description="Ticks para poner SL 'afuerita' (positivos) o 'adentrico' (negativos)", Order=1, GroupName="4. Gestión de Riesgo Dinámica")]
+        [Display(Name="Offset SL", Order=1, GroupName="5. Gestión de Riesgo Dinámica")]
         public int SlOffsetTicks { get; set; }
 
-        // --- Parámetros MACD ocultos si no se usan, pero requeridos para instanciar ---
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Break-Even Ticks (Fase 1.5)", Order=2, GroupName="5. Gestión de Riesgo Dinámica")]
+        public int BreakEvenTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Inicio Ahogo Ticks (Fase 3)", Order=3, GroupName="5. Gestión de Riesgo Dinámica")]
+        public int ChokeThresholdTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Trail de Ahogo Ticks", Order=4, GroupName="5. Gestión de Riesgo Dinámica")]
+        public int ChokeTrailTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Usar MACD Opcional", Order=1, GroupName="6. Opcionales")]
+        public bool UseMacdFilter { get; set; }
+
         [Browsable(false)] public int MacdFast { get; set; }
         [Browsable(false)] public int MacdSlow { get; set; }
         [Browsable(false)] public int MacdSmooth { get; set; }
