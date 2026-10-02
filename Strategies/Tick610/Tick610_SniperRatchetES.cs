@@ -53,7 +53,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper V3.2: Stops Simulados para evitar rechazos de bróker en alta volatilidad.";
+                Description                                 = @"Estrategia Sniper V3.3: Toggle para activar/desactivar la Fase 1.5 de Break-Even.";
                 Name                                        = "Tick610_SniperRatchetES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -72,8 +72,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V3.2
-                Version                 = "3.2";
+                // Propiedades por defecto V3.3
+                Version                 = "3.3";
                 
                 // Horarios
                 StartTime               = 93500;   // 9:35 AM
@@ -93,8 +93,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MacdSmooth              = 9;
 
                 // Gestión de Riesgo Dinámica
+                UseBreakEven            = true;    // V3.3: Toggle activado por defecto
                 SlOffsetTicks           = 1;
-                TemaToleranceTicks      = 2;
                 BreakEvenTicks          = 16;      // Fase 1.5 a los $200
                 ChokeThresholdTicks     = 72;      // Fase 3 a los $900
                 ChokeTrailTicks         = 15;      // Trail matemático de la Fase 3
@@ -244,7 +244,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             currentTrailingState = TrailingState.Phase1_OuterBand;
                             highestPriceSinceEntry = High[0]; // Reset tracking
                             currentSetup = SetupType.None;
-                            SetStopLoss("SniperLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); // V3.2 Simulated
+                            SetStopLoss("SniperLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); 
                         }
                         else if (currentSetup == SetupType.Short && CrossBelow(temaTrigger, keltner.Midline, 1) && macdValidShort)
                         {
@@ -252,7 +252,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             currentTrailingState = TrailingState.Phase1_OuterBand;
                             lowestPriceSinceEntry = Low[0]; // Reset tracking
                             currentSetup = SetupType.None;
-                            SetStopLoss("SniperShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); // V3.2 Simulated
+                            SetStopLoss("SniperShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); 
                         }
                     }
                 }
@@ -288,7 +288,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     currentTrailingState = TrailingState.Phase2_Midline;
                     Print(Time[0] + " - [Fase 2 LARGO] Banda tocada. Persiguiendo Línea Media.");
                 }
-                else if (maxProfitTicks >= BreakEvenTicks && currentTrailingState < TrailingState.Phase1_5_BreakEven && currentTrailingState != TrailingState.Phase3_Choke)
+                else if (UseBreakEven && maxProfitTicks >= BreakEvenTicks && currentTrailingState < TrailingState.Phase1_5_BreakEven && currentTrailingState != TrailingState.Phase3_Choke)
                 {
                     currentTrailingState = TrailingState.Phase1_5_BreakEven;
                     Print(Time[0] + " - [Fase 1.5 LARGO] Asegurando Break-Even.");
@@ -317,13 +317,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // BLINDAJE DE BREAK-EVEN
-                if (maxProfitTicks >= BreakEvenTicks)
+                if (UseBreakEven && maxProfitTicks >= BreakEvenTicks)
                 {
                     double bePrice = entryPrice + (1 * TickSize);
                     if (slPrice < bePrice) slPrice = bePrice; 
                 }
 
-                // V3.2 Simulated Stop = true
                 if (slPrice > 0) SetStopLoss("SniperLong", CalculationMode.Price, slPrice, true);
             }
             else if (Position.MarketPosition == MarketPosition.Short)
@@ -341,7 +340,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     currentTrailingState = TrailingState.Phase2_Midline;
                     Print(Time[0] + " - [Fase 2 CORTO] Banda tocada. Persiguiendo Línea Media.");
                 }
-                else if (maxProfitTicks >= BreakEvenTicks && currentTrailingState < TrailingState.Phase1_5_BreakEven && currentTrailingState != TrailingState.Phase3_Choke)
+                else if (UseBreakEven && maxProfitTicks >= BreakEvenTicks && currentTrailingState < TrailingState.Phase1_5_BreakEven && currentTrailingState != TrailingState.Phase3_Choke)
                 {
                     currentTrailingState = TrailingState.Phase1_5_BreakEven;
                     Print(Time[0] + " - [Fase 1.5 CORTO] Asegurando Break-Even.");
@@ -370,19 +369,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // BLINDAJE DE BREAK-EVEN
-                if (maxProfitTicks >= BreakEvenTicks)
+                if (UseBreakEven && maxProfitTicks >= BreakEvenTicks)
                 {
                     double bePrice = entryPrice - (1 * TickSize);
                     if (slPrice > bePrice) slPrice = bePrice; 
                 }
 
-                // V3.2 Simulated Stop = true
                 if (slPrice < double.MaxValue) SetStopLoss("SniperShort", CalculationMode.Price, slPrice, true);
             }
         }
 
         #region Interfaz UI y Botón de Pánico (WPF)
-        // ... (WPF logic remains identical)
+        // ... WPF methods ...
         private void CreateWPFControls()
         {
             chartGrid = new System.Windows.Controls.Grid { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 10, 10) };
@@ -479,24 +477,29 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name="Tolerancia Gancho", Order=3, GroupName="4. Disparo")]
         public int TemaToleranceTicks { get; set; }
 
+        // --- GESTIÓN DE RIESGO ---
+        [NinjaScriptProperty]
+        [Display(Name="Usar Break-Even (Fase 1.5)", Order=1, GroupName="5. Gestión de Riesgo Dinámica")]
+        public bool UseBreakEven { get; set; }
+
         [NinjaScriptProperty]
         [Range(-100, int.MaxValue)]
-        [Display(Name="Offset SL", Order=1, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Offset SL", Order=2, GroupName="5. Gestión de Riesgo Dinámica")]
         public int SlOffsetTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Break-Even Ticks (Fase 1.5)", Order=2, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Break-Even Ticks (Fase 1.5)", Order=3, GroupName="5. Gestión de Riesgo Dinámica")]
         public int BreakEvenTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Inicio Ahogo Ticks (Fase 3)", Order=3, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Inicio Ahogo Ticks (Fase 3)", Order=4, GroupName="5. Gestión de Riesgo Dinámica")]
         public int ChokeThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Trail de Ahogo Ticks", Order=4, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Trail de Ahogo Ticks", Order=5, GroupName="5. Gestión de Riesgo Dinámica")]
         public int ChokeTrailTicks { get; set; }
 
         [NinjaScriptProperty]
