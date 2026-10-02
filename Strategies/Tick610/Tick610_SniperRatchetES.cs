@@ -86,6 +86,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 KeltnerPeriod           = 52;
                 KeltnerMultiplier       = 3.5;
                 CountdownBars           = 10;
+                TemaToleranceTicks      = 2;
                 
                 UseMacdFilter           = false;
                 MacdFast                = 8;
