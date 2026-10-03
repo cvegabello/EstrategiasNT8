@@ -62,8 +62,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V1.2
-                Version                 = "1.2";
+                // Propiedades por defecto V1.3
+                Version                 = "1.3";
                 
                 // Horarios
                 StartTime               = 95000;   // 9:50 AM
@@ -152,17 +152,19 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 4. LÓGICA DE ENTRADA (Mercado Plano)
             if (Position.MarketPosition == MarketPosition.Flat && isTradingTime)
             {
-                // A) Filtro de Rango (Semáforo)
-                bool crossedAbove = false;
-                bool crossedBelow = false;
+                // A) Filtro de Rango Estricto (Semáforo de Cruces)
+                int crossUpCount = 0;
+                int crossDownCount = 0;
                 
+                // Evaluamos los cruces reales de la vela (Close) contra la EMA
                 for (int i = 0; i < RangeLookbackBars; i++)
                 {
-                    if (High[i] > ema200[i]) crossedAbove = true;
-                    if (Low[i] < ema200[i]) crossedBelow = true;
+                    if (Close[i + 1] <= ema200[i + 1] && Close[i] > ema200[i]) crossUpCount++;
+                    if (Close[i + 1] >= ema200[i + 1] && Close[i] < ema200[i]) crossDownCount++;
                 }
                 
-                bool isRanging = crossedAbove && crossedBelow;
+                // Exigimos al menos un cruce hacia arriba y uno hacia abajo (mínimo 2 cruces totales)
+                bool isRanging = (crossUpCount >= 1) && (crossDownCount >= 1);
 
                 // B) Sesgo Direccional (Gravedad) - Opcional
                 bool emaBelowMidline = ema200[0] < keltner.Midline[0];
@@ -192,21 +194,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isPeakShort = temaTrigger[2] < temaTrigger[1] && temaTrigger[0] < temaTrigger[1];
                 bool isTroughLong = temaTrigger[2] > temaTrigger[1] && temaTrigger[0] > temaTrigger[1];
                 
+                // D) Regla de Retorno al Canal (No atajar cuchillos)
+                bool isBackInsideShort = Close[0] < keltner.Upper[0];
+                bool isBackInsideLong = Close[0] > keltner.Lower[0];
+                
                 // --- DISPARO CORTO ---
-                if (isRanging && isPeakShort && touchedUpperExtreme && shortBiasValid)
+                if (isRanging && isPeakShort && touchedUpperExtreme && shortBiasValid && isBackInsideShort)
                 {
                     EnterShort("FisherShort");
                     // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
                     currentSlPrice = Math.Max(keltner.Upper[0], Close[0]) + (SlOffsetTicks * TickSize);
-                    Print(Time[0] + " - [FISHER CORTO] Rango detectado. Entrando en techo.");
+                    Print(Time[0] + " - [FISHER CORTO] Rango detectado. Retorno al canal confirmado.");
                 }
                 // --- DISPARO LARGO ---
-                else if (isRanging && isTroughLong && touchedLowerExtreme && longBiasValid)
+                else if (isRanging && isTroughLong && touchedLowerExtreme && longBiasValid && isBackInsideLong)
                 {
                     EnterLong("FisherLong");
                     // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
                     currentSlPrice = Math.Min(keltner.Lower[0], Close[0]) - (SlOffsetTicks * TickSize);
-                    Print(Time[0] + " - [FISHER LARGO] Rango detectado. Entrando en piso.");
+                    Print(Time[0] + " - [FISHER LARGO] Rango detectado. Retorno al canal confirmado.");
                 }
             }
         }
