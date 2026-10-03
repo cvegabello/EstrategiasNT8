@@ -33,6 +33,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         // === VARIABLES DE CONTROL ===
         private double currentSlPrice = 0;
+        private int entryBar = -1;
         
         // INTERFAZ WPF
         private System.Windows.Controls.Button panicButton;
@@ -62,8 +63,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V1.3
-                Version                 = "1.3";
+                // Propiedades por defecto V1.4
+                Version                 = "1.4";
                 
                 // Horarios
                 StartTime               = 95000;   // 9:50 AM
@@ -83,6 +84,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Gestión de Riesgo (Reversión a la media)
                 SlOffsetTicks           = 12;      // Holgura fija detrás de la banda para el Stop Loss
+                TimeStopBars            = 14;      // Barras de paciencia antes de ajustar salidas a la línea media
             }
             else if (State == State.DataLoaded)
             {
@@ -135,23 +137,60 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 3. GESTIÓN DE SALIDAS (TP Dinámico y SL Fijo)
+            // 3. GESTIÓN DE SALIDAS (TP Dinámico y SL Fijo/Trailing)
             if (Position.MarketPosition == MarketPosition.Long)
             {
-                ExitLongLimit(0, true, Position.Quantity, keltner.Upper[0], "TP_Dinamico", "FisherLong");
-                ExitLongStopMarket(0, true, Position.Quantity, currentSlPrice, "SL_Fijo", "FisherLong");
+                int barsInTrade = CurrentBar - entryBar;
+                double tpPrice = keltner.Upper[0];
+                double slPrice = currentSlPrice;
+
+                if (barsInTrade >= TimeStopBars)
+                {
+                    if (Close[0] < keltner.Midline[0]) 
+                    {
+                        // Escenario Rezagado: Bajamos el Take Profit a la línea media
+                        tpPrice = keltner.Midline[0];
+                    }
+                    else 
+                    {
+                        // Escenario Ganador: Subimos el Stop Loss a la línea media (asegurar parciales)
+                        slPrice = Math.Max(currentSlPrice, keltner.Midline[0]);
+                    }
+                }
+
+                ExitLongLimit(0, true, Position.Quantity, tpPrice, "TP_Dinamico", "FisherLong");
+                ExitLongStopMarket(0, true, Position.Quantity, slPrice, "SL_Fijo", "FisherLong");
                 return; 
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
-                ExitShortLimit(0, true, Position.Quantity, keltner.Lower[0], "TP_Dinamico", "FisherShort");
-                ExitShortStopMarket(0, true, Position.Quantity, currentSlPrice, "SL_Fijo", "FisherShort");
+                int barsInTrade = CurrentBar - entryBar;
+                double tpPrice = keltner.Lower[0];
+                double slPrice = currentSlPrice;
+
+                if (barsInTrade >= TimeStopBars)
+                {
+                    if (Close[0] > keltner.Midline[0]) 
+                    {
+                        // Escenario Rezagado: Subimos el Take Profit a la línea media
+                        tpPrice = keltner.Midline[0];
+                    }
+                    else 
+                    {
+                        // Escenario Ganador: Bajamos el Stop Loss a la línea media (asegurar parciales)
+                        slPrice = Math.Min(currentSlPrice, keltner.Midline[0]);
+                    }
+                }
+
+                ExitShortLimit(0, true, Position.Quantity, tpPrice, "TP_Dinamico", "FisherShort");
+                ExitShortStopMarket(0, true, Position.Quantity, slPrice, "SL_Fijo", "FisherShort");
                 return; 
             }
 
             // 4. LÓGICA DE ENTRADA (Mercado Plano)
             if (Position.MarketPosition == MarketPosition.Flat && isTradingTime)
             {
+                entryBar = -1; // Reset del contador
                 // A) Filtro de Rango Estricto (Semáforo de Cruces)
                 int crossUpCount = 0;
                 int crossDownCount = 0;
@@ -201,6 +240,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // --- DISPARO CORTO ---
                 if (isRanging && isPeakShort && touchedUpperExtreme && shortBiasValid && isBackInsideShort)
                 {
+                    entryBar = CurrentBar;
                     EnterShort("FisherShort");
                     // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
                     currentSlPrice = Math.Max(keltner.Upper[0], Close[0]) + (SlOffsetTicks * TickSize);
@@ -209,6 +249,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // --- DISPARO LARGO ---
                 else if (isRanging && isTroughLong && touchedLowerExtreme && longBiasValid && isBackInsideLong)
                 {
+                    entryBar = CurrentBar;
                     EnterLong("FisherLong");
                     // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
                     currentSlPrice = Math.Min(keltner.Lower[0], Close[0]) - (SlOffsetTicks * TickSize);
@@ -317,6 +358,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, int.MaxValue)]
         [Display(Name="Holgura Stop Loss Ticks", Order=1, GroupName="4. Gestión de Riesgo Fija")]
         public int SlOffsetTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Barras Time-Stop (Paciencia)", Order=2, GroupName="4. Gestión de Riesgo Fija")]
+        public int TimeStopBars { get; set; }
         #endregion
     }
 }
