@@ -62,8 +62,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V1.0
-                Version                 = "1.0";
+                // Propiedades por defecto V1.1
+                Version                 = "1.1";
                 
                 // Horarios
                 StartTime               = 95000;   // 9:50 AM
@@ -138,17 +138,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 3. GESTIÓN DE SALIDAS (TP Dinámico y SL Fijo)
             if (Position.MarketPosition == MarketPosition.Long)
             {
-                // Take Profit persigue la banda superior
-                SetProfitTarget("FisherLong", CalculationMode.Price, keltner.Upper[0]);
-                // El SL fijo ya fue enviado en la entrada, no hacemos nada más.
-                return; // Si estamos en posición, no buscamos nuevas entradas
+                ExitLongLimit(0, true, Position.Quantity, keltner.Upper[0], "TP_Dinamico", "FisherLong");
+                ExitLongStopMarket(0, true, Position.Quantity, currentSlPrice, "SL_Fijo", "FisherLong");
+                return; 
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
-                // Take Profit persigue la banda inferior
-                SetProfitTarget("FisherShort", CalculationMode.Price, keltner.Lower[0]);
-                // El SL fijo ya fue enviado en la entrada, no hacemos nada más.
-                return; // Si estamos en posición, no buscamos nuevas entradas
+                ExitShortLimit(0, true, Position.Quantity, keltner.Lower[0], "TP_Dinamico", "FisherShort");
+                ExitShortStopMarket(0, true, Position.Quantity, currentSlPrice, "SL_Fijo", "FisherShort");
+                return; 
             }
 
             // 4. LÓGICA DE ENTRADA (Mercado Plano)
@@ -199,7 +197,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     EnterShort("FisherShort");
                     currentSlPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
-                    SetStopLoss("FisherShort", CalculationMode.Price, currentSlPrice, true);
                     Print(Time[0] + " - [FISHER CORTO] Rango detectado. Entrando en techo.");
                 }
                 // --- DISPARO LARGO ---
@@ -207,7 +204,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     EnterLong("FisherLong");
                     currentSlPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
-                    SetStopLoss("FisherLong", CalculationMode.Price, currentSlPrice, true);
                     Print(Time[0] + " - [FISHER LARGO] Rango detectado. Entrando en piso.");
                 }
             }
