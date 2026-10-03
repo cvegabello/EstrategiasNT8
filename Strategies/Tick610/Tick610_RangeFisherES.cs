@@ -62,8 +62,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V1.1
-                Version                 = "1.1";
+                // Propiedades por defecto V1.2
+                Version                 = "1.2";
                 
                 // Horarios
                 StartTime               = 95000;   // 9:50 AM
@@ -196,14 +196,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isRanging && isPeakShort && touchedUpperExtreme && shortBiasValid)
                 {
                     EnterShort("FisherShort");
-                    currentSlPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
+                    // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
+                    currentSlPrice = Math.Max(keltner.Upper[0], Close[0]) + (SlOffsetTicks * TickSize);
                     Print(Time[0] + " - [FISHER CORTO] Rango detectado. Entrando en techo.");
                 }
                 // --- DISPARO LARGO ---
                 else if (isRanging && isTroughLong && touchedLowerExtreme && longBiasValid)
                 {
                     EnterLong("FisherLong");
-                    currentSlPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
+                    // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
+                    currentSlPrice = Math.Min(keltner.Lower[0], Close[0]) - (SlOffsetTicks * TickSize);
                     Print(Time[0] + " - [FISHER LARGO] Rango detectado. Entrando en piso.");
                 }
             }
