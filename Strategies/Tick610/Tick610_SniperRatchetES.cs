@@ -72,11 +72,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V3.4
-                Version                 = "3.4";
+                // Propiedades por defecto V3.5
+                Version                 = "3.5";
                 
                 // Horarios
-                StartTime               = 93500;   // 9:35 AM
+                StartTime               = 95000;   // 9:50 AM (Ajustado para evitar ruido de apertura)
                 StopEntriesTime         = 154500;  // 3:45 PM
                 ForceCloseTime          = 160000;  // 4:00 PM
 
@@ -96,13 +96,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Gestión de Riesgo Dinámica
                 UseBreakEven            = true;    
                 SlOffsetTicks           = 1;
-                BreakEvenTicks          = 18;      // Ajustado a 18 por defecto
+                BreakEvenTicks          = 22;      // Ajustado a 22 por defecto (Template Gold)
                 ChokeThresholdTicks     = 72;      // Fase 3 a los $900
                 ChokeTrailTicks         = 15;      // Trail matemático interno de la Fase 3
                 
-                // Nuevos parámetros V3.4 (Chicle Parabólico)
-                ParabolicTriggerTicks   = 4;       // A cuántos ticks por fuera de la banda se activa el chicle
-                ParabolicChicleTicks    = 4;       // Qué tan pegado al precio extremo va el chicle
+                // Nuevos parámetros V3.5 (Chicle Parabólico)
+                ParabolicTriggerTicks   = 10;      // Activación del chicle (Template Gold)
+                ParabolicChicleTicks    = 7;       // Distancia del chicle (Template Gold)
             }
             else if (State == State.DataLoaded)
             {
@@ -183,17 +183,27 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 bool touchedUpperExtreme = false;
                 bool touchedLowerExtreme = false;
-                double upperBandTolerance = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
-                double lowerBandTolerance = keltner.Lower[1] + (TemaToleranceTicks * TickSize);
-
+                
                 for (int i = 1; i <= 3; i++)
                 {
-                    if (High[i] >= upperBandTolerance || temaTrigger[i] >= upperBandTolerance) touchedUpperExtreme = true;
-                    if (Low[i] <= lowerBandTolerance || temaTrigger[i] <= lowerBandTolerance) touchedLowerExtreme = true;
+                    // Tolerancia para TEMA (Hacia adentro)
+                    double upperTemaTol = keltner.Upper[i] - (TemaToleranceTicks * TickSize);
+                    double lowerTemaTol = keltner.Lower[i] + (TemaToleranceTicks * TickSize);
+
+                    // Penetración exigida para el Precio Físico (Hacia afuera, 1.5 ticks duro)
+                    double upperPricePen = keltner.Upper[i] + (1.5 * TickSize);
+                    double lowerPricePen = keltner.Lower[i] - (1.5 * TickSize);
+
+                    if (High[i] >= upperPricePen || temaTrigger[i] >= upperTemaTol) touchedUpperExtreme = true;
+                    if (Low[i] <= lowerPricePen || temaTrigger[i] <= lowerTemaTol) touchedLowerExtreme = true;
                 }
 
+                // Referencia fija para calcular si el TEMA cruzó de regreso
+                double upperBandTolCross = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
+                double lowerBandTolCross = keltner.Lower[1] + (TemaToleranceTicks * TickSize);
+
                 bool isPeakShort = temaTrigger[2] < temaTrigger[1] && temaTrigger[0] < temaTrigger[1];
-                bool isCrossBackShort = temaTrigger[1] >= upperBandTolerance && temaTrigger[0] < upperBandTolerance && temaTrigger[0] < temaTrigger[1];
+                bool isCrossBackShort = temaTrigger[1] >= upperBandTolCross && temaTrigger[0] < upperBandTolCross && temaTrigger[0] < temaTrigger[1];
                 
                 if ((isPeakShort && touchedUpperExtreme) || isCrossBackShort)
                 {
@@ -209,7 +219,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 bool isTroughLong = temaTrigger[2] > temaTrigger[1] && temaTrigger[0] > temaTrigger[1];
-                bool isCrossBackLong = temaTrigger[1] <= lowerBandTolerance && temaTrigger[0] > lowerBandTolerance && temaTrigger[0] > temaTrigger[1];
+                bool isCrossBackLong = temaTrigger[1] <= lowerBandTolCross && temaTrigger[0] > lowerBandTolCross && temaTrigger[0] > temaTrigger[1];
                 
                 if ((isTroughLong && touchedLowerExtreme) || isCrossBackLong)
                 {
