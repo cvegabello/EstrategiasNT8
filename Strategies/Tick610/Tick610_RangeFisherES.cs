@@ -92,6 +92,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CountdownMaxBars        = 10;      // Maximo de barras esperando cruce de Midline tras la alerta
                 SlopeLookbackBars       = 5;       // Cuántas barras atrás medir la pendiente de la Midline
                 MaxSlopeTicks           = 4.0;     // Tolerancia máxima en ticks para considerar la Midline 'plana'
+                MinCrossTicks           = 1;       // Penetración requerida (en ticks) para confirmar el cruce
             }
             else if (State == State.DataLoaded)
             {
@@ -243,8 +244,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (armedLong)
                     {
-                        // Gatillo: TEMA azul cruza línea blanca hacia arriba
-                        if (temaTrigger[0] > keltner.Midline[0] && temaTrigger[1] <= keltner.Midline[1])
+                        // Gatillo: TEMA azul cruza línea blanca hacia arriba (con penetración mínima)
+                        double requiredCrossPrice = keltner.Midline[0] + (MinCrossTicks * TickSize);
+                        if (temaTrigger[0] >= requiredCrossPrice && temaTrigger[1] <= keltner.Midline[1])
                         {
                             double slope = Math.Abs(keltner.Midline[0] - keltner.Midline[Math.Min(SlopeLookbackBars, CurrentBar)]) / TickSize;
                             
@@ -252,9 +254,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 entryBar = CurrentBar;
                                 EnterLong("FisherLong");
-                                currentSlPrice = setupOuterBandPrice - (SlOffsetTicks * TickSize);
+                                // STOP LOSS RIGIDO: Calculado desde el precio de entrada, no desde la banda
+                                currentSlPrice = Close[0] - (SlOffsetTicks * TickSize);
                                 armedLong = false;
-                                Print(Time[0] + " - [DISPARO LARGO] Midline cruzada. Pendiente plana OK (" + slope.ToString("F1") + " ticks).");
+                                Print(Time[0] + " - [DISPARO LARGO] Midline cruzada (" + MinCrossTicks + " ticks). Pendiente plana OK (" + slope.ToString("F1") + " ticks).");
                             }
                             else
                             {
@@ -265,8 +268,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (armedShort)
                     {
-                        // Gatillo: TEMA azul cruza línea blanca hacia abajo
-                        if (temaTrigger[0] < keltner.Midline[0] && temaTrigger[1] >= keltner.Midline[1])
+                        // Gatillo: TEMA azul cruza línea blanca hacia abajo (con penetración mínima)
+                        double requiredCrossPrice = keltner.Midline[0] - (MinCrossTicks * TickSize);
+                        if (temaTrigger[0] <= requiredCrossPrice && temaTrigger[1] >= keltner.Midline[1])
                         {
                             double slope = Math.Abs(keltner.Midline[0] - keltner.Midline[Math.Min(SlopeLookbackBars, CurrentBar)]) / TickSize;
                             
@@ -274,9 +278,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 entryBar = CurrentBar;
                                 EnterShort("FisherShort");
-                                currentSlPrice = setupOuterBandPrice + (SlOffsetTicks * TickSize);
+                                // STOP LOSS RIGIDO: Calculado desde el precio de entrada, no desde la banda
+                                currentSlPrice = Close[0] + (SlOffsetTicks * TickSize);
                                 armedShort = false;
-                                Print(Time[0] + " - [DISPARO CORTO] Midline cruzada. Pendiente plana OK (" + slope.ToString("F1") + " ticks).");
+                                Print(Time[0] + " - [DISPARO CORTO] Midline cruzada (" + MinCrossTicks + " ticks). Pendiente plana OK (" + slope.ToString("F1") + " ticks).");
                             }
                             else
                             {
@@ -409,6 +414,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0.0, double.MaxValue)]
         [Display(Name="Max Pendiente Ticks (Plana)", Order=5, GroupName="4. Gestión de Riesgo Fija")]
         public double MaxSlopeTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0, int.MaxValue)]
+        [Display(Name="Penetración Cruce Midline (Ticks)", Order=6, GroupName="4. Gestión de Riesgo Fija")]
+        public int MinCrossTicks { get; set; }
         #endregion
     }
 }
