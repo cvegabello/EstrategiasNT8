@@ -48,7 +48,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia RangeFisher V2.0: Pescador de rebotes en mercados laterales (Midline Entry).";
+                Description                                 = @"Estrategia RangeFisher V2.1: Pescador de rebotes (Midline Entry con SL Fijo y Filtro de Cruce).";
                 Name                                        = "Tick610_RangeFisherES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -67,8 +67,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V2.0
-                Version                 = "2.0";
+                // Propiedades por defecto V2.1
+                Version                 = "2.1";
                 
                 // Horarios
                 StartTime               = 95000;   // 9:50 AM
