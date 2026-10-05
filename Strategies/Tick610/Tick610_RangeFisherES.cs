@@ -34,6 +34,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         // === VARIABLES DE CONTROL ===
         private double currentSlPrice = 0;
         private int entryBar = -1;
+        private int countdownBars = 0;
+        private bool armedLong = false;
+        private bool armedShort = false;
+        private double setupOuterBandPrice = 0;
         
         // INTERFAZ WPF
         private System.Windows.Controls.Button panicButton;
@@ -44,7 +48,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia RangeFisher V1.0: Pescador de rebotes en mercados laterales (Ping-Pong).";
+                Description                                 = @"Estrategia RangeFisher V2.0: Pescador de rebotes en mercados laterales (Midline Entry).";
                 Name                                        = "Tick610_RangeFisherES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -63,8 +67,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
-                // Propiedades por defecto V1.4
-                Version                 = "1.4";
+                // Propiedades por defecto V2.0
+                Version                 = "2.0";
                 
                 // Horarios
                 StartTime               = 95000;   // 9:50 AM
@@ -85,6 +89,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Gestión de Riesgo (Reversión a la media)
                 SlOffsetTicks           = 12;      // Holgura fija detrás de la banda para el Stop Loss
                 TimeStopBars            = 14;      // Barras de paciencia antes de ajustar salidas a la línea media
+                CountdownMaxBars        = 10;      // Maximo de barras esperando cruce de Midline tras la alerta
+                SlopeLookbackBars       = 5;       // Cuántas barras atrás medir la pendiente de la Midline
+                MaxSlopeTicks           = 4.0;     // Tolerancia máxima en ticks para considerar la Midline 'plana'
             }
             else if (State == State.DataLoaded)
             {
@@ -141,88 +148,60 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (Position.MarketPosition == MarketPosition.Long)
             {
                 int barsInTrade = CurrentBar - entryBar;
-                double tpPrice = keltner.Upper[0];
-                double slPrice = currentSlPrice;
-
                 if (barsInTrade >= TimeStopBars)
                 {
-                    if (Close[0] < keltner.Midline[0]) 
-                    {
-                        // Escenario Rezagado: Bajamos el Take Profit a la línea media
-                        tpPrice = keltner.Midline[0];
-                    }
-                    else 
-                    {
-                        // Escenario Ganador: Subimos el Stop Loss a la línea media (asegurar parciales)
-                        slPrice = Math.Max(currentSlPrice, keltner.Midline[0]);
-                    }
+                    ExitLong(Position.Quantity, "TimeStop", "FisherLong");
+                    return;
                 }
 
-                ExitLongLimit(0, true, Position.Quantity, tpPrice, "TP_Dinamico", "FisherLong");
-                ExitLongStopMarket(0, true, Position.Quantity, slPrice, "SL_Fijo", "FisherLong");
+                ExitLongLimit(0, true, Position.Quantity, keltner.Upper[0], "TP_Dinamico", "FisherLong");
+                ExitLongStopMarket(0, true, Position.Quantity, currentSlPrice, "SL_Fijo", "FisherLong");
                 return; 
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
                 int barsInTrade = CurrentBar - entryBar;
-                double tpPrice = keltner.Lower[0];
-                double slPrice = currentSlPrice;
-
                 if (barsInTrade >= TimeStopBars)
                 {
-                    if (Close[0] > keltner.Midline[0]) 
-                    {
-                        // Escenario Rezagado: Subimos el Take Profit a la línea media
-                        tpPrice = keltner.Midline[0];
-                    }
-                    else 
-                    {
-                        // Escenario Ganador: Bajamos el Stop Loss a la línea media (asegurar parciales)
-                        slPrice = Math.Min(currentSlPrice, keltner.Midline[0]);
-                    }
+                    ExitShort(Position.Quantity, "TimeStop", "FisherShort");
+                    return;
                 }
 
-                ExitShortLimit(0, true, Position.Quantity, tpPrice, "TP_Dinamico", "FisherShort");
-                ExitShortStopMarket(0, true, Position.Quantity, slPrice, "SL_Fijo", "FisherShort");
+                ExitShortLimit(0, true, Position.Quantity, keltner.Lower[0], "TP_Dinamico", "FisherShort");
+                ExitShortStopMarket(0, true, Position.Quantity, currentSlPrice, "SL_Fijo", "FisherShort");
                 return; 
             }
 
-            // 4. LÓGICA DE ENTRADA (Mercado Plano)
+            // 4. LÓGICA DE ENTRADA (Mercado Plano - V2.0 Midline Entry)
             if (Position.MarketPosition == MarketPosition.Flat && isTradingTime)
             {
-                entryBar = -1; // Reset del contador
+                entryBar = -1; // Reset del contador de trade
+                
                 // A) Filtro de Rango Estricto (Semáforo de Cruces)
                 int crossUpCount = 0;
                 int crossDownCount = 0;
                 
-                // Evaluamos los cruces reales de la vela (Close) contra la EMA
                 for (int i = 0; i < RangeLookbackBars; i++)
                 {
                     if (Close[i + 1] <= ema200[i + 1] && Close[i] > ema200[i]) crossUpCount++;
                     if (Close[i + 1] >= ema200[i + 1] && Close[i] < ema200[i]) crossDownCount++;
                 }
-                
-                // Exigimos al menos un cruce hacia arriba y uno hacia abajo (mínimo 2 cruces totales)
                 bool isRanging = (crossUpCount >= 1) && (crossDownCount >= 1);
 
-                // B) Sesgo Direccional (Gravedad) - Opcional
+                // B) Sesgo Direccional (Gravedad)
                 bool emaBelowMidline = ema200[0] < keltner.Midline[0];
                 bool emaAboveMidline = ema200[0] > keltner.Midline[0];
-                
                 bool longBiasValid = !UseEmaBias || emaBelowMidline;
                 bool shortBiasValid = !UseEmaBias || emaAboveMidline;
 
-                // C) Evaluación de Gatillo (Penetración + Gancho)
+                // C) Evaluación de Alerta (Penetración + Gancho)
                 bool touchedUpperExtreme = false;
                 bool touchedLowerExtreme = false;
                 
                 for (int i = 1; i <= 3; i++)
                 {
-                    // Tolerancia TEMA (Hacia adentro)
                     double upperTemaTol = keltner.Upper[i] - (TemaToleranceTicks * TickSize);
                     double lowerTemaTol = keltner.Lower[i] + (TemaToleranceTicks * TickSize);
-
-                    // Penetración Física (1.5 ticks hacia afuera)
                     double upperPricePen = keltner.Upper[i] + (1.5 * TickSize);
                     double lowerPricePen = keltner.Lower[i] - (1.5 * TickSize);
 
@@ -232,28 +211,80 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 bool isPeakShort = temaTrigger[2] < temaTrigger[1] && temaTrigger[0] < temaTrigger[1];
                 bool isTroughLong = temaTrigger[2] > temaTrigger[1] && temaTrigger[0] > temaTrigger[1];
-                
-                // D) Regla de Retorno al Canal (No atajar cuchillos)
-                bool isBackInsideShort = Close[0] < keltner.Upper[0];
-                bool isBackInsideLong = Close[0] > keltner.Lower[0];
-                
-                // --- DISPARO CORTO ---
-                if (isRanging && isPeakShort && touchedUpperExtreme && shortBiasValid && isBackInsideShort)
+
+                // D) Estado Armado: Alertas
+                if (isRanging && isPeakShort && touchedUpperExtreme && shortBiasValid && !armedShort)
                 {
-                    entryBar = CurrentBar;
-                    EnterShort("FisherShort");
-                    // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
-                    currentSlPrice = Math.Max(keltner.Upper[0], Close[0]) + (SlOffsetTicks * TickSize);
-                    Print(Time[0] + " - [FISHER CORTO] Rango detectado. Retorno al canal confirmado.");
+                    armedShort = true;
+                    armedLong = false;
+                    countdownBars = 0;
+                    setupOuterBandPrice = keltner.Upper[0];
+                    Print(Time[0] + " - [ALERTA CORTO] TEMA en gancho. Esperando cruce Midline (Max " + CountdownMaxBars + ").");
                 }
-                // --- DISPARO LARGO ---
-                else if (isRanging && isTroughLong && touchedLowerExtreme && longBiasValid && isBackInsideLong)
+                else if (isRanging && isTroughLong && touchedLowerExtreme && longBiasValid && !armedLong)
                 {
-                    entryBar = CurrentBar;
-                    EnterLong("FisherLong");
-                    // Calculamos el SL desde la banda, o desde el precio actual si la banda se quedó rezagada
-                    currentSlPrice = Math.Min(keltner.Lower[0], Close[0]) - (SlOffsetTicks * TickSize);
-                    Print(Time[0] + " - [FISHER LARGO] Rango detectado. Retorno al canal confirmado.");
+                    armedLong = true;
+                    armedShort = false;
+                    countdownBars = 0;
+                    setupOuterBandPrice = keltner.Lower[0];
+                    Print(Time[0] + " - [ALERTA LARGO] TEMA en gancho. Esperando cruce Midline (Max " + CountdownMaxBars + ").");
+                }
+
+                // E) Gestión del Gatillo (Cuenta regresiva y Disparo)
+                if (armedLong || armedShort)
+                {
+                    countdownBars++;
+                    
+                    if (countdownBars > CountdownMaxBars)
+                    {
+                        armedLong = false;
+                        armedShort = false;
+                        Print(Time[0] + " - [CANCELADO] Expiró el tiempo (" + countdownBars + " barras) sin cruzar Midline.");
+                    }
+                    else if (armedLong)
+                    {
+                        // Gatillo: TEMA azul cruza línea blanca hacia arriba
+                        if (temaTrigger[0] > keltner.Midline[0] && temaTrigger[1] <= keltner.Midline[1])
+                        {
+                            double slope = Math.Abs(keltner.Midline[0] - keltner.Midline[Math.Min(SlopeLookbackBars, CurrentBar)]) / TickSize;
+                            
+                            if (slope <= MaxSlopeTicks)
+                            {
+                                entryBar = CurrentBar;
+                                EnterLong("FisherLong");
+                                currentSlPrice = setupOuterBandPrice - (SlOffsetTicks * TickSize);
+                                armedLong = false;
+                                Print(Time[0] + " - [DISPARO LARGO] Midline cruzada. Pendiente plana OK (" + slope.ToString("F1") + " ticks).");
+                            }
+                            else
+                            {
+                                armedLong = false;
+                                Print(Time[0] + " - [CANCELADO LARGO] Midline cruzada pero pendiente peligrosa (" + slope.ToString("F1") + " ticks).");
+                            }
+                        }
+                    }
+                    else if (armedShort)
+                    {
+                        // Gatillo: TEMA azul cruza línea blanca hacia abajo
+                        if (temaTrigger[0] < keltner.Midline[0] && temaTrigger[1] >= keltner.Midline[1])
+                        {
+                            double slope = Math.Abs(keltner.Midline[0] - keltner.Midline[Math.Min(SlopeLookbackBars, CurrentBar)]) / TickSize;
+                            
+                            if (slope <= MaxSlopeTicks)
+                            {
+                                entryBar = CurrentBar;
+                                EnterShort("FisherShort");
+                                currentSlPrice = setupOuterBandPrice + (SlOffsetTicks * TickSize);
+                                armedShort = false;
+                                Print(Time[0] + " - [DISPARO CORTO] Midline cruzada. Pendiente plana OK (" + slope.ToString("F1") + " ticks).");
+                            }
+                            else
+                            {
+                                armedShort = false;
+                                Print(Time[0] + " - [CANCELADO CORTO] Midline cruzada pero pendiente peligrosa (" + slope.ToString("F1") + " ticks).");
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -363,6 +394,21 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, int.MaxValue)]
         [Display(Name="Barras Time-Stop (Paciencia)", Order=2, GroupName="4. Gestión de Riesgo Fija")]
         public int TimeStopBars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Barras Máximas Espera (Gatillo V2)", Order=3, GroupName="4. Gestión de Riesgo Fija")]
+        public int CountdownMaxBars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Lookback Pendiente (Barras)", Order=4, GroupName="4. Gestión de Riesgo Fija")]
+        public int SlopeLookbackBars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.0, double.MaxValue)]
+        [Display(Name="Max Pendiente Ticks (Plana)", Order=5, GroupName="4. Gestión de Riesgo Fija")]
+        public double MaxSlopeTicks { get; set; }
         #endregion
     }
 }
