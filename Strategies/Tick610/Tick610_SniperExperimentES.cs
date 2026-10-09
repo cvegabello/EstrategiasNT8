@@ -186,14 +186,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         if (currentWaitState == WaitState.WaitingCrossUp)
                         {
-                            if (Close[0] < keltner.Midline[0]) 
+                            if (temaTrigger[0] < keltner.Midline[0]) 
                             {
-                                // TRAMPA (Precio cerró abajo) -> Corto
+                                // TRAMPA (TEMA debajo) -> Corto
                                 isTrapTrade = true;
                                 EnterShort("SniperTrapShort");
                                 SetProfitTarget("SniperTrapShort", CalculationMode.Ticks, TrapProfitTicks);
                                 SetStopLoss("SniperTrapShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), false);
-                                Print(Time[0] + " - [TRAMPA ALCISTA] 6 barras después, precio debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
+                                Print(Time[0] + " - [TRAMPA ALCISTA] 6 barras después, TEMA debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
                             {
@@ -203,19 +203,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 highestPriceSinceEntry = High[0]; 
                                 SetStopLoss("SniperExpLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); 
-                                Print(Time[0] + " - [CONTINUACIÓN ALCISTA] 6 barras después, precio sobre Midline. LARGO Dinámico.");
+                                Print(Time[0] + " - [CONTINUACIÓN ALCISTA] 6 barras después, TEMA sobre Midline. LARGO Dinámico.");
                             }
                         }
                         else if (currentWaitState == WaitState.WaitingCrossDown)
                         {
-                            if (Close[0] > keltner.Midline[0]) 
+                            if (temaTrigger[0] > keltner.Midline[0]) 
                             {
-                                // TRAMPA (Precio cerró arriba) -> Largo
+                                // TRAMPA (TEMA arriba) -> Largo
                                 isTrapTrade = true;
                                 EnterLong("SniperTrapLong");
                                 SetProfitTarget("SniperTrapLong", CalculationMode.Ticks, TrapProfitTicks);
                                 SetStopLoss("SniperTrapLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), false);
-                                Print(Time[0] + " - [TRAMPA BAJISTA] 6 barras después, precio sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
+                                Print(Time[0] + " - [TRAMPA BAJISTA] 6 barras después, TEMA sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
                             {
@@ -225,7 +225,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 lowestPriceSinceEntry = Low[0]; 
                                 SetStopLoss("SniperExpShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); 
-                                Print(Time[0] + " - [CONTINUACIÓN BAJISTA] 6 barras después, precio debajo Midline. CORTO Dinámico.");
+                                Print(Time[0] + " - [CONTINUACIÓN BAJISTA] 6 barras después, TEMA debajo Midline. CORTO Dinámico.");
                             }
                         }
                         
