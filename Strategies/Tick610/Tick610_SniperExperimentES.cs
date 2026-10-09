@@ -93,6 +93,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Experimento de Barras de Espera
                 WaitBars                = 6;
                 TrapProfitTicks         = 16;      // 16 ticks = $200 en ES
+                DeadZoneTicks           = 3;       // Ticks de filtro para zona muerta
                 
                 UseMacdFilter           = false;
                 MacdFast                = 8;
@@ -184,6 +185,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                     waitBarCounter++;
                     if (waitBarCounter >= WaitBars)
                     {
+                        double distanceTicks = Math.Abs(temaTrigger[0] - keltner.Midline[0]) / TickSize;
+
+                        if (distanceTicks <= DeadZoneTicks)
+                        {
+                            Print(Time[0] + " - [ZONA MUERTA] Distancia de TEMA a Midline es " + distanceTicks.ToString("F1") + " tks (<= " + DeadZoneTicks + "). Trade cancelado por ruido.");
+                            currentWaitState = WaitState.None;
+                            return;
+                        }
+
                         if (currentWaitState == WaitState.WaitingCrossUp)
                         {
                             if (temaTrigger[0] < keltner.Midline[0]) 
@@ -547,6 +557,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, int.MaxValue)]
         [Display(Name="TP de la Trampa (Ticks) (16 = $200)", Order=2, GroupName="4. Experimento (Espera y Trampas)")]
         public int TrapProfitTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0, int.MaxValue)]
+        [Display(Name="Filtro Zona Muerta (Ticks)", Order=3, GroupName="4. Experimento (Espera y Trampas)")]
+        public int DeadZoneTicks { get; set; }
 
         // --- GESTIÓN DE RIESGO ---
         [NinjaScriptProperty]
