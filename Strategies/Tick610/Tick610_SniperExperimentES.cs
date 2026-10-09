@@ -501,6 +501,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(Time[0] + (isStrategyActive ? " - Estrategia SniperExp ACTIVADA." : " - Estrategia SniperExp PAUSADA."));
                 });
             }
+
+            // BOTÓN DE PÁNICO: Si el usuario acaba de pausar la estrategia
+            if (!isStrategyActive)
+            {
+                TriggerCustomEvent(o => 
+                {
+                    if (Position.MarketPosition != MarketPosition.Flat)
+                    {
+                        if (Position.MarketPosition == MarketPosition.Long) ExitLong("BotonPanico", "");
+                        if (Position.MarketPosition == MarketPosition.Short) ExitShort("BotonPanico", "");
+                        Print(Time[0] + " - [BOTÓN DE PÁNICO] Posición liquidada de emergencia a mercado.");
+                    }
+                    
+                    // Borrar memoria del robot
+                    currentSetup = SetupType.None;
+                    currentWaitState = WaitState.None;
+                    setupBarCounter = 0;
+                    waitBarCounter = 0;
+                }, null);
+            }
         }
         #endregion
 
