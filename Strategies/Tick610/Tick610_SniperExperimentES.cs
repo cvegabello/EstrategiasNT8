@@ -26,15 +26,20 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public class Tick610_SniperExperimentES : Strategy
     {
-        // === MÁQUINA DE ESTADOS (SETUP Y TRAILING) ===
+        // === MÁQUINA DE ESTADOS (SETUP Y ESPERA) ===
         private enum SetupType { None, Long, Short }
         private SetupType currentSetup = SetupType.None;
         private int setupBarCounter = 0;
 
+        private enum WaitState { None, WaitingCrossUp, WaitingCrossDown }
+        private WaitState currentWaitState = WaitState.None;
+        private int waitBarCounter = 0;
+        private bool isTrapTrade = false; // Flag para saber si es un trade fijo de trampa
+
         private enum TrailingState { None, Phase1_OuterBand, Phase1_5_BreakEven, Phase2_Midline, Phase3_Choke }
         private TrailingState currentTrailingState = TrailingState.None;
 
-        // Variables para tracking de MFE (Máxima excursión a favor)
+        // Variables para tracking de MFE
         private double highestPriceSinceEntry = 0;
         private double lowestPriceSinceEntry = double.MaxValue;
 
@@ -52,7 +57,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Sniper EXPERIMENTO: Clon sin validación de tendencia macro (EMA 200 eliminada).";
+                Description                                 = @"Estrategia Sniper EXPERIMENTO: Espera 6 barras tras el cruce para evaluar Trampa (Fake-out) vs Continuación.";
                 Name                                        = "Tick610_SniperExperimentES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -72,12 +77,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "1.0-Exp";
+                Version                 = "2.0-Trampas";
                 
                 // Horarios
-                StartTime               = 95000;   // 9:50 AM
-                StopEntriesTime         = 154500;  // 3:45 PM
-                ForceCloseTime          = 160000;  // 4:00 PM
+                StartTime               = 95000;   
+                StopEntriesTime         = 154500;  
+                ForceCloseTime          = 160000;  
 
                 TemaPeriod              = 9;
                 KeltnerPeriod           = 52;
@@ -85,19 +90,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CountdownBars           = 10;
                 TemaToleranceTicks      = 2;
                 
+                // Experimento de Barras de Espera
+                WaitBars                = 6;
+                TrapProfitTicks         = 16;      // 16 ticks = $200 en ES
+                
                 UseMacdFilter           = false;
                 MacdFast                = 8;
                 MacdSlow                = 17;
                 MacdSmooth              = 9;
 
-                // Gestión de Riesgo Dinámica
+                // Gestión de Riesgo Dinámica (Solo aplica a Continuación)
                 UseBreakEven            = true;    
                 SlOffsetTicks           = 1;
                 BreakEvenTicks          = 22;      
                 ChokeThresholdTicks     = 72;      
                 ChokeTrailTicks         = 15;      
                 
-                // Chicle Parabólico
                 ParabolicTriggerTicks   = 10;      
                 ParabolicChicleTicks    = 7;       
             }
@@ -133,7 +141,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (CurrentBar < BarsRequiredToTrade) return;
 
-            // 1. CONTROL DE LA INTERFAZ WPF
+            // 1. CONTROL WPF
             if (!isStrategyActive) return;
 
             // 2. CONTROL HORARIO
@@ -145,11 +153,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (Position.MarketPosition != MarketPosition.Flat)
                 {
-                    ExitLong("Cierre Fuera Horario", "SniperExpLong");
-                    ExitShort("Cierre Fuera Horario", "SniperExpShort");
+                    ExitLong("Cierre Fuera Horario", "");
+                    ExitShort("Cierre Fuera Horario", "");
                     Print(Time[0] + " - Posición cerrada por seguridad (4:00 PM).");
                 }
                 currentSetup = SetupType.None;
+                currentWaitState = WaitState.None;
                 return;
             }
 
@@ -166,19 +175,74 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 3. GESTIÓN DE RIESGO
             ManageDynamicTrailingStop();
 
-            // 4. LÓGICA DE ENTRADA
+            // 4. LÓGICA DE ESPERA Y ENTRADA
             if (Position.MarketPosition == MarketPosition.Flat && isTradingTime)
             {
+                // A. Si estamos en el periodo de espera de 6 barras
+                if (currentWaitState != WaitState.None)
+                {
+                    waitBarCounter++;
+                    if (waitBarCounter >= WaitBars)
+                    {
+                        if (currentWaitState == WaitState.WaitingCrossUp)
+                        {
+                            if (Close[0] < keltner.Midline[0]) 
+                            {
+                                // TRAMPA (Precio cerró abajo) -> Corto
+                                isTrapTrade = true;
+                                EnterShort("SniperTrapShort");
+                                SetProfitTarget("SniperTrapShort", CalculationMode.Ticks, TrapProfitTicks);
+                                SetStopLoss("SniperTrapShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), false);
+                                Print(Time[0] + " - [TRAMPA ALCISTA] 6 barras después, precio debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
+                            }
+                            else
+                            {
+                                // CONTINUACIÓN -> Largo
+                                isTrapTrade = false;
+                                EnterLong("SniperExpLong");
+                                currentTrailingState = TrailingState.Phase1_OuterBand;
+                                highestPriceSinceEntry = High[0]; 
+                                SetStopLoss("SniperExpLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); 
+                                Print(Time[0] + " - [CONTINUACIÓN ALCISTA] 6 barras después, precio sobre Midline. LARGO Dinámico.");
+                            }
+                        }
+                        else if (currentWaitState == WaitState.WaitingCrossDown)
+                        {
+                            if (Close[0] > keltner.Midline[0]) 
+                            {
+                                // TRAMPA (Precio cerró arriba) -> Largo
+                                isTrapTrade = true;
+                                EnterLong("SniperTrapLong");
+                                SetProfitTarget("SniperTrapLong", CalculationMode.Ticks, TrapProfitTicks);
+                                SetStopLoss("SniperTrapLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), false);
+                                Print(Time[0] + " - [TRAMPA BAJISTA] 6 barras después, precio sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
+                            }
+                            else
+                            {
+                                // CONTINUACIÓN -> Corto
+                                isTrapTrade = false;
+                                EnterShort("SniperExpShort");
+                                currentTrailingState = TrailingState.Phase1_OuterBand;
+                                lowestPriceSinceEntry = Low[0]; 
+                                SetStopLoss("SniperExpShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); 
+                                Print(Time[0] + " - [CONTINUACIÓN BAJISTA] 6 barras después, precio debajo Midline. CORTO Dinámico.");
+                            }
+                        }
+                        
+                        // Resetear estado de espera
+                        currentWaitState = WaitState.None;
+                    }
+                    return; // No evaluar setups nuevos mientras estamos esperando
+                }
+
+                // B. Lógica de armado original (Buscando tocar extremos)
                 bool touchedUpperExtreme = false;
                 bool touchedLowerExtreme = false;
                 
                 for (int i = 1; i <= 3; i++)
                 {
-                    // Tolerancia para TEMA (Hacia adentro)
                     double upperTemaTol = keltner.Upper[i] - (TemaToleranceTicks * TickSize);
                     double lowerTemaTol = keltner.Lower[i] + (TemaToleranceTicks * TickSize);
-
-                    // Penetración exigida para el Precio Físico (Hacia afuera, 1.5 ticks duro)
                     double upperPricePen = keltner.Upper[i] + (1.5 * TickSize);
                     double lowerPricePen = keltner.Lower[i] - (1.5 * TickSize);
 
@@ -186,7 +250,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (Low[i] <= lowerPricePen || temaTrigger[i] <= lowerTemaTol) touchedLowerExtreme = true;
                 }
 
-                // Referencia fija para calcular si el TEMA cruzó de regreso
                 double upperBandTolCross = keltner.Upper[1] - (TemaToleranceTicks * TickSize);
                 double lowerBandTolCross = keltner.Lower[1] + (TemaToleranceTicks * TickSize);
 
@@ -212,12 +275,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     setupBarCounter = 0;
                 }
 
+                // C. Disparador del cruce (Inicia la espera)
                 if (currentSetup != SetupType.None)
                 {
                     setupBarCounter++;
                     if (setupBarCounter > CountdownBars)
                     {
-                        Print(Time[0] + " - [SETUP CANCELADO] Pasaron " + CountdownBars + " barras.");
+                        Print(Time[0] + " - [SETUP CANCELADO] Pasaron " + CountdownBars + " barras sin cruce.");
                         currentSetup = SetupType.None;
                     }
                     else
@@ -227,19 +291,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         if (currentSetup == SetupType.Long && CrossAbove(temaTrigger, keltner.Midline, 1) && macdValidLong)
                         {
-                            EnterLong("SniperExpLong");
-                            currentTrailingState = TrailingState.Phase1_OuterBand;
-                            highestPriceSinceEntry = High[0]; 
+                            currentWaitState = WaitState.WaitingCrossUp;
+                            waitBarCounter = 0;
                             currentSetup = SetupType.None;
-                            SetStopLoss("SniperExpLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); 
+                            Print(Time[0] + " - [CRUCE ARRIBA] Congelado. Esperando " + WaitBars + " barras para confirmación.");
                         }
                         else if (currentSetup == SetupType.Short && CrossBelow(temaTrigger, keltner.Midline, 1) && macdValidShort)
                         {
-                            EnterShort("SniperExpShort");
-                            currentTrailingState = TrailingState.Phase1_OuterBand;
-                            lowestPriceSinceEntry = Low[0]; 
+                            currentWaitState = WaitState.WaitingCrossDown;
+                            waitBarCounter = 0;
                             currentSetup = SetupType.None;
-                            SetStopLoss("SniperExpShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); 
+                            Print(Time[0] + " - [CRUCE ABAJO] Congelado. Esperando " + WaitBars + " barras para confirmación.");
                         }
                     }
                 }
@@ -247,6 +309,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             else if (Position.MarketPosition != MarketPosition.Flat)
             {
                 currentSetup = SetupType.None; 
+                currentWaitState = WaitState.None;
             }
         }
 
@@ -258,6 +321,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
+            // Si es un trade de trampa, el SL/TP es fijo manejado por NT8. Ignoramos esta rutina.
+            if (isTrapTrade) return;
+
             double entryPrice = Position.AveragePrice;
 
             if (Position.MarketPosition == MarketPosition.Long)
@@ -267,7 +333,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (maxProfitTicks >= ChokeThresholdTicks && currentTrailingState < TrailingState.Phase3_Choke)
                 {
                     currentTrailingState = TrailingState.Phase3_Choke;
-                    Print(Time[0] + " - [Fase 3 LARGO] Límite de estrangulamiento alcanzado (" + ChokeThresholdTicks + " tks).");
+                    Print(Time[0] + " - [Fase 3 LARGO] Límite de estrangulamiento alcanzado.");
                 }
                 else if (High[0] >= keltner.Upper[0] && currentTrailingState < TrailingState.Phase2_Midline && currentTrailingState != TrailingState.Phase3_Choke)
                 {
@@ -328,7 +394,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (maxProfitTicks >= ChokeThresholdTicks && currentTrailingState < TrailingState.Phase3_Choke)
                 {
                     currentTrailingState = TrailingState.Phase3_Choke;
-                    Print(Time[0] + " - [Fase 3 CORTO] Límite de estrangulamiento alcanzado (" + ChokeThresholdTicks + " tks).");
+                    Print(Time[0] + " - [Fase 3 CORTO] Límite de estrangulamiento alcanzado.");
                 }
                 else if (Low[0] <= keltner.Lower[0] && currentTrailingState < TrailingState.Phase2_Midline && currentTrailingState != TrailingState.Phase3_Choke)
                 {
@@ -435,77 +501,86 @@ namespace NinjaTrader.NinjaScript.Strategies
         public string Version { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name="Inicio de Entradas", Order=1, GroupName="1. Horarios (HHMMSS)")]
+        [Display(Name="Inicio de Entradas", Order=1, GroupName="1. Horarios")]
         public int StartTime { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name="Límite Entradas Nuevas", Order=2, GroupName="1. Horarios (HHMMSS)")]
+        [Display(Name="Límite Entradas Nuevas", Order=2, GroupName="1. Horarios")]
         public int StopEntriesTime { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name="Cierre Forzoso Total", Order=3, GroupName="1. Horarios (HHMMSS)")]
+        [Display(Name="Cierre Forzoso Total", Order=3, GroupName="1. Horarios")]
         public int ForceCloseTime { get; set; }
-
-        // Filtro Macro EMA Eliminado
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo Keltner", Order=1, GroupName="3. Keltner")]
+        [Display(Name="Periodo Keltner", Order=1, GroupName="2. Indicadores")]
         public int KeltnerPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(0.1, double.MaxValue)]
-        [Display(Name="Multiplicador Keltner", Order=2, GroupName="3. Keltner")]
+        [Display(Name="Multiplicador Keltner", Order=2, GroupName="2. Indicadores")]
         public double KeltnerMultiplier { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Periodo TEMA", Order=1, GroupName="4. Disparo")]
+        [Display(Name="Periodo TEMA", Order=1, GroupName="3. Disparo (Continuación)")]
         public int TemaPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Barras de Reloj", Order=2, GroupName="4. Disparo")]
+        [Display(Name="Barras de Reloj Setup", Order=2, GroupName="3. Disparo (Continuación)")]
         public int CountdownBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, int.MaxValue)]
-        [Display(Name="Tolerancia Gancho", Order=3, GroupName="4. Disparo")]
+        [Display(Name="Tolerancia Gancho", Order=3, GroupName="3. Disparo (Continuación)")]
         public int TemaToleranceTicks { get; set; }
+
+        // --- EXPERIMENTO DE ESPERA ---
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Barras de Espera tras Cruce", Order=1, GroupName="4. Experimento (Espera y Trampas)")]
+        public int WaitBars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name="TP de la Trampa (Ticks) (16 = $200)", Order=2, GroupName="4. Experimento (Espera y Trampas)")]
+        public int TrapProfitTicks { get; set; }
 
         // --- GESTIÓN DE RIESGO ---
         [NinjaScriptProperty]
-        [Display(Name="Usar Break-Even (Fase 1.5)", Order=1, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Usar Break-Even (Fase 1.5)", Order=1, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public bool UseBreakEven { get; set; }
 
         [NinjaScriptProperty]
         [Range(-100, int.MaxValue)]
-        [Display(Name="Offset SL", Order=2, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Offset SL", Order=2, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public int SlOffsetTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Break-Even Ticks (Fase 1.5)", Order=3, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Break-Even Ticks (Fase 1.5)", Order=3, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public int BreakEvenTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Inicio Ahogo Ticks (Fase 3)", Order=4, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Inicio Ahogo Ticks (Fase 3)", Order=4, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public int ChokeThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Trail de Ahogo Ticks", Order=5, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Trail de Ahogo Ticks", Order=5, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public int ChokeTrailTicks { get; set; }
         
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Activación Chicle (Ticks Extremos)", Order=6, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Activación Chicle (Ticks Extremos)", Order=6, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public int ParabolicTriggerTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name="Distancia Chicle Ticks", Order=7, GroupName="5. Gestión de Riesgo Dinámica")]
+        [Display(Name="Distancia Chicle Ticks", Order=7, GroupName="5. Gestión de Riesgo (Dinámica)")]
         public int ParabolicChicleTicks { get; set; }
 
         [NinjaScriptProperty]
