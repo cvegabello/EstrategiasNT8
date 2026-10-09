@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "2.0-Trampas";
+                Version                 = "3.0";
                 
                 // Horarios
                 StartTime               = 95000;   
