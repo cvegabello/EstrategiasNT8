@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "3.0";
+                Version                 = "3.1";
                 
                 // Horarios
                 StartTime               = 95000;   
@@ -94,6 +94,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 WaitBars                = 6;
                 TrapProfitTicks         = 16;      // 16 ticks = $200 en ES
                 DeadZoneTicks           = 3;       // Ticks de filtro para zona muerta
+                MinCrossTicks           = 1;       // Ticks mínimos para confirmar cruce real
                 
                 UseMacdFilter           = false;
                 MacdFast                = 8;
@@ -299,19 +300,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                         bool macdValidLong = !UseMacdFilter || (macd.Diff[0] > macd.Diff[1]);
                         bool macdValidShort = !UseMacdFilter || (macd.Diff[0] < macd.Diff[1]);
 
-                        if (currentSetup == SetupType.Long && CrossAbove(temaTrigger, keltner.Midline, 1) && macdValidLong)
+                        if (currentSetup == SetupType.Long && temaTrigger[0] >= keltner.Midline[0] + (MinCrossTicks * TickSize) && macdValidLong)
                         {
                             currentWaitState = WaitState.WaitingCrossUp;
                             waitBarCounter = 0;
                             currentSetup = SetupType.None;
-                            Print(Time[0] + " - [CRUCE ARRIBA] Congelado. Esperando " + WaitBars + " barras para confirmación.");
+                            Print(Time[0] + " - [CRUCE ARRIBA REAL] TEMA superó Midline por " + MinCrossTicks + " tks. Esperando " + WaitBars + " barras.");
                         }
-                        else if (currentSetup == SetupType.Short && CrossBelow(temaTrigger, keltner.Midline, 1) && macdValidShort)
+                        else if (currentSetup == SetupType.Short && temaTrigger[0] <= keltner.Midline[0] - (MinCrossTicks * TickSize) && macdValidShort)
                         {
                             currentWaitState = WaitState.WaitingCrossDown;
                             waitBarCounter = 0;
                             currentSetup = SetupType.None;
-                            Print(Time[0] + " - [CRUCE ABAJO] Congelado. Esperando " + WaitBars + " barras para confirmación.");
+                            Print(Time[0] + " - [CRUCE ABAJO REAL] TEMA superó Midline por " + MinCrossTicks + " tks. Esperando " + WaitBars + " barras.");
                         }
                     }
                 }
@@ -582,6 +583,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0, int.MaxValue)]
         [Display(Name="Filtro Zona Muerta (Ticks)", Order=3, GroupName="4. Experimento (Espera y Trampas)")]
         public int DeadZoneTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0, int.MaxValue)]
+        [Display(Name="Ticks Mínimos para Cruce Real", Order=4, GroupName="4. Experimento (Espera y Trampas)")]
+        public int MinCrossTicks { get; set; }
 
         // --- GESTIÓN DE RIESGO ---
         [NinjaScriptProperty]
