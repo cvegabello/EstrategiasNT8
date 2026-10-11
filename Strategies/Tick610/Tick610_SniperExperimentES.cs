@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "3.3";
+                Version                 = "3.4";
                 
                 // Horarios
                 StartTime               = 95000;   
@@ -96,6 +96,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 DeadZoneTicks           = 3;       // Ticks de filtro para zona muerta
                 MinCrossTicks           = 1;       // Ticks mínimos para confirmar cruce real
                 UseSlopeFilter          = true;    // Filtro de pendiente de TEMA en la barra de confirmación
+                ShowVisualCrosses       = true;    // Dibujar marcadores visuales para cruces reales en la gráfica
                 
                 UseMacdFilter           = false;
                 MacdFast                = 8;
@@ -335,6 +336,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                             currentWaitState = WaitState.WaitingCrossUp;
                             waitBarCounter = 0;
                             currentSetup = SetupType.None;
+
+                            if (ShowVisualCrosses)
+                            {
+                                Draw.TriangleUp(this, "RealCrossUp_" + CurrentBar, true, 0, Low[0] - (3 * TickSize), Brushes.DeepSkyBlue);
+                                Draw.Text(this, "RealCrossUpTxt_" + CurrentBar, "Cruce ▲", 0, Low[0] - (7 * TickSize), Brushes.DeepSkyBlue);
+                            }
+
                             Print(Time[0] + " - [CRUCE ARRIBA REAL] TEMA superó Midline por " + MinCrossTicks + " tks. Esperando " + WaitBars + " barras.");
                         }
                         else if (currentSetup == SetupType.Short && temaTrigger[0] <= keltner.Midline[0] - (MinCrossTicks * TickSize) && macdValidShort)
@@ -342,6 +350,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                             currentWaitState = WaitState.WaitingCrossDown;
                             waitBarCounter = 0;
                             currentSetup = SetupType.None;
+
+                            if (ShowVisualCrosses)
+                            {
+                                Draw.TriangleDown(this, "RealCrossDown_" + CurrentBar, true, 0, High[0] + (3 * TickSize), Brushes.Orange);
+                                Draw.Text(this, "RealCrossDownTxt_" + CurrentBar, "Cruce ▼", 0, High[0] + (7 * TickSize), Brushes.Orange);
+                            }
+
                             Print(Time[0] + " - [CRUCE ABAJO REAL] TEMA superó Midline por " + MinCrossTicks + " tks. Esperando " + WaitBars + " barras.");
                         }
                     }
@@ -622,6 +637,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name="Filtro Pendiente TEMA en Disparo", Order=5, GroupName="4. Experimento (Espera y Trampas)")]
         public bool UseSlopeFilter { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Mostrar Cruces Reales en Gráfica", Order=6, GroupName="4. Experimento (Espera y Trampas)")]
+        public bool ShowVisualCrosses { get; set; }
 
         // --- GESTIÓN DE RIESGO ---
         [NinjaScriptProperty]
