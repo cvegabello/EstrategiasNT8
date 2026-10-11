@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "3.1";
+                Version                 = "3.2";
                 
                 // Horarios
                 StartTime               = 95000;   
@@ -101,7 +101,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MacdSlow                = 17;
                 MacdSmooth              = 9;
 
-                // Gestión de Riesgo Dinámica (Solo aplica a Continuación)
+                // Gestión de Riesgo Dinámica
+                StopLossTicks           = 10;
                 UseBreakEven            = true;    
                 SlOffsetTicks           = 1;
                 BreakEvenTicks          = 22;      
@@ -203,7 +204,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 isTrapTrade = true;
                                 EnterShort("SniperTrapShort");
                                 SetProfitTarget("SniperTrapShort", CalculationMode.Ticks, TrapProfitTicks);
-                                SetStopLoss("SniperTrapShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), false);
+                                SetStopLoss("SniperTrapShort", CalculationMode.Ticks, StopLossTicks);
                                 Print(Time[0] + " - [TRAMPA ALCISTA] 6 barras después, TEMA debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
@@ -213,7 +214,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 EnterLong("SniperExpLong");
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 highestPriceSinceEntry = High[0]; 
-                                SetStopLoss("SniperExpLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), true); 
+                                SetStopLoss("SniperExpLong", CalculationMode.Ticks, StopLossTicks);
                                 Print(Time[0] + " - [CONTINUACIÓN ALCISTA] 6 barras después, TEMA sobre Midline. LARGO Dinámico.");
                             }
                         }
@@ -225,7 +226,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 isTrapTrade = true;
                                 EnterLong("SniperTrapLong");
                                 SetProfitTarget("SniperTrapLong", CalculationMode.Ticks, TrapProfitTicks);
-                                SetStopLoss("SniperTrapLong", CalculationMode.Price, keltner.Lower[0] - (SlOffsetTicks * TickSize), false);
+                                SetStopLoss("SniperTrapLong", CalculationMode.Ticks, StopLossTicks);
                                 Print(Time[0] + " - [TRAMPA BAJISTA] 6 barras después, TEMA sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
@@ -235,7 +236,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 EnterShort("SniperExpShort");
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 lowestPriceSinceEntry = Low[0]; 
-                                SetStopLoss("SniperExpShort", CalculationMode.Price, keltner.Upper[0] + (SlOffsetTicks * TickSize), true); 
+                                SetStopLoss("SniperExpShort", CalculationMode.Ticks, StopLossTicks);
                                 Print(Time[0] + " - [CONTINUACIÓN BAJISTA] 6 barras después, TEMA debajo Midline. CORTO Dinámico.");
                             }
                         }
@@ -360,7 +361,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double slPrice = 0;
                 if (currentTrailingState == TrailingState.Phase1_OuterBand)
                 {
-                    slPrice = keltner.Lower[0] - (SlOffsetTicks * TickSize);
+                    slPrice = entryPrice - (StopLossTicks * TickSize);
                 }
                 else if (currentTrailingState == TrailingState.Phase1_5_BreakEven)
                 {
@@ -421,7 +422,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double slPrice = double.MaxValue;
                 if (currentTrailingState == TrailingState.Phase1_OuterBand)
                 {
-                    slPrice = keltner.Upper[0] + (SlOffsetTicks * TickSize);
+                    slPrice = entryPrice + (StopLossTicks * TickSize);
                 }
                 else if (currentTrailingState == TrailingState.Phase1_5_BreakEven)
                 {
@@ -591,7 +592,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         // --- GESTIÓN DE RIESGO ---
         [NinjaScriptProperty]
-        [Display(Name="Usar Break-Even (Fase 1.5)", Order=1, GroupName="5. Gestión de Riesgo (Dinámica)")]
+        [Range(1, int.MaxValue)]
+        [Display(Name="Stop Loss Fijo Inicial (Ticks)", Order=1, GroupName="5. Gestión de Riesgo")]
+        public int StopLossTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Usar Break-Even (Fase 1.5)", Order=2, GroupName="5. Gestión de Riesgo")]
         public bool UseBreakEven { get; set; }
 
         [NinjaScriptProperty]
