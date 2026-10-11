@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "3.4";
+                Version                 = "3.5";
                 
                 // Horarios
                 StartTime               = 95000;   
@@ -96,6 +96,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 DeadZoneTicks           = 3;       // Ticks de filtro para zona muerta
                 MinCrossTicks           = 1;       // Ticks mínimos para confirmar cruce real
                 UseSlopeFilter          = true;    // Filtro de pendiente de TEMA en la barra de confirmación
+                MinSlopeTicks           = 1.0;     // Inclinación mínima requerida en ticks por barra
                 ShowVisualCrosses       = true;    // Dibujar marcadores visuales para cruces reales en la gráfica
                 
                 UseMacdFilter           = false;
@@ -203,9 +204,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             if (temaTrigger[0] < keltner.Midline[0]) 
                             {
                                 // TRAMPA (TEMA debajo) -> Corto
-                                if (UseSlopeFilter && temaTrigger[0] >= temaTrigger[1])
+                                double slopeDownTicks = (temaTrigger[1] - temaTrigger[0]) / TickSize;
+                                if (UseSlopeFilter && slopeDownTicks < MinSlopeTicks)
                                 {
-                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de CORTO (Trampa) cancelado: TEMA subiendo o plana.");
+                                    Print(Time[0] + " - [PENDIENTE INSUFICIENTE] Intento de CORTO (Trampa) cancelado: TEMA cae solo " + slopeDownTicks.ToString("F2") + " tks (< " + MinSlopeTicks.ToString("F1") + " tks).");
                                     currentWaitState = WaitState.None;
                                     return;
                                 }
@@ -219,9 +221,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             else
                             {
                                 // CONTINUACIÓN -> Largo
-                                if (UseSlopeFilter && temaTrigger[0] <= temaTrigger[1])
+                                double slopeUpTicks = (temaTrigger[0] - temaTrigger[1]) / TickSize;
+                                if (UseSlopeFilter && slopeUpTicks < MinSlopeTicks)
                                 {
-                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de LARGO (Continuación) cancelado: TEMA bajando o plana.");
+                                    Print(Time[0] + " - [PENDIENTE INSUFICIENTE] Intento de LARGO (Continuación) cancelado: TEMA sube solo " + slopeUpTicks.ToString("F2") + " tks (< " + MinSlopeTicks.ToString("F1") + " tks).");
                                     currentWaitState = WaitState.None;
                                     return;
                                 }
@@ -239,9 +242,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             if (temaTrigger[0] > keltner.Midline[0]) 
                             {
                                 // TRAMPA (TEMA arriba) -> Largo
-                                if (UseSlopeFilter && temaTrigger[0] <= temaTrigger[1])
+                                double slopeUpTicks = (temaTrigger[0] - temaTrigger[1]) / TickSize;
+                                if (UseSlopeFilter && slopeUpTicks < MinSlopeTicks)
                                 {
-                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de LARGO (Trampa) cancelado: TEMA bajando o plana.");
+                                    Print(Time[0] + " - [PENDIENTE INSUFICIENTE] Intento de LARGO (Trampa) cancelado: TEMA sube solo " + slopeUpTicks.ToString("F2") + " tks (< " + MinSlopeTicks.ToString("F1") + " tks).");
                                     currentWaitState = WaitState.None;
                                     return;
                                 }
@@ -255,9 +259,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             else
                             {
                                 // CONTINUACIÓN -> Corto
-                                if (UseSlopeFilter && temaTrigger[0] >= temaTrigger[1])
+                                double slopeDownTicks = (temaTrigger[1] - temaTrigger[0]) / TickSize;
+                                if (UseSlopeFilter && slopeDownTicks < MinSlopeTicks)
                                 {
-                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de CORTO (Continuación) cancelado: TEMA subiendo o plana.");
+                                    Print(Time[0] + " - [PENDIENTE INSUFICIENTE] Intento de CORTO (Continuación) cancelado: TEMA cae solo " + slopeDownTicks.ToString("F2") + " tks (< " + MinSlopeTicks.ToString("F1") + " tks).");
                                     currentWaitState = WaitState.None;
                                     return;
                                 }
@@ -639,7 +644,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseSlopeFilter { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name="Mostrar Cruces Reales en Gráfica", Order=6, GroupName="4. Experimento (Espera y Trampas)")]
+        [Range(0.0, double.MaxValue)]
+        [Display(Name="Inclinación Mínima TEMA (Ticks)", Order=6, GroupName="4. Experimento (Espera y Trampas)")]
+        public double MinSlopeTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Mostrar Cruces Reales en Gráfica", Order=7, GroupName="4. Experimento (Espera y Trampas)")]
         public bool ShowVisualCrosses { get; set; }
 
         // --- GESTIÓN DE RIESGO ---
