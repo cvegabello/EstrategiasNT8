@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "3.2";
+                Version                 = "3.2.1";
                 
                 // Horarios
                 StartTime               = 95000;   
@@ -204,7 +204,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 isTrapTrade = true;
                                 EnterShort("SniperTrapShort");
                                 SetProfitTarget("SniperTrapShort", CalculationMode.Ticks, TrapProfitTicks);
-                                SetStopLoss("SniperTrapShort", CalculationMode.Ticks, StopLossTicks);
+                                SetStopLoss("SniperTrapShort", CalculationMode.Ticks, StopLossTicks, false);
                                 Print(Time[0] + " - [TRAMPA ALCISTA] 6 barras después, TEMA debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
@@ -214,7 +214,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 EnterLong("SniperExpLong");
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 highestPriceSinceEntry = High[0]; 
-                                SetStopLoss("SniperExpLong", CalculationMode.Ticks, StopLossTicks);
+                                SetStopLoss("SniperExpLong", CalculationMode.Ticks, StopLossTicks, true);
                                 Print(Time[0] + " - [CONTINUACIÓN ALCISTA] 6 barras después, TEMA sobre Midline. LARGO Dinámico.");
                             }
                         }
@@ -226,7 +226,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 isTrapTrade = true;
                                 EnterLong("SniperTrapLong");
                                 SetProfitTarget("SniperTrapLong", CalculationMode.Ticks, TrapProfitTicks);
-                                SetStopLoss("SniperTrapLong", CalculationMode.Ticks, StopLossTicks);
+                                SetStopLoss("SniperTrapLong", CalculationMode.Ticks, StopLossTicks, false);
                                 Print(Time[0] + " - [TRAMPA BAJISTA] 6 barras después, TEMA sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
@@ -236,7 +236,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 EnterShort("SniperExpShort");
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 lowestPriceSinceEntry = Low[0]; 
-                                SetStopLoss("SniperExpShort", CalculationMode.Ticks, StopLossTicks);
+                                SetStopLoss("SniperExpShort", CalculationMode.Ticks, StopLossTicks, true);
                                 Print(Time[0] + " - [CONTINUACIÓN BAJISTA] 6 barras después, TEMA debajo Midline. CORTO Dinámico.");
                             }
                         }
