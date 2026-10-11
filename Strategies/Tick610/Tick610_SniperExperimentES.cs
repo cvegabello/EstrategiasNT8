@@ -77,7 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades
-                Version                 = "3.2.1";
+                Version                 = "3.3";
                 
                 // Horarios
                 StartTime               = 95000;   
@@ -95,6 +95,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TrapProfitTicks         = 16;      // 16 ticks = $200 en ES
                 DeadZoneTicks           = 3;       // Ticks de filtro para zona muerta
                 MinCrossTicks           = 1;       // Ticks mínimos para confirmar cruce real
+                UseSlopeFilter          = true;    // Filtro de pendiente de TEMA en la barra de confirmación
                 
                 UseMacdFilter           = false;
                 MacdFast                = 8;
@@ -201,21 +202,35 @@ namespace NinjaTrader.NinjaScript.Strategies
                             if (temaTrigger[0] < keltner.Midline[0]) 
                             {
                                 // TRAMPA (TEMA debajo) -> Corto
+                                if (UseSlopeFilter && temaTrigger[0] >= temaTrigger[1])
+                                {
+                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de CORTO (Trampa) cancelado: TEMA subiendo o plana.");
+                                    currentWaitState = WaitState.None;
+                                    return;
+                                }
+
                                 isTrapTrade = true;
                                 EnterShort("SniperTrapShort");
                                 SetProfitTarget("SniperTrapShort", CalculationMode.Ticks, TrapProfitTicks);
                                 SetStopLoss("SniperTrapShort", CalculationMode.Ticks, StopLossTicks, false);
-                                Print(Time[0] + " - [TRAMPA ALCISTA] 6 barras después, TEMA debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
+                                Print(Time[0] + " - [TRAMPA ALCISTA] " + WaitBars + " barras después, TEMA debajo Midline. CORTO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
                             {
                                 // CONTINUACIÓN -> Largo
+                                if (UseSlopeFilter && temaTrigger[0] <= temaTrigger[1])
+                                {
+                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de LARGO (Continuación) cancelado: TEMA bajando o plana.");
+                                    currentWaitState = WaitState.None;
+                                    return;
+                                }
+
                                 isTrapTrade = false;
                                 EnterLong("SniperExpLong");
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 highestPriceSinceEntry = High[0]; 
                                 SetStopLoss("SniperExpLong", CalculationMode.Ticks, StopLossTicks, true);
-                                Print(Time[0] + " - [CONTINUACIÓN ALCISTA] 6 barras después, TEMA sobre Midline. LARGO Dinámico.");
+                                Print(Time[0] + " - [CONTINUACIÓN ALCISTA] " + WaitBars + " barras después, TEMA sobre Midline. LARGO Dinámico.");
                             }
                         }
                         else if (currentWaitState == WaitState.WaitingCrossDown)
@@ -223,21 +238,35 @@ namespace NinjaTrader.NinjaScript.Strategies
                             if (temaTrigger[0] > keltner.Midline[0]) 
                             {
                                 // TRAMPA (TEMA arriba) -> Largo
+                                if (UseSlopeFilter && temaTrigger[0] <= temaTrigger[1])
+                                {
+                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de LARGO (Trampa) cancelado: TEMA bajando o plana.");
+                                    currentWaitState = WaitState.None;
+                                    return;
+                                }
+
                                 isTrapTrade = true;
                                 EnterLong("SniperTrapLong");
                                 SetProfitTarget("SniperTrapLong", CalculationMode.Ticks, TrapProfitTicks);
                                 SetStopLoss("SniperTrapLong", CalculationMode.Ticks, StopLossTicks, false);
-                                Print(Time[0] + " - [TRAMPA BAJISTA] 6 barras después, TEMA sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
+                                Print(Time[0] + " - [TRAMPA BAJISTA] " + WaitBars + " barras después, TEMA sobre Midline. LARGO (TP " + TrapProfitTicks + " tks).");
                             }
                             else
                             {
                                 // CONTINUACIÓN -> Corto
+                                if (UseSlopeFilter && temaTrigger[0] >= temaTrigger[1])
+                                {
+                                    Print(Time[0] + " - [PENDIENTE INVÁLIDA] Intento de CORTO (Continuación) cancelado: TEMA subiendo o plana.");
+                                    currentWaitState = WaitState.None;
+                                    return;
+                                }
+
                                 isTrapTrade = false;
                                 EnterShort("SniperExpShort");
                                 currentTrailingState = TrailingState.Phase1_OuterBand;
                                 lowestPriceSinceEntry = Low[0]; 
                                 SetStopLoss("SniperExpShort", CalculationMode.Ticks, StopLossTicks, true);
-                                Print(Time[0] + " - [CONTINUACIÓN BAJISTA] 6 barras después, TEMA debajo Midline. CORTO Dinámico.");
+                                Print(Time[0] + " - [CONTINUACIÓN BAJISTA] " + WaitBars + " barras después, TEMA debajo Midline. CORTO Dinámico.");
                             }
                         }
                         
@@ -589,6 +618,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0, int.MaxValue)]
         [Display(Name="Ticks Mínimos para Cruce Real", Order=4, GroupName="4. Experimento (Espera y Trampas)")]
         public int MinCrossTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name="Filtro Pendiente TEMA en Disparo", Order=5, GroupName="4. Experimento (Espera y Trampas)")]
+        public bool UseSlopeFilter { get; set; }
 
         // --- GESTIÓN DE RIESGO ---
         [NinjaScriptProperty]
