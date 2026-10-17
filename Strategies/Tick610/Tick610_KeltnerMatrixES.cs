@@ -81,10 +81,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades generales
-                Version                 = "1.1";
+                Version                 = "1.2";
 
-                // Horarios RTH (Nueva York EST)
-                StartTime               = 93000;  // 09:30 AM EST
+                // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
+                StartTime               = 95000;  // 09:50 AM EST
                 StopEntriesTime         = 154500; // 03:45 PM EST (Dejar de abrir nuevas)
                 ForceCloseTime          = 160000; // 04:00 PM EST (Cerrar todo sí o sí)
 

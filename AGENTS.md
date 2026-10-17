@@ -12,8 +12,8 @@ Este documento define las reglas base, el contexto técnico y mi rol para todas 
 - **Tick Size:** 0.25.
 - **Tipo de Gráfica:** TICK 610 (Barras transaccionales, NO de tiempo).
 - **Visualización:** Barras OHLC.
-- **Horario Operativo:** Solo RTH (Regular Trading Hours: 09:30 AM - 04:00 PM EST/NY).
-  - *Regla estricta:* El código debe ignorar cualquier señal fuera de este horario.
+- **Horario Operativo:** Solo RTH, iniciando a las **09:50 AM EST** (09:50 AM - 04:00 PM EST/NY), salvo que se indique lo contrario.
+  - *Regla estricta:* El código debe ignorar cualquier señal fuera de este horario (`StartTime = 95000`, `StopEntriesTime = 154500`, `ForceCloseTime = 160000`).
 
 ## 3. Modo de Enseñanza (Pedagogía)
 - **Explicación ELI5 ("Explain Like I'm 5"):** Al introducir conceptos nuevos o complejos (ej. Order Flow, Desviación Estándar, Arrays), utilizaré analogías sencillas de la vida real *antes* de ir al código.
@@ -21,14 +21,14 @@ Este documento define las reglas base, el contexto técnico y mi rol para todas 
 - **Código Comentado (Educational Code):** Todo bloque de código generado incluirá comentarios en **ESPAÑOL**, línea por línea o sección por sección. Los comentarios explicarán **QUÉ** hace la función y **POR QUÉ** es necesaria.
 
 ## 4. Reglas de Oro para el Código (C# en NT8)
-- **Filtro Horario:** Incluir siempre la lógica de validación RTH.
-  - Ejemplo: `if (ToTime(Time[0]) < 93000 || ToTime(Time[0]) >= 160000) return;`
+- **Filtro Horario:** Incluir siempre la lógica de validación RTH empezando a las **09:50 AM** (`95000`).
 - **Eficiencia Tick:** Ya que `OnBarUpdate` se dispara constantemente (en milisegundos) en gráficas de ticks, el código será **muy ligero y optimizado** (evitando bucles pesados innecesarios).
-- **Gestión de Riesgo:** Los Stops y Targets se calcularán siempre en **Ticks** (usando multiplicadores de TickSize).
+- **No Dibujar Indicadores (`AddChartIndicator`):** NUNCA usar `AddChartIndicator` en las estrategias salvo que el usuario lo pida explícitamente, ya que el usuario ya tiene su plantilla visual configurada en la gráfica.
+- **Gestión de Riesgo:** Los Stops y Targets se calcularán siempre en **Ticks** (usando multiplicadores de TickSize) o precios redondeados al TickSize.
 - **Estructura Estándar:** El código siempre aprovechará los estados correctos:
   - `State.SetDefaults`: Para variables y parámetros.
-  - `State.DataLoaded`: Para instanciar indicadores y objetos.
-- **Interfaz de Control (WPF):** Toda estrategia de la Navaja Suiza debe incluir OBLIGATORIAMENTE un botón visual WPF en la gráfica y un atajo de teclado (`Ctrl + Espacio`) para pausar/activar la operativa de forma manual e instantánea. La estrategia siempre debe iniciar en estado "PAUSADO" por defecto.
+  - `State.DataLoaded`: Para instanciar indicadores en memoria (sin dibujarlos).
+- **Interfaz de Control (WPF - Verdadero Botón de Pánico):** Toda estrategia debe incluir OBLIGATORIAMENTE un botón visual WPF en la gráfica y un atajo de teclado (`Ctrl + Espacio`) para pausar/activar la operativa. La estrategia siempre debe iniciar en estado "PAUSADO" en tiempo real (y activa en Backtest/Strategy Analyzer). Al pasar a "PAUSADO", debe actuar como **Botón de Pánico real**: liquidar inmediatamente cualquier posición abierta a mercado (`ExitLong`/`ExitShort` vía `TriggerCustomEvent`) y limpiar estados internos.
 
 ## 5. Flujo de Trabajo
 - **Aislamiento por Chat:** Asumiré que cada NUEVO CHAT es una estrategia o consulta aislada (borrón y cuenta nueva), basándome únicamente en este documento de reglas.
