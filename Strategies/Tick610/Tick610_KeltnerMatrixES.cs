@@ -81,7 +81,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades generales
-                Version                 = "1.0";
+                Version                 = "1.1";
 
                 // Horarios RTH (Nueva York EST)
                 StartTime               = 93000;  // 09:30 AM EST
@@ -99,40 +99,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MinCrossTicks           = 1;      // Penetración mínima en ticks para confirmar cruce real
                 UseSlopeFilter          = true;   // Exigir que el TEMA lleve pendiente a favor
                 MinSafetySlTicks        = 8;      // Colchón mínimo de seguridad para el SL (Peligro 1 - Opción A)
-                ShowVisualMarkers       = true;   // Dibujar cruces en la gráfica
+                ShowVisualMarkers       = false;  // No dibujar figuras extra en la gráfica por defecto
             }
             else if (State == State.DataLoaded)
             {
-                // Instanciamos los indicadores en memoria
+                // Instanciamos los indicadores únicamente en la memoria interna del robot (sin dibujarlos en la gráfica)
                 tema9        = TEMA(Close, TemaPeriod);
                 ema200       = EMA(Close, EmaPeriod);
                 keltnerBig   = KeltnerChannel(Close, KeltnerBigMult, KeltnerPeriod);
                 keltnerSmall = KeltnerChannel(Close, KeltnerSmallMult, KeltnerPeriod);
-
-                // Personalización visual de los indicadores en la gráfica
-                tema9.Plots[0].Brush        = Brushes.DodgerBlue;
-                tema9.Plots[0].Width        = 2;
-
-                ema200.Plots[0].Brush       = Brushes.Red;
-                ema200.Plots[0].Width       = 2;
-
-                // Canal Grande (3.5) -> Blanco en el medio, Gris claro en los bordes
-                keltnerBig.Plots[0].Brush   = Brushes.White;
-                keltnerBig.Plots[0].Width   = 2;
-                keltnerBig.Plots[1].Brush   = Brushes.LightGray;
-                keltnerBig.Plots[2].Brush   = Brushes.LightGray;
-
-                // Canal Pequeño (1.75) -> Ocultamos su línea media porque es idéntica a la grande, y pintamos sus bordes en Dorado/Amarillo suave
-                keltnerSmall.Plots[0].Brush = Brushes.Transparent;
-                keltnerSmall.Plots[1].Brush = Brushes.Gold;
-                keltnerSmall.Plots[1].DashStyleHelper = DashStyleHelper.Dash;
-                keltnerSmall.Plots[2].Brush = Brushes.Gold;
-                keltnerSmall.Plots[2].DashStyleHelper = DashStyleHelper.Dash;
-
-                AddChartIndicator(tema9);
-                AddChartIndicator(ema200);
-                AddChartIndicator(keltnerBig);
-                AddChartIndicator(keltnerSmall);
             }
             else if (State == State.Historical)
             {
