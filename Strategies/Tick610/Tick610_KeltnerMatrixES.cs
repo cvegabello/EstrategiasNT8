@@ -81,7 +81,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsInstantiatedOnEachOptimizationIteration   = true;
 
                 // Propiedades generales
-                Version                 = "1.2";
+                Version                 = "1.3";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime               = 95000;  // 09:50 AM EST
@@ -137,6 +137,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (CurrentBar < BarsRequiredToTrade)
                 return;
 
+            // Inicializamos lastTemaSide la primera vez que tenemos datos válidos
+            if (lastTemaSide == 0)
+            {
+                lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
+            }
+
             int currentTime = ToTime(Time[0]);
 
             // 2. Cierre Forzoso al final de la sesión RTH (16:00 EST)
@@ -152,6 +158,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(Time[0] + " - [CIERRE FORZOSO RTH] Posición cerrada por fin de horario operativo.");
                 }
                 currentTradeMode = MatrixTradeMode.None;
+                // Mantenemos rastreado de qué lado está el TEMA fuera de horario para que a las 09:50 AM sepa de dónde viene
+                if (tema9[0] <= ema200[0]) { lastTemaSide = -1; crossUpConsumed = false; }
+                else if (tema9[0] > ema200[0]) { lastTemaSide = 1; crossDownConsumed = false; }
                 return;
             }
 
@@ -165,25 +174,28 @@ namespace NinjaTrader.NinjaScript.Strategies
                 currentTradeMode = MatrixTradeMode.None;
             }
 
-            // 4. Si el Botón de Pánico está en PAUSADO (Rojo), no buscamos entradas
-            if (!isStrategyActive)
+            // 4. Si el Botón de Pánico está en PAUSADO (Rojo) o pasó la hora límite de entradas, no abrimos trades
+            // Pero mantenemos rastreado el lado del TEMA para cuando el usuario active el botón
+            if (!isStrategyActive || currentTime > StopEntriesTime)
+            {
+                if (tema9[0] <= ema200[0]) { lastTemaSide = -1; crossUpConsumed = false; }
+                else if (tema9[0] > ema200[0]) { lastTemaSide = 1; crossDownConsumed = false; }
                 return;
-
-            // 5. Filtro de horario de entradas (No abrir nuevas posiciones después de las 15:45 EST)
-            if (currentTime > StopEntriesTime)
-                return;
+            }
 
             // === DETECCIÓN DEL ESTADO DE CRUCE (PELIGRO 2 - OPCIÓN A: CRUCE REAL + PENDIENTE) ===
-            // Actualizamos de qué lado estaba el TEMA respecto a la EMA 200 para detectar un cruce fresco
-            if (tema9[1] < ema200[1])
+            // Si el TEMA regresa al lado opuesto (o si ya había consumido el cruce previo en esa dirección),
+            // actualizamos lastTemaSide para que quede armado el cruce hacia el otro lado.
+            // Si aún NO ha superado MinCrossTicks, conservamos el lado de origen para evaluarlo en la siguiente barra.
+            if (tema9[0] <= ema200[0])
             {
-                lastTemaSide = -1;
-                crossUpConsumed = false; // Permite un nuevo cruce alcista
+                crossUpConsumed = false;
+                if (crossDownConsumed) lastTemaSide = -1;
             }
-            else if (tema9[1] > ema200[1])
+            if (tema9[0] >= ema200[0])
             {
-                lastTemaSide = 1;
-                crossDownConsumed = false; // Permite un nuevo cruce bajista
+                crossDownConsumed = false;
+                if (crossUpConsumed) lastTemaSide = 1;
             }
 
             // Extraemos los niveles actuales de las bandas para legibilidad
