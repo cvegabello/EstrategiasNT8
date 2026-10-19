@@ -45,6 +45,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool crossUpConsumed = false;
         private bool crossDownConsumed = false;
 
+        // === VARIABLES v1.6: ESCUDO MFE BREAKEVEN Y ESCUDO ANTI-SANCOCHO ===
+        private bool isInnerBreakEvenActive = false; // Indica si el trade de canal interno ya aseguró BreakEven tras superar la banda 1.75
+        private int consecutiveLosses = 0;           // Contador de pérdidas seguidas para apagar el Stop & Reverse en sancochos
+
         // === INDICADORES ===
         private TEMA tema9;
         private EMA ema200;
@@ -61,7 +65,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Keltner Matrix en 610 Ticks para ES/MES. Cruces de TEMA(9) y EMA(200) clasificados por zonas de Doble Canal de Keltner (3.5 y 1.75) con TP y SL dinámicos pegados a las bandas.";
+                Description                                 = @"Estrategia Keltner Matrix en 610 Ticks para ES/MES. Cruces de TEMA(9) y EMA(200) clasificados por zonas de Doble Canal de Keltner (3.5 y 1.75) con TP/SL dinámicos, MFE BreakEven y Stop & Reverse Adaptativo Anti-Sancocho.";
                 Name                                        = "Tick610_KeltnerMatrixES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -79,31 +83,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                 StopTargetHandling                          = StopTargetHandling.PerEntryExecution;
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
+                IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                 = "1.5";
+                Version                         = "1.6";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
-                StartTime               = 95000;  // 09:50 AM EST
-                StopEntriesTime         = 154500; // 03:45 PM EST (Dejar de abrir nuevas)
-                ForceCloseTime          = 160000; // 04:00 PM EST (Cerrar todo sí o sí)
+                StartTime                       = 95000;  // 09:50 AM EST
+                StopEntriesTime                 = 154500; // 03:45 PM EST (Dejar de abrir nuevas)
+                ForceCloseTime                  = 160000; // 04:00 PM EST (Cerrar todo sí o sí)
 
                 // Parámetros de Indicadores
-                TemaPeriod              = 9;
-                EmaPeriod               = 200;
-                KeltnerPeriod           = 52;
-                KeltnerBigMult          = 3.5;
-                KeltnerSmallMult        = 1.75;
+                TemaPeriod                      = 9;
+                EmaPeriod                       = 200;
+                KeltnerPeriod                   = 52;
+                KeltnerBigMult                  = 3.5;
+                KeltnerSmallMult                = 1.75;
 
-                // Filtros de Seguridad, Offsets de Bandas y Stop & Reverse
-                MinCrossTicks           = 1;      // Penetración mínima en ticks para confirmar cruce real
-                UseSlopeFilter          = true;   // Exigir que el TEMA lleve pendiente a favor
-                RequireCloseOnCrossSide = true;   // Exigir que el precio de cierre Close[0] también esté del lado del cruce (Evita falsos cruces)
-                SlOffsetTicks           = 2;      // Ticks de respiro por fuera de la banda para el Stop Loss
-                TpOffsetTicks           = 1;      // Ticks por dentro de la banda para asegurar el Take Profit antes del rebote
-                MinSafetySlTicks        = 8;      // Colchón mínimo de seguridad para el SL (Peligro 1 y cruces fuera de banda 3.5)
-                UseStopAndReverse       = true;   // Opción B: Voltear o cerrar posición si ocurre cruce real contrario
-                ShowVisualMarkers       = false;  // No dibujar figuras extra en la gráfica por defecto
+                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6
+                MinCrossTicks                   = 1;      // Penetración mínima en ticks para confirmar cruce real
+                UseSlopeFilter                  = true;   // Exigir que el TEMA lleve pendiente a favor
+                RequireCloseOnCrossSide         = true;   // Exigir que el precio de cierre Close[0] también esté del lado del cruce
+                SlOffsetTicks                   = 2;      // Ticks de respiro por fuera de la banda para el Stop Loss
+                TpOffsetTicks                   = 1;      // Ticks por dentro de la banda para asegurar el Take Profit antes del rebote
+                MinSafetySlTicks                = 8;      // Colchón mínimo de seguridad para el SL
+                MinRoomToOuterTpTicks           = 10;     // v1.6 (Fuga #2): Ticks mínimos libres hacia banda 3.5 cuando la vela de cruce asoma fuera de 1.75
+                UseMfeBreakEven                 = true;   // v1.6 (Fuga #1): Subir SL a BreakEven cuando supere banda 1.75 a favor + MfeTriggerTicks
+                MfeTriggerTicks                 = 18;     // v1.6 (Fuga #1): Ganancia flotante mínima en ticks para activar el BreakEven en banda 1.75
+                BreakEvenPlusTicks              = 2;      // v1.6 (Fuga #1): Ticks de ganancia asegurada al activar BreakEven (+2 ticks = +$25)
+                UseStopAndReverse               = true;   // Activar Stop & Reverse en cruces contrarios
+                UseAdaptiveSancochoShield       = true;   // v1.6 (Fuga #3): Apagar Stop & Reverse tras pérdida para no serrucharse en sancochos
+                ShowVisualMarkers               = false;  // No dibujar figuras extra en la gráfica por defecto
             }
             else if (State == State.DataLoaded)
             {
@@ -162,13 +172,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(Time[0] + " - [CIERRE FORZOSO RTH] Posición cerrada por fin de horario operativo.");
                 }
                 currentTradeMode = MatrixTradeMode.None;
+                isInnerBreakEvenActive = false;
+                consecutiveLosses = 0; // Reiniciamos contador de pérdidas al iniciar/cerrar cada día operativo
                 // Mantenemos rastreado de qué lado está el TEMA fuera de horario para que a las 09:50 AM sepa de dónde viene
                 if (tema9[0] <= ema200[0]) { lastTemaSide = -1; crossUpConsumed = false; }
                 else if (tema9[0] > ema200[0]) { lastTemaSide = 1; crossDownConsumed = false; }
                 return;
             }
 
-            // 3. Si estamos dentro de una posición abierta, actualizamos FIELMENTE el TP y el SL siguiendo sus bandas (+ Offsets)
+            // 3. Si estamos dentro de una posición abierta, actualizamos FIELMENTE el TP y el SL siguiendo sus bandas (+ Offsets + MFE BreakEven)
             if (Position.MarketPosition != MarketPosition.Flat)
             {
                 UpdateDynamicBandsTargets();
@@ -176,6 +188,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             else
             {
                 currentTradeMode = MatrixTradeMode.None;
+                isInnerBreakEvenActive = false;
             }
 
             // 4. Si el Botón de Pánico está en PAUSADO (Rojo) o pasó la hora límite de entradas, no abrimos trades
@@ -211,9 +224,38 @@ namespace NinjaTrader.NinjaScript.Strategies
             double slOffset   = SlOffsetTicks * TickSize;
             double tpOffset   = TpOffsetTicks * TickSize;
 
-            // Evaluamos cruces cuando estamos Flat, O cuando estamos en la posición contraria y UseStopAndReverse está activo (Opción B)
-            bool canEvaluateLongCross  = (Position.MarketPosition == MarketPosition.Flat) || (UseStopAndReverse && Position.MarketPosition == MarketPosition.Short);
-            bool canEvaluateShortCross = (Position.MarketPosition == MarketPosition.Flat) || (UseStopAndReverse && Position.MarketPosition == MarketPosition.Long);
+            // === MEJORA v1.6 (FUGA #3): STOP & REVERSE ADAPTATIVO (ESCUDO ANTI-SANCOCHO) ===
+            // Si venimos de 0 pérdidas (o si el escudo está desactivado), el Stop & Reverse opera normal para capturar giros limpios (10/12, 10/13, 10/14).
+            // Si el trade anterior cerró en pérdida (consecutiveLosses >= 1), apagamos temporalmente el Stop & Reverse para no serrucharnos
+            // dentro de un sancocho y dejamos que la posición abierta respire hasta su SL en la banda 1.75 o su TP.
+            bool effectiveStopAndReverse = UseStopAndReverse && (!UseAdaptiveSancochoShield || consecutiveLosses < 1);
+
+            // Si estamos dentro de una posición y el Stop & Reverse está desactivado (manual o por Escudo Anti-Sancocho),
+            // consumimos silenciosamente cualquier cruce que ocurra mientras estamos adentro para evitar que se dispare con retraso al tocar el SL.
+            if (Position.MarketPosition == MarketPosition.Short && !effectiveStopAndReverse && tema9[0] > ema200[0])
+            {
+                double distTicks = (tema9[0] - ema200[0]) / TickSize;
+                if (distTicks >= MinCrossTicks && (!RequireCloseOnCrossSide || Close[0] > ema200[0]))
+                {
+                    crossUpConsumed = true;
+                    lastTemaSide = 1;
+                    Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce alcista ignorado con Corto abierto (Stop & Reverse en enfriamiento).");
+                }
+            }
+            else if (Position.MarketPosition == MarketPosition.Long && !effectiveStopAndReverse && tema9[0] < ema200[0])
+            {
+                double distTicks = (ema200[0] - tema9[0]) / TickSize;
+                if (distTicks >= MinCrossTicks && (!RequireCloseOnCrossSide || Close[0] < ema200[0]))
+                {
+                    crossDownConsumed = true;
+                    lastTemaSide = -1;
+                    Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce bajista ignorado con Largo abierto (Stop & Reverse en enfriamiento).");
+                }
+            }
+
+            // Evaluamos cruces cuando estamos Flat, O cuando estamos en la posición contraria y effectiveStopAndReverse está activo
+            bool canEvaluateLongCross  = (Position.MarketPosition == MarketPosition.Flat) || (effectiveStopAndReverse && Position.MarketPosition == MarketPosition.Short);
+            bool canEvaluateShortCross = (Position.MarketPosition == MarketPosition.Flat) || (effectiveStopAndReverse && Position.MarketPosition == MarketPosition.Long);
 
             // -------------------------------------------------------------------------
             // CASO A: INTENTO DE CRUCE ALCISTA (TEMA 9 cruza de abajo hacia arriba EMA 200)
@@ -252,31 +294,54 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isReversalFromShort = (Position.MarketPosition == MarketPosition.Short);
 
                 // CLASIFICACIÓN POR ZONAS DEL CANAL DE KELTNER:
-                // ZONA 1: Arriba de la banda exterior superior del canal pequeño (Upper_1.75) -> NO ABRIR LARGO
-                // Mejora 4 (Caso 2:54 PM): Validamos que NI el TEMA 9 NI el precio de cierre real (Close[0]) estén por encima de Upper_1.75
-                if (tema9[0] >= upperSmall || Close[0] >= upperSmall)
+                // ZONA 1: El TEMA(9) cruza arriba de la banda exterior superior del canal pequeño (Upper_1.75) -> NO ABRIR LARGO
+                if (tema9[0] >= upperSmall)
                 {
                     if (isReversalFromShort)
                     {
                         ExitShort("StopReverse_CierreCorto", "");
                         currentTradeMode = MatrixTradeMode.None;
-                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Corto cerrado por cruce alcista real, pero NO se abre Largo por estar en Zona Sobrecomprada (TEMA: {0:F2}, Close: {1:F2} >= Upper1.75: {2:F2}).", tema9[0], Close[0], upperSmall));
+                        isInnerBreakEvenActive = false;
+                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Corto cerrado por cruce alcista real, pero NO se abre Largo por estar TEMA en Zona Sobrecomprada (TEMA: {0:F2} >= Upper1.75: {1:F2}).", tema9[0], upperSmall));
                     }
                     else
                     {
-                        Print(Time[0] + string.Format(" - [LARGO CANCELADO - ZONA SOBRECOMPRADA] TEMA ({0:F2}) o Cierre ({1:F2}) están arriba de Banda Superior Pequeña (Upper1.75: {2:F2}).", tema9[0], Close[0], upperSmall));
+                        Print(Time[0] + string.Format(" - [LARGO CANCELADO - ZONA SOBRECOMPRADA] TEMA ({0:F2}) está arriba de Banda Superior Pequeña (Upper1.75: {1:F2}).", tema9[0], upperSmall));
                     }
                     if (ShowVisualMarkers)
                         Draw.Text(this, "CancelLong_" + CurrentBar, "✖ Zona Alta", 0, High[0] + (4 * TickSize), Brushes.OrangeRed);
                     return;
                 }
-                // ZONA 2 y 3: Entre Lower_1.75 y Upper_1.75 (Ya sea arriba o debajo de Midline)
+                // ZONA 2 y 3: El TEMA(9) cruza entre Lower_1.75 y Upper_1.75 (Ya sea arriba o debajo de Midline)
                 // -> TP en Upper_3.5 - TpOffset y SL en Lower_1.75 - SlOffset
                 else if (tema9[0] >= lowerSmall && tema9[0] < upperSmall)
                 {
-                    string subZona = (tema9[0] >= midline) ? "Entre Media y Superior Pequeña" : "Entre Inferior Pequeña y Media";
                     double rawSlPrice = lowerSmall - slOffset;
                     double rawTpPrice = upperBig - tpOffset;
+                    double roomToTpTicks = (rawTpPrice - Close[0]) / TickSize;
+
+                    // Mejora v1.6 (Fuga #2): Si el TEMA cruzó dentro del canal 1.75 pero la vela de ruptura cerró asomando por encima de Upper_1.75,
+                    // permitimos la entrada en cascada SIEMPRE Y CUANDO queden al menos MinRoomToOuterTpTicks (ej. 10 ticks) libres hasta el TP de la banda 3.5.
+                    // Si cerró tan lejos que ya no queda espacio hacia la banda 3.5 (ej. vela gigante de las 2:54 PM del 10/14), cancelamos el Largo.
+                    if ((Close[0] >= upperSmall && roomToTpTicks < MinRoomToOuterTpTicks) || roomToTpTicks < 4)
+                    {
+                        if (isReversalFromShort)
+                        {
+                            ExitShort("StopReverse_CierreCorto", "");
+                            currentTradeMode = MatrixTradeMode.None;
+                            isInnerBreakEvenActive = false;
+                            Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Corto cerrado por cruce alcista, pero NO se abre Largo por falta de espacio a Banda 3.5 (Close: {0:F2}, Espacio TP: {1:F1} tks < {2} tks).", Close[0], roomToTpTicks, MinRoomToOuterTpTicks));
+                        }
+                        else
+                        {
+                            Print(Time[0] + string.Format(" - [LARGO CANCELADO - VELA SOBREEXTENDIDA] Close ({0:F2}) superó Upper1.75 dejando solo {1:F1} tks hacia Banda 3.5 (Mínimo: {2} tks).", Close[0], roomToTpTicks, MinRoomToOuterTpTicks));
+                        }
+                        if (ShowVisualMarkers)
+                            Draw.Text(this, "CancelLong_" + CurrentBar, "✖ Sin Espacio 3.5", 0, High[0] + (4 * TickSize), Brushes.OrangeRed);
+                        return;
+                    }
+
+                    string subZona = (tema9[0] >= midline) ? "Entre Media y Superior Pequeña" : "Entre Inferior Pequeña y Media";
 
                     // Peligro 1 (Opción A): Colchón de seguridad mínimo para el SL
                     double minSafeSlPrice = Close[0] - (MinSafetySlTicks * TickSize);
@@ -284,6 +349,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double finalTpPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(rawTpPrice, Close[0] + (4 * TickSize)));
 
                     currentTradeMode = MatrixTradeMode.Long_InnerChannel;
+                    isInnerBreakEvenActive = false;
                     SetStopLoss("MatrixLong_Inner", CalculationMode.Price, finalSlPrice, false);
                     SetProfitTarget("MatrixLong_Inner", CalculationMode.Price, finalTpPrice);
                     EnterLong("MatrixLong_Inner");
@@ -309,6 +375,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitShort("StopReverse_CierreCorto", "");
                             currentTradeMode = MatrixTradeMode.None;
+                            isInnerBreakEvenActive = false;
                         }
                         Print(Time[0] + " - [LARGO CANCELADO - SIN ESPACIO A MIDLINE] El TEMA cruzó debajo de Lower 1.75 pero la vela cerró ya pegada a la Línea Media.");
                         return;
@@ -320,6 +387,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double finalTpPrice = Instrument.MasterInstrument.RoundToTickSize(rawTpPrice);
 
                     currentTradeMode = MatrixTradeMode.Long_ExtremeBelow;
+                    isInnerBreakEvenActive = false;
                     SetStopLoss("MatrixLong_Extreme", CalculationMode.Price, finalSlPrice, false);
                     SetProfitTarget("MatrixLong_Extreme", CalculationMode.Price, finalTpPrice);
                     EnterLong("MatrixLong_Extreme");
@@ -368,31 +436,54 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isReversalFromLong = (Position.MarketPosition == MarketPosition.Long);
 
                 // CLASIFICACIÓN POR ZONAS DEL CANAL DE KELTNER (ESPEJO INVERSO):
-                // ZONA 1 ESPEJO: Debajo de la banda exterior inferior del canal pequeño (Lower_1.75) -> NO ABRIR CORTO
-                // Mejora 4: Validamos que NI el TEMA 9 NI el precio de cierre real (Close[0]) estén por debajo de Lower_1.75
-                if (tema9[0] <= lowerSmall || Close[0] <= lowerSmall)
+                // ZONA 1 ESPEJO: El TEMA(9) cruza debajo de la banda exterior inferior del canal pequeño (Lower_1.75) -> NO ABRIR CORTO
+                if (tema9[0] <= lowerSmall)
                 {
                     if (isReversalFromLong)
                     {
                         ExitLong("StopReverse_CierreLargo", "");
                         currentTradeMode = MatrixTradeMode.None;
-                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Largo cerrado por cruce bajista real, pero NO se abre Corto por estar en Zona Sobrevendida (TEMA: {0:F2}, Close: {1:F2} <= Lower1.75: {2:F2}).", tema9[0], Close[0], lowerSmall));
+                        isInnerBreakEvenActive = false;
+                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Largo cerrado por cruce bajista real, pero NO se abre Corto por estar TEMA en Zona Sobrevendida (TEMA: {0:F2} <= Lower1.75: {1:F2}).", tema9[0], lowerSmall));
                     }
                     else
                     {
-                        Print(Time[0] + string.Format(" - [CORTO CANCELADO - ZONA SOBREVENDIDA] TEMA ({0:F2}) o Cierre ({1:F2}) están debajo de Banda Inferior Pequeña (Lower1.75: {2:F2}).", tema9[0], Close[0], lowerSmall));
+                        Print(Time[0] + string.Format(" - [CORTO CANCELADO - ZONA SOBREVENDIDA] TEMA ({0:F2}) está debajo de Banda Inferior Pequeña (Lower1.75: {1:F2}).", tema9[0], lowerSmall));
                     }
                     if (ShowVisualMarkers)
                         Draw.Text(this, "CancelShort_" + CurrentBar, "✖ Zona Baja", 0, Low[0] - (4 * TickSize), Brushes.OrangeRed);
                     return;
                 }
-                // ZONA 2 y 3 ESPEJO: Entre Lower_1.75 y Upper_1.75
+                // ZONA 2 y 3 ESPEJO: El TEMA(9) cruza entre Lower_1.75 y Upper_1.75
                 // -> TP en Lower_3.5 + TpOffset y SL en Upper_1.75 + SlOffset
                 else if (tema9[0] > lowerSmall && tema9[0] <= upperSmall)
                 {
-                    string subZona = (tema9[0] <= midline) ? "Entre Inferior Pequeña y Media" : "Entre Media y Superior Pequeña";
                     double rawSlPrice = upperSmall + slOffset;
                     double rawTpPrice = lowerBig + tpOffset;
+                    double roomToTpTicks = (Close[0] - rawTpPrice) / TickSize;
+
+                    // Mejora v1.6 (Fuga #2 - Desbloqueo de Cascadas 10/08 12:43 PM y 10/16 10:54 AM):
+                    // Si el TEMA(9) cruzó dentro del canal 1.75 pero la vela de ruptura cerró debajo de Lower_1.75,
+                    // permitimos el Corto SIEMPRE Y CUANDO queden al menos MinRoomToOuterTpTicks (ej. 10 ticks) libres hasta Lower_3.5.
+                    if ((Close[0] <= lowerSmall && roomToTpTicks < MinRoomToOuterTpTicks) || roomToTpTicks < 4)
+                    {
+                        if (isReversalFromLong)
+                        {
+                            ExitLong("StopReverse_CierreLargo", "");
+                            currentTradeMode = MatrixTradeMode.None;
+                            isInnerBreakEvenActive = false;
+                            Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Largo cerrado por cruce bajista, pero NO se abre Corto por falta de espacio a Banda 3.5 (Close: {0:F2}, Espacio TP: {1:F1} tks < {2} tks).", Close[0], roomToTpTicks, MinRoomToOuterTpTicks));
+                        }
+                        else
+                        {
+                            Print(Time[0] + string.Format(" - [CORTO CANCELADO - VELA SOBREEXTENDIDA] Close ({0:F2}) perforó Lower1.75 dejando solo {1:F1} tks hacia Banda 3.5 (Mínimo: {2} tks).", Close[0], roomToTpTicks, MinRoomToOuterTpTicks));
+                        }
+                        if (ShowVisualMarkers)
+                            Draw.Text(this, "CancelShort_" + CurrentBar, "✖ Sin Espacio 3.5", 0, Low[0] - (4 * TickSize), Brushes.OrangeRed);
+                        return;
+                    }
+
+                    string subZona = (tema9[0] <= midline) ? "Entre Inferior Pequeña y Media" : "Entre Media y Superior Pequeña";
 
                     // Peligro 1 (Opción A): Colchón de seguridad mínimo para el SL
                     double minSafeSlPrice = Close[0] + (MinSafetySlTicks * TickSize);
@@ -400,6 +491,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double finalTpPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(rawTpPrice, Close[0] - (4 * TickSize)));
 
                     currentTradeMode = MatrixTradeMode.Short_InnerChannel;
+                    isInnerBreakEvenActive = false;
                     SetStopLoss("MatrixShort_Inner", CalculationMode.Price, finalSlPrice, false);
                     SetProfitTarget("MatrixShort_Inner", CalculationMode.Price, finalTpPrice);
                     EnterShort("MatrixShort_Inner");
@@ -425,6 +517,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitLong("StopReverse_CierreLargo", "");
                             currentTradeMode = MatrixTradeMode.None;
+                            isInnerBreakEvenActive = false;
                         }
                         Print(Time[0] + " - [CORTO CANCELADO - SIN ESPACIO A MIDLINE] El TEMA cruzó arriba de Upper 1.75 pero la vela cerró ya pegada a la Línea Media.");
                         return;
@@ -436,6 +529,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double finalTpPrice = Instrument.MasterInstrument.RoundToTickSize(rawTpPrice);
 
                     currentTradeMode = MatrixTradeMode.Short_ExtremeAbove;
+                    isInnerBreakEvenActive = false;
                     SetStopLoss("MatrixShort_Extreme", CalculationMode.Price, finalSlPrice, false);
                     SetProfitTarget("MatrixShort_Extreme", CalculationMode.Price, finalTpPrice);
                     EnterShort("MatrixShort_Extreme");
@@ -450,7 +544,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        // === ACTUALIZACIÓN FIEL DE BANDAS DINÁMICAS (PELIGRO 3 + OFFSETS EN TP Y SL + COLCHÓN EXTREMO) ===
+        // === ACTUALIZACIÓN FIEL DE BANDAS DINÁMICAS (PELIGRO 3 + OFFSETS EN TP Y SL + COLCHÓN EXTREMO + MFE BREAKEVEN) ===
         private void UpdateDynamicBandsTargets()
         {
             double slOffset     = SlOffsetTicks * TickSize;
@@ -473,14 +567,33 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (currentTradeMode == MatrixTradeMode.Long_InnerChannel)
                 {
+                    // Mejora v1.6 (Fuga #1 - Protección MFE): Si la vela ya superó la banda 1.75 superior a favor y alcanzó MfeTriggerTicks, aseguramos BreakEven
+                    if (UseMfeBreakEven && !isInnerBreakEvenActive)
+                    {
+                        double maxFavorableTicks = (High[0] - entryPrice) / TickSize;
+                        if (High[0] >= keltnerSmall.Upper[0] && maxFavorableTicks >= MfeTriggerTicks)
+                        {
+                            isInnerBreakEvenActive = true;
+                            Print(Time[0] + string.Format(" - [ESCUDO MFE BREAKEVEN ACTIVADO - LARGO] El precio superó Upper 1.75 con +{0:F1} tks a favor. SL protegido en BreakEven +{1} tks ({2:F2}).",
+                                maxFavorableTicks, BreakEvenPlusTicks, entryPrice + (BreakEvenPlusTicks * TickSize)));
+                        }
+                    }
+
+                    double effectiveLongSl = lowerSmallSl;
+                    if (isInnerBreakEvenActive)
+                    {
+                        double breakEvenPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + (BreakEvenPlusTicks * TickSize));
+                        effectiveLongSl = Math.Max(lowerSmallSl, breakEvenPrice);
+                    }
+
                     if (Close[0] >= upperBigTp)
                         ExitLong("TP_Dinamico_Upper3.5", "MatrixLong_Inner");
-                    else if (Close[0] <= lowerSmallSl)
-                        ExitLong("SL_Dinamico_Lower1.75", "MatrixLong_Inner");
+                    else if (Close[0] <= effectiveLongSl)
+                        ExitLong(isInnerBreakEvenActive ? "SL_BreakEven_MFE" : "SL_Dinamico_Lower1.75", "MatrixLong_Inner");
                     else
                     {
                         SetProfitTarget("MatrixLong_Inner", CalculationMode.Price, upperBigTp);
-                        SetStopLoss("MatrixLong_Inner", CalculationMode.Price, lowerSmallSl, false);
+                        SetStopLoss("MatrixLong_Inner", CalculationMode.Price, effectiveLongSl, false);
                     }
                 }
                 else if (currentTradeMode == MatrixTradeMode.Long_ExtremeBelow)
@@ -503,14 +616,33 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (currentTradeMode == MatrixTradeMode.Short_InnerChannel)
                 {
+                    // Mejora v1.6 (Fuga #1 - Protección MFE): Si la vela ya perforó la banda 1.75 inferior a favor y alcanzó MfeTriggerTicks, aseguramos BreakEven
+                    if (UseMfeBreakEven && !isInnerBreakEvenActive)
+                    {
+                        double maxFavorableTicks = (entryPrice - Low[0]) / TickSize;
+                        if (Low[0] <= keltnerSmall.Lower[0] && maxFavorableTicks >= MfeTriggerTicks)
+                        {
+                            isInnerBreakEvenActive = true;
+                            Print(Time[0] + string.Format(" - [ESCUDO MFE BREAKEVEN ACTIVADO - CORTO] El precio perforó Lower 1.75 con +{0:F1} tks a favor. SL protegido en BreakEven +{1} tks ({2:F2}).",
+                                maxFavorableTicks, BreakEvenPlusTicks, entryPrice - (BreakEvenPlusTicks * TickSize)));
+                        }
+                    }
+
+                    double effectiveShortSl = upperSmallSl;
+                    if (isInnerBreakEvenActive)
+                    {
+                        double breakEvenPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - (BreakEvenPlusTicks * TickSize));
+                        effectiveShortSl = Math.Min(upperSmallSl, breakEvenPrice);
+                    }
+
                     if (Close[0] <= lowerBigTp)
                         ExitShort("TP_Dinamico_Lower3.5", "MatrixShort_Inner");
-                    else if (Close[0] >= upperSmallSl)
-                        ExitShort("SL_Dinamico_Upper1.75", "MatrixShort_Inner");
+                    else if (Close[0] >= effectiveShortSl)
+                        ExitShort(isInnerBreakEvenActive ? "SL_BreakEven_MFE" : "SL_Dinamico_Upper1.75", "MatrixShort_Inner");
                     else
                     {
                         SetProfitTarget("MatrixShort_Inner", CalculationMode.Price, lowerBigTp);
-                        SetStopLoss("MatrixShort_Inner", CalculationMode.Price, upperSmallSl, false);
+                        SetStopLoss("MatrixShort_Inner", CalculationMode.Price, effectiveShortSl, false);
                     }
                 }
                 else if (currentTradeMode == MatrixTradeMode.Short_ExtremeAbove)
@@ -531,7 +663,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        // === REPORTE DETALLADO EN EL LOG AL CERRAR OPERACIONES ===
+        // === REPORTE DETALLADO EN EL LOG AL CERRAR OPERACIONES + CONTEO DE PÉRDIDAS PARA ESCUDO ANTI-SANCOCHO ===
         protected override void OnPositionUpdate(Position position, double averagePrice, int quantity, MarketPosition marketPosition)
         {
             // Cuando se cierra un trade (ya sea pasando a Flat o volteándose en un Stop & Reverse), lo reportamos en el Log.
@@ -544,10 +676,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double pnlCurrency = lastTrade.ProfitCurrency;
                 double pnlTicks = lastTrade.ProfitTicks;
                 string direction = (lastTrade.Entry.MarketPosition == MarketPosition.Long) ? "LARGO" : "CORTO";
-                string resultado = (pnlCurrency >= 0) ? "CON GANANCIA" : "CON PÉRDIDA";
+                string resultado = (pnlTicks >= 0) ? "CON GANANCIA" : "CON PÉRDIDA";
 
-                Print(Time[0] + string.Format(" - [{0} CERRADO {1}] Señal: {2} -> {3} | Resultado: {4:C2} ({5:F0} ticks) | Entrada: {6:F2} -> Salida: {7:F2}",
-                    direction, resultado, lastTrade.Entry.Name, lastTrade.Exit.Name, pnlCurrency, pnlTicks, lastTrade.Entry.Price, lastTrade.Exit.Price));
+                // v1.6 (Fuga #3): Si el trade cerró en pérdida (pnlTicks < 0), activamos el enfriamiento de Stop & Reverse.
+                // Apenas se logre un trade ganador (pnlTicks > 0), se reinicia a 0 y el Stop & Reverse vuelve a estar 100% activo.
+                if (pnlTicks < 0)
+                {
+                    consecutiveLosses++;
+                }
+                else if (pnlTicks > 0)
+                {
+                    consecutiveLosses = 0;
+                }
+
+                Print(Time[0] + string.Format(" - [{0} CERRADO {1}] Señal: {2} -> {3} | Resultado: {4:C2} ({5:F0} ticks) | Racha Pérdidas: {6} | Entrada: {7:F2} -> Salida: {8:F2}",
+                    direction, resultado, lastTrade.Entry.Name, lastTrade.Exit.Name, pnlCurrency, pnlTicks, consecutiveLosses, lastTrade.Entry.Price, lastTrade.Exit.Price));
             }
         }
 
@@ -733,11 +876,34 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int MinSafetySlTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Stop & Reverse en Cruce", Order = 7, GroupName = "3. Filtros y Seguridad")]
+        [Range(4, int.MaxValue)]
+        [Display(Name = "Espacio Mínimo a Banda 3.5 en Cascada (Ticks)", Order = 7, GroupName = "3. Filtros y Seguridad")]
+        public int MinRoomToOuterTpTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Activar Escudo MFE BreakEven (Banda 1.75)", Order = 8, GroupName = "3. Filtros y Seguridad")]
+        public bool UseMfeBreakEven { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(4, int.MaxValue)]
+        [Display(Name = "Ticks Mínimos Ganancia para MFE BreakEven", Order = 9, GroupName = "3. Filtros y Seguridad")]
+        public int MfeTriggerTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0, int.MaxValue)]
+        [Display(Name = "Ticks Asegurados en BreakEven (+Ticks)", Order = 10, GroupName = "3. Filtros y Seguridad")]
+        public int BreakEvenPlusTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Activar Stop & Reverse en Cruce", Order = 11, GroupName = "3. Filtros y Seguridad")]
         public bool UseStopAndReverse { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Mostrar Marcadores Visuales", Order = 8, GroupName = "3. Filtros y Seguridad")]
+        [Display(Name = "Activar Escudo Anti-Sancocho (S&R Adaptativo)", Order = 12, GroupName = "3. Filtros y Seguridad")]
+        public bool UseAdaptiveSancochoShield { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Mostrar Marcadores Visuales", Order = 13, GroupName = "3. Filtros y Seguridad")]
         public bool ShowVisualMarkers { get; set; }
         #endregion
     }
