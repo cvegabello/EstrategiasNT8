@@ -34,10 +34,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             None,
             Long_InnerChannel,      // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Upper_3.5, SL: Lower_1.75
             Long_ExtremeBelow,      // Cruce debajo de Lower_1.75          -> TP: Midline,   SL: Lower_3.5
-            Long_Zone1TrendBreak,   // v1.7: Ruptura en Zona 1 tras N barras sin cruzar EMA200 -> TP Fijo, SL: Recruce EMA200 / Midline
+            Long_Zone1TrendBreak,   // v2.0: Ruptura en Zona 1 / Ruptura Externa tras N barras sin cruzar EMA200 -> TP Fijo, SL: Midline
             Short_InnerChannel,     // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Lower_3.5, SL: Upper_1.75
             Short_ExtremeAbove,     // Cruce arriba de Upper_1.75          -> TP: Midline,   SL: Upper_3.5
-            Short_Zone1TrendBreak   // v1.7: Ruptura en Zona 1 tras N barras sin cruzar EMA200 -> TP Fijo, SL: Recruce EMA200 / Midline
+            Short_Zone1TrendBreak   // v2.0: Ruptura en Zona 1 / Ruptura Externa tras N barras sin cruzar EMA200 -> TP Fijo, SL: Midline
         }
 
         private MatrixTradeMode currentTradeMode = MatrixTradeMode.None;
@@ -90,7 +90,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "1.7";
+                Version                         = "2.0";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -104,7 +104,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 KeltnerBigMult                  = 3.5;
                 KeltnerSmallMult                = 1.75;
 
-                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6 / v1.7
+                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6 / v1.7 / v2.0
                 MinCrossTicks                   = 2.3;    // v1.7: Decimal (double) para filtrar punticas de 2.0 ticks sin llegar a 3.0
                 UseSlopeFilter                  = true;   // Exigir que el TEMA lleve pendiente a favor
                 RequireCloseOnCrossSide         = true;   // Exigir que el precio de cierre Close[0] también esté del lado del cruce
@@ -120,6 +120,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 UseZone1TrendBreak              = true;   // v1.7: Activar Francotirador en Zona 1 cuando la EMA200 lleva N barras sin ser cruzada
                 MinBarsTrendBreakZona1          = 100;    // v1.7: Barras mínimas sin cruce real para habilitar tiro en Zona 1 (100 barras ~= 25-30 min)
                 Zone1FixedTpTicks               = 12;     // v1.7: Take Profit fijo rápido en Zona 1 (12 ticks = $150.00)
+                UseOuterBandBreakout            = true;   // v2.0: Permitir entrada de Francotirador aunque el precio cierre unos ticks por fuera de la banda 3.5
+                MaxOuterBufferTicks             = 6;      // v2.0: Tolerancia máxima en ticks por fuera de la banda 3.5 (6 ticks = 1.50 pts)
                 ShowVisualMarkers               = false;  // No dibujar figuras extra en la gráfica por defecto
             }
             else if (State == State.DataLoaded)
@@ -322,9 +324,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // CLASIFICACIÓN POR ZONAS DEL CANAL DE KELTNER:
                 // ZONA 1: El TEMA(9) cruza arriba de la banda exterior superior del canal pequeño (Upper_1.75)
                 // En condiciones normales NO se abre Largo, SALVO que venga de una tendencia bajista madura (>= MinBarsTrendBreakZona1 barras sin cruzar la EMA200)
+                // v2.0: Con UseOuterBandBreakout permitimos entrar aunque el precio perfore por fuera de Upper_3.5 hasta MaxOuterBufferTicks
                 if (tema9[0] >= upperSmall)
                 {
-                    if (UseZone1TrendBreak && priorBarsBelowEma >= MinBarsTrendBreakZona1 && Close[0] < upperBig)
+                    bool isPriceInsideOrAllowedOuter = UseOuterBandBreakout
+                        ? (Close[0] <= upperBig + (MaxOuterBufferTicks * TickSize))
+                        : (Close[0] < upperBig);
+
+                    if (UseZone1TrendBreak && priorBarsBelowEma >= MinBarsTrendBreakZona1 && isPriceInsideOrAllowedOuter)
                     {
                         double rawSlPrice = midline - slOffset;
                         double minSafeSlPrice = Close[0] - (MinSafetySlTicks * TickSize);
@@ -340,8 +347,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (ShowVisualMarkers)
                             Draw.TriangleUp(this, "LongZ1_" + CurrentBar, true, 0, Low[0] - (4 * TickSize), Brushes.Gold);
 
-                        Print(Time[0] + string.Format(" - [FRANCOTIRADOR ZONA 1 -> LARGO ABIERTO] Ruptura tras {0} barras bajo EMA200 | Entrada @ ~{1:F2} | TP Fijo (+{2}tks): {3:F2} | SL Respaldo Midline: {4:F2}",
-                            priorBarsBelowEma, Close[0], Zone1FixedTpTicks, finalTpPrice, finalSlPrice));
+                        string tagTolerancia = (Close[0] >= upperBig) ? string.Format(" [RUPTURA EXTERNA +{0:F1}tks]", (Close[0] - upperBig) / TickSize) : "";
+                        Print(Time[0] + string.Format(" - [FRANCOTIRADOR ZONA 1 -> LARGO ABIERTO{0}] Ruptura tras {1} barras bajo EMA200 | Entrada @ ~{2:F2} | TP Fijo (+{3}tks): {4:F2} | SL Respaldo Midline: {5:F2}",
+                            tagTolerancia, priorBarsBelowEma, Close[0], Zone1FixedTpTicks, finalTpPrice, finalSlPrice));
                         return;
                     }
 
@@ -354,7 +362,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(Time[0] + string.Format(" - [LARGO CANCELADO - ZONA SOBRECOMPRADA] TEMA ({0:F2}) arriba de Upper1.75 ({1:F2}) y solo llevaba {2}/{3} barras sin cruce.", tema9[0], upperSmall, priorBarsBelowEma, MinBarsTrendBreakZona1));
+                        if (!isPriceInsideOrAllowedOuter)
+                        {
+                            Print(Time[0] + string.Format(" - [LARGO CANCELADO - SOBREEXTENSIÓN EXTERNA] Close ({0:F2}) superó Banda 3.5 ({1:F2}) por más de {2} ticks de tolerancia permitidos.", Close[0], upperBig, MaxOuterBufferTicks));
+                        }
+                        else
+                        {
+                            Print(Time[0] + string.Format(" - [LARGO CANCELADO - ZONA SOBRECOMPRADA] TEMA ({0:F2}) arriba de Upper1.75 ({1:F2}) y solo llevaba {2}/{3} barras sin cruce.", tema9[0], upperSmall, priorBarsBelowEma, MinBarsTrendBreakZona1));
+                        }
                     }
                     if (ShowVisualMarkers)
                         Draw.Text(this, "CancelLong_" + CurrentBar, "✖ Zona Alta", 0, High[0] + (4 * TickSize), Brushes.OrangeRed);
@@ -486,9 +501,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // CLASIFICACIÓN POR ZONAS DEL CANAL DE KELTNER (ESPEJO INVERSO):
                 // ZONA 1 ESPEJO: El TEMA(9) cruza debajo de la banda exterior inferior del canal pequeño (Lower_1.75)
                 // En condiciones normales NO se abre Corto, SALVO que venga de una tendencia alcista madura (>= MinBarsTrendBreakZona1 barras sin cruzar la EMA200)
+                // v2.0: Con UseOuterBandBreakout permitimos entrar aunque el precio perfore por fuera de Lower_3.5 hasta MaxOuterBufferTicks
                 if (tema9[0] <= lowerSmall)
                 {
-                    if (UseZone1TrendBreak && priorBarsAboveEma >= MinBarsTrendBreakZona1 && Close[0] > lowerBig)
+                    bool isPriceInsideOrAllowedOuter = UseOuterBandBreakout
+                        ? (Close[0] >= lowerBig - (MaxOuterBufferTicks * TickSize))
+                        : (Close[0] > lowerBig);
+
+                    if (UseZone1TrendBreak && priorBarsAboveEma >= MinBarsTrendBreakZona1 && isPriceInsideOrAllowedOuter)
                     {
                         double rawSlPrice = midline + slOffset;
                         double minSafeSlPrice = Close[0] + (MinSafetySlTicks * TickSize);
@@ -504,8 +524,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (ShowVisualMarkers)
                             Draw.TriangleDown(this, "ShortZ1_" + CurrentBar, true, 0, High[0] + (4 * TickSize), Brushes.Gold);
 
-                        Print(Time[0] + string.Format(" - [FRANCOTIRADOR ZONA 1 -> CORTO ABIERTO] Ruptura tras {0} barras sobre EMA200 | Entrada @ ~{1:F2} | TP Fijo (-{2}tks): {3:F2} | SL Respaldo Midline: {4:F2}",
-                            priorBarsAboveEma, Close[0], Zone1FixedTpTicks, finalTpPrice, finalSlPrice));
+                        string tagTolerancia = (Close[0] <= lowerBig) ? string.Format(" [RUPTURA EXTERNA -{0:F1}tks]", (lowerBig - Close[0]) / TickSize) : "";
+                        Print(Time[0] + string.Format(" - [FRANCOTIRADOR ZONA 1 -> CORTO ABIERTO{0}] Ruptura tras {1} barras sobre EMA200 | Entrada @ ~{2:F2} | TP Fijo (-{3}tks): {4:F2} | SL Respaldo Midline: {5:F2}",
+                            tagTolerancia, priorBarsAboveEma, Close[0], Zone1FixedTpTicks, finalTpPrice, finalSlPrice));
                         return;
                     }
 
@@ -518,7 +539,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(Time[0] + string.Format(" - [CORTO CANCELADO - ZONA SOBREVENDIDA] TEMA ({0:F2}) debajo de Lower1.75 ({1:F2}) y solo llevaba {2}/{3} barras sin cruce.", tema9[0], lowerSmall, priorBarsAboveEma, MinBarsTrendBreakZona1));
+                        if (!isPriceInsideOrAllowedOuter)
+                        {
+                            Print(Time[0] + string.Format(" - [CORTO CANCELADO - SOBREEXTENSIÓN EXTERNA] Close ({0:F2}) perforó Banda 3.5 ({1:F2}) por más de {2} ticks de tolerancia permitidos.", Close[0], lowerBig, MaxOuterBufferTicks));
+                        }
+                        else
+                        {
+                            Print(Time[0] + string.Format(" - [CORTO CANCELADO - ZONA SOBREVENDIDA] TEMA ({0:F2}) debajo de Lower1.75 ({1:F2}) y solo llevaba {2}/{3} barras sin cruce.", tema9[0], lowerSmall, priorBarsAboveEma, MinBarsTrendBreakZona1));
+                        }
                     }
                     if (ShowVisualMarkers)
                         Draw.Text(this, "CancelShort_" + CurrentBar, "✖ Zona Baja", 0, Low[0] - (4 * TickSize), Brushes.OrangeRed);
@@ -683,11 +711,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTradeMode == MatrixTradeMode.Long_Zone1TrendBreak)
                 {
-                    // v1.7 (Francotirador Zona 1): TP fijo se mantiene donde nació; si el TEMA se devuelve y cruza debajo de la EMA200 (con Close bajo EMA200), cerramos de inmediato
+                    // v2.0 (Respiro Total Zona 1): Stop Loss anclado permanentemente a la Línea Media (Midline) para darle respiro completo al trade sin sustos de la EMA200
                     double safeZone1LongSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerBig.Midline[0] - slOffset, entryPrice - (MinSafetySlTicks * TickSize)));
-                    if (tema9[0] < ema200[0] && Close[0] < ema200[0])
-                        ExitLong("SL_RecruceRoja_Zona1", "MatrixLong_Zona1");
-                    else if (Close[0] <= safeZone1LongSl)
+                    if (Close[0] <= safeZone1LongSl)
                         ExitLong("SL_Midline_Zona1", "MatrixLong_Zona1");
                     else if (safeZone1LongSl < Close[0])
                         SetStopLoss("MatrixLong_Zona1", CalculationMode.Price, safeZone1LongSl, false);
@@ -743,11 +769,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTradeMode == MatrixTradeMode.Short_Zone1TrendBreak)
                 {
-                    // v1.7 (Francotirador Zona 1): TP fijo se mantiene donde nació; si el TEMA se devuelve y cruza arriba de la EMA200 (con Close sobre EMA200), cerramos de inmediato
+                    // v2.0 (Respiro Total Zona 1): Stop Loss anclado permanentemente a la Línea Media (Midline) para darle respiro completo al trade sin sustos de la EMA200
                     double safeZone1ShortSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerBig.Midline[0] + slOffset, entryPrice + (MinSafetySlTicks * TickSize)));
-                    if (tema9[0] > ema200[0] && Close[0] > ema200[0])
-                        ExitShort("SL_RecruceRoja_Zona1", "MatrixShort_Zona1");
-                    else if (Close[0] >= safeZone1ShortSl)
+                    if (Close[0] >= safeZone1ShortSl)
                         ExitShort("SL_Midline_Zona1", "MatrixShort_Zona1");
                     else if (safeZone1ShortSl > Close[0])
                         SetStopLoss("MatrixShort_Zona1", CalculationMode.Price, safeZone1ShortSl, false);
@@ -1009,7 +1033,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Zone1FixedTpTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Mostrar Marcadores Visuales", Order = 16, GroupName = "3. Filtros y Seguridad")]
+        [Display(Name = "Activar Ruptura Externa Banda 3.5 (Idea Loca)", Order = 16, GroupName = "3. Filtros y Seguridad")]
+        public bool UseOuterBandBreakout { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Tolerancia Ticks Fuera de Banda 3.5", Order = 17, GroupName = "3. Filtros y Seguridad")]
+        public int MaxOuterBufferTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Mostrar Marcadores Visuales", Order = 18, GroupName = "3. Filtros y Seguridad")]
         public bool ShowVisualMarkers { get; set; }
         #endregion
     }
