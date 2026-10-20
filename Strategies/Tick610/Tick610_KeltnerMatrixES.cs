@@ -32,10 +32,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         private enum MatrixTradeMode
         {
             None,
-            Long_InnerChannel,  // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Upper_3.5, SL: Lower_1.75
-            Long_ExtremeBelow,  // Cruce debajo de Lower_1.75          -> TP: Midline,   SL: Lower_3.5
-            Short_InnerChannel, // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Lower_3.5, SL: Upper_1.75
-            Short_ExtremeAbove  // Cruce arriba de Upper_1.75          -> TP: Midline,   SL: Upper_3.5
+            Long_InnerChannel,      // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Upper_3.5, SL: Lower_1.75
+            Long_ExtremeBelow,      // Cruce debajo de Lower_1.75          -> TP: Midline,   SL: Lower_3.5
+            Long_Zone1TrendBreak,   // v1.7: Ruptura en Zona 1 tras N barras sin cruzar EMA200 -> TP Fijo, SL: Recruce EMA200 / Midline
+            Short_InnerChannel,     // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Lower_3.5, SL: Upper_1.75
+            Short_ExtremeAbove,     // Cruce arriba de Upper_1.75          -> TP: Midline,   SL: Upper_3.5
+            Short_Zone1TrendBreak   // v1.7: Ruptura en Zona 1 tras N barras sin cruzar EMA200 -> TP Fijo, SL: Recruce EMA200 / Midline
         }
 
         private MatrixTradeMode currentTradeMode = MatrixTradeMode.None;
@@ -45,9 +47,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool crossUpConsumed = false;
         private bool crossDownConsumed = false;
 
-        // === VARIABLES v1.6: ESCUDO MFE BREAKEVEN Y ESCUDO ANTI-SANCOCHO ===
-        private bool isInnerBreakEvenActive = false; // Indica si el trade de canal interno ya aseguró BreakEven tras superar la banda 1.75
-        private int consecutiveLosses = 0;           // Contador de pérdidas seguidas para apagar el Stop & Reverse en sancochos
+        // === VARIABLES v1.6 y v1.7: ESCUDO MFE BREAKEVEN, ANTI-SANCOCHO Y CONTADOR DE TENDENCIA VIRGEN ZONA 1 ===
+        private bool isInnerBreakEvenActive = false;       // Indica si el trade de canal interno ya aseguró BreakEven tras superar la banda 1.75
+        private int consecutiveLosses = 0;                 // Contador de pérdidas seguidas para apagar el Stop & Reverse en sancochos
+        private int barsBelowEmaWithoutRealCross = 0;      // v1.7: Barras acumuladas con TEMA debajo de EMA200 sin cruce alcista real (>= MinCrossTicks)
+        private int barsAboveEmaWithoutRealCross = 0;      // v1.7: Barras acumuladas con TEMA arriba de EMA200 sin cruce bajista real (>= MinCrossTicks)
 
         // === INDICADORES ===
         private TEMA tema9;
@@ -65,7 +69,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Keltner Matrix en 610 Ticks para ES/MES. Cruces de TEMA(9) y EMA(200) clasificados por zonas de Doble Canal de Keltner (3.5 y 1.75) con TP/SL dinámicos, MFE BreakEven y Stop & Reverse Adaptativo Anti-Sancocho.";
+                Description                                 = @"Estrategia Keltner Matrix en 610 Ticks para ES/MES. Cruces de TEMA(9) y EMA(200) clasificados por zonas de Doble Canal de Keltner (3.5 y 1.75) con TP/SL dinámicos, MFE BreakEven, S&R Adaptativo y Francotirador Zona 1.";
                 Name                                        = "Tick610_KeltnerMatrixES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 1;
@@ -86,7 +90,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "1.6";
+                Version                         = "1.7";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -100,8 +104,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 KeltnerBigMult                  = 3.5;
                 KeltnerSmallMult                = 1.75;
 
-                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6
-                MinCrossTicks                   = 1;      // Penetración mínima en ticks para confirmar cruce real
+                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6 / v1.7
+                MinCrossTicks                   = 2.3;    // v1.7: Decimal (double) para filtrar punticas de 2.0 ticks sin llegar a 3.0
                 UseSlopeFilter                  = true;   // Exigir que el TEMA lleve pendiente a favor
                 RequireCloseOnCrossSide         = true;   // Exigir que el precio de cierre Close[0] también esté del lado del cruce
                 SlOffsetTicks                   = 2;      // Ticks de respiro por fuera de la banda para el Stop Loss
@@ -113,6 +117,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BreakEvenPlusTicks              = 2;      // v1.6 (Fuga #1): Ticks de ganancia asegurada al activar BreakEven (+2 ticks = +$25)
                 UseStopAndReverse               = true;   // Activar Stop & Reverse en cruces contrarios
                 UseAdaptiveSancochoShield       = true;   // v1.6 (Fuga #3): Apagar Stop & Reverse tras pérdida para no serrucharse en sancochos
+                UseZone1TrendBreak              = true;   // v1.7: Activar Francotirador en Zona 1 cuando la EMA200 lleva N barras sin ser cruzada
+                MinBarsTrendBreakZona1          = 100;    // v1.7: Barras mínimas sin cruce real para habilitar tiro en Zona 1 (100 barras ~= 25-30 min)
+                Zone1FixedTpTicks               = 12;     // v1.7: Take Profit fijo rápido en Zona 1 (12 ticks = $150.00)
                 ShowVisualMarkers               = false;  // No dibujar figuras extra en la gráfica por defecto
             }
             else if (State == State.DataLoaded)
@@ -156,6 +163,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
             }
+
+            // === v1.7: CONTADOR CONTINUO DE BARRAS SIN CRUCE REAL (DESDE EL INFINITO Y MÁS ALLÁ) ===
+            // Guardamos cuántas barras acumuladas traíamos ANTES de evaluar esta barra.
+            // Si el TEMA apenas toca o pasa la EMA200 por menos de MinCrossTicks (ej. < 2.3 ticks), NO es un cruce real y sigue sumando.
+            int priorBarsBelowEma = barsBelowEmaWithoutRealCross;
+            int priorBarsAboveEma = barsAboveEmaWithoutRealCross;
+
+            double currentUpTicks   = (tema9[0] - ema200[0]) / TickSize;
+            double currentDownTicks = (ema200[0] - tema9[0]) / TickSize;
+
+            if (currentUpTicks < MinCrossTicks)
+                barsBelowEmaWithoutRealCross++;
+            else if (!RequireCloseOnCrossSide || Close[0] > ema200[0])
+                barsBelowEmaWithoutRealCross = 0;
+
+            if (currentDownTicks < MinCrossTicks)
+                barsAboveEmaWithoutRealCross++;
+            else if (!RequireCloseOnCrossSide || Close[0] < ema200[0])
+                barsAboveEmaWithoutRealCross = 0;
 
             int currentTime = ToTime(Time[0]);
 
@@ -294,19 +320,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isReversalFromShort = (Position.MarketPosition == MarketPosition.Short);
 
                 // CLASIFICACIÓN POR ZONAS DEL CANAL DE KELTNER:
-                // ZONA 1: El TEMA(9) cruza arriba de la banda exterior superior del canal pequeño (Upper_1.75) -> NO ABRIR LARGO
+                // ZONA 1: El TEMA(9) cruza arriba de la banda exterior superior del canal pequeño (Upper_1.75)
+                // En condiciones normales NO se abre Largo, SALVO que venga de una tendencia bajista madura (>= MinBarsTrendBreakZona1 barras sin cruzar la EMA200)
                 if (tema9[0] >= upperSmall)
                 {
+                    if (UseZone1TrendBreak && priorBarsBelowEma >= MinBarsTrendBreakZona1 && Close[0] < upperBig)
+                    {
+                        double rawSlPrice = midline - slOffset;
+                        double minSafeSlPrice = Close[0] - (MinSafetySlTicks * TickSize);
+                        double finalSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(rawSlPrice, minSafeSlPrice));
+                        double finalTpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (Zone1FixedTpTicks * TickSize));
+
+                        currentTradeMode = MatrixTradeMode.Long_Zone1TrendBreak;
+                        isInnerBreakEvenActive = false;
+                        SetStopLoss("MatrixLong_Zona1", CalculationMode.Price, finalSlPrice, false);
+                        SetProfitTarget("MatrixLong_Zona1", CalculationMode.Price, finalTpPrice);
+                        EnterLong("MatrixLong_Zona1");
+
+                        if (ShowVisualMarkers)
+                            Draw.TriangleUp(this, "LongZ1_" + CurrentBar, true, 0, Low[0] - (4 * TickSize), Brushes.Gold);
+
+                        Print(Time[0] + string.Format(" - [FRANCOTIRADOR ZONA 1 -> LARGO ABIERTO] Ruptura tras {0} barras bajo EMA200 | Entrada @ ~{1:F2} | TP Fijo (+{2}tks): {3:F2} | SL Respaldo Midline: {4:F2}",
+                            priorBarsBelowEma, Close[0], Zone1FixedTpTicks, finalTpPrice, finalSlPrice));
+                        return;
+                    }
+
                     if (isReversalFromShort)
                     {
                         ExitShort("StopReverse_CierreCorto", "");
                         currentTradeMode = MatrixTradeMode.None;
                         isInnerBreakEvenActive = false;
-                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Corto cerrado por cruce alcista real, pero NO se abre Largo por estar TEMA en Zona Sobrecomprada (TEMA: {0:F2} >= Upper1.75: {1:F2}).", tema9[0], upperSmall));
+                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Corto cerrado por cruce alcista real, pero NO se abre Largo por estar TEMA en Zona Sobrecomprada (TEMA: {0:F2} >= Upper1.75: {1:F2}, Barras sin cruce: {2}).", tema9[0], upperSmall, priorBarsBelowEma));
                     }
                     else
                     {
-                        Print(Time[0] + string.Format(" - [LARGO CANCELADO - ZONA SOBRECOMPRADA] TEMA ({0:F2}) está arriba de Banda Superior Pequeña (Upper1.75: {1:F2}).", tema9[0], upperSmall));
+                        Print(Time[0] + string.Format(" - [LARGO CANCELADO - ZONA SOBRECOMPRADA] TEMA ({0:F2}) arriba de Upper1.75 ({1:F2}) y solo llevaba {2}/{3} barras sin cruce.", tema9[0], upperSmall, priorBarsBelowEma, MinBarsTrendBreakZona1));
                     }
                     if (ShowVisualMarkers)
                         Draw.Text(this, "CancelLong_" + CurrentBar, "✖ Zona Alta", 0, High[0] + (4 * TickSize), Brushes.OrangeRed);
@@ -436,19 +484,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isReversalFromLong = (Position.MarketPosition == MarketPosition.Long);
 
                 // CLASIFICACIÓN POR ZONAS DEL CANAL DE KELTNER (ESPEJO INVERSO):
-                // ZONA 1 ESPEJO: El TEMA(9) cruza debajo de la banda exterior inferior del canal pequeño (Lower_1.75) -> NO ABRIR CORTO
+                // ZONA 1 ESPEJO: El TEMA(9) cruza debajo de la banda exterior inferior del canal pequeño (Lower_1.75)
+                // En condiciones normales NO se abre Corto, SALVO que venga de una tendencia alcista madura (>= MinBarsTrendBreakZona1 barras sin cruzar la EMA200)
                 if (tema9[0] <= lowerSmall)
                 {
+                    if (UseZone1TrendBreak && priorBarsAboveEma >= MinBarsTrendBreakZona1 && Close[0] > lowerBig)
+                    {
+                        double rawSlPrice = midline + slOffset;
+                        double minSafeSlPrice = Close[0] + (MinSafetySlTicks * TickSize);
+                        double finalSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(rawSlPrice, minSafeSlPrice));
+                        double finalTpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (Zone1FixedTpTicks * TickSize));
+
+                        currentTradeMode = MatrixTradeMode.Short_Zone1TrendBreak;
+                        isInnerBreakEvenActive = false;
+                        SetStopLoss("MatrixShort_Zona1", CalculationMode.Price, finalSlPrice, false);
+                        SetProfitTarget("MatrixShort_Zona1", CalculationMode.Price, finalTpPrice);
+                        EnterShort("MatrixShort_Zona1");
+
+                        if (ShowVisualMarkers)
+                            Draw.TriangleDown(this, "ShortZ1_" + CurrentBar, true, 0, High[0] + (4 * TickSize), Brushes.Gold);
+
+                        Print(Time[0] + string.Format(" - [FRANCOTIRADOR ZONA 1 -> CORTO ABIERTO] Ruptura tras {0} barras sobre EMA200 | Entrada @ ~{1:F2} | TP Fijo (-{2}tks): {3:F2} | SL Respaldo Midline: {4:F2}",
+                            priorBarsAboveEma, Close[0], Zone1FixedTpTicks, finalTpPrice, finalSlPrice));
+                        return;
+                    }
+
                     if (isReversalFromLong)
                     {
                         ExitLong("StopReverse_CierreLargo", "");
                         currentTradeMode = MatrixTradeMode.None;
                         isInnerBreakEvenActive = false;
-                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Largo cerrado por cruce bajista real, pero NO se abre Corto por estar TEMA en Zona Sobrevendida (TEMA: {0:F2} <= Lower1.75: {1:F2}).", tema9[0], lowerSmall));
+                        Print(Time[0] + string.Format(" - [STOP CRUCE CONTRARIO] Largo cerrado por cruce bajista real, pero NO se abre Corto por estar TEMA en Zona Sobrevendida (TEMA: {0:F2} <= Lower1.75: {1:F2}, Barras sin cruce: {2}).", tema9[0], lowerSmall, priorBarsAboveEma));
                     }
                     else
                     {
-                        Print(Time[0] + string.Format(" - [CORTO CANCELADO - ZONA SOBREVENDIDA] TEMA ({0:F2}) está debajo de Banda Inferior Pequeña (Lower1.75: {1:F2}).", tema9[0], lowerSmall));
+                        Print(Time[0] + string.Format(" - [CORTO CANCELADO - ZONA SOBREVENDIDA] TEMA ({0:F2}) debajo de Lower1.75 ({1:F2}) y solo llevaba {2}/{3} barras sin cruce.", tema9[0], lowerSmall, priorBarsAboveEma, MinBarsTrendBreakZona1));
                     }
                     if (ShowVisualMarkers)
                         Draw.Text(this, "CancelShort_" + CurrentBar, "✖ Zona Baja", 0, Low[0] - (4 * TickSize), Brushes.OrangeRed);
@@ -611,6 +681,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                         SetStopLoss("MatrixLong_Extreme", CalculationMode.Price, safeExtremeLongSl, false);
                     }
                 }
+                else if (currentTradeMode == MatrixTradeMode.Long_Zone1TrendBreak)
+                {
+                    // v1.7 (Francotirador Zona 1): TP fijo se mantiene donde nació; si el TEMA se devuelve y cruza debajo de la EMA200 (con Close bajo EMA200), cerramos de inmediato
+                    double safeZone1LongSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerBig.Midline[0] - slOffset, entryPrice - (MinSafetySlTicks * TickSize)));
+                    if (tema9[0] < ema200[0] && Close[0] < ema200[0])
+                        ExitLong("SL_RecruceRoja_Zona1", "MatrixLong_Zona1");
+                    else if (Close[0] <= safeZone1LongSl)
+                        ExitLong("SL_Midline_Zona1", "MatrixLong_Zona1");
+                    else if (safeZone1LongSl < Close[0])
+                        SetStopLoss("MatrixLong_Zona1", CalculationMode.Price, safeZone1LongSl, false);
+                }
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
@@ -659,6 +740,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                         SetProfitTarget("MatrixShort_Extreme", CalculationMode.Price, midlineShortTp);
                         SetStopLoss("MatrixShort_Extreme", CalculationMode.Price, safeExtremeShortSl, false);
                     }
+                }
+                else if (currentTradeMode == MatrixTradeMode.Short_Zone1TrendBreak)
+                {
+                    // v1.7 (Francotirador Zona 1): TP fijo se mantiene donde nació; si el TEMA se devuelve y cruza arriba de la EMA200 (con Close sobre EMA200), cerramos de inmediato
+                    double safeZone1ShortSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerBig.Midline[0] + slOffset, entryPrice + (MinSafetySlTicks * TickSize)));
+                    if (tema9[0] > ema200[0] && Close[0] > ema200[0])
+                        ExitShort("SL_RecruceRoja_Zona1", "MatrixShort_Zona1");
+                    else if (Close[0] >= safeZone1ShortSl)
+                        ExitShort("SL_Midline_Zona1", "MatrixShort_Zona1");
+                    else if (safeZone1ShortSl > Close[0])
+                        SetStopLoss("MatrixShort_Zona1", CalculationMode.Price, safeZone1ShortSl, false);
                 }
             }
         }
@@ -848,9 +940,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         // --- FILTROS Y SEGURIDAD ---
         [NinjaScriptProperty]
-        [Range(0, int.MaxValue)]
-        [Display(Name = "Ticks Mínimos Cruce Real", Order = 1, GroupName = "3. Filtros y Seguridad")]
-        public int MinCrossTicks { get; set; }
+        [Range(0.1, double.MaxValue)]
+        [Display(Name = "Ticks Mínimos Cruce Real (Permite Decimales)", Order = 1, GroupName = "3. Filtros y Seguridad")]
+        public double MinCrossTicks { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name = "Exigir Pendiente a Favor", Order = 2, GroupName = "3. Filtros y Seguridad")]
@@ -903,7 +995,21 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseAdaptiveSancochoShield { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Mostrar Marcadores Visuales", Order = 13, GroupName = "3. Filtros y Seguridad")]
+        [Display(Name = "Activar Francotirador Zona 1 (Tendencia Larga)", Order = 13, GroupName = "3. Filtros y Seguridad")]
+        public bool UseZone1TrendBreak { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(10, int.MaxValue)]
+        [Display(Name = "Barras Sin Cruce para Zona 1 (Ej. 100-200)", Order = 14, GroupName = "3. Filtros y Seguridad")]
+        public int MinBarsTrendBreakZona1 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(4, int.MaxValue)]
+        [Display(Name = "TP Fijo Francotirador Zona 1 (Ticks)", Order = 15, GroupName = "3. Filtros y Seguridad")]
+        public int Zone1FixedTpTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Mostrar Marcadores Visuales", Order = 16, GroupName = "3. Filtros y Seguridad")]
         public bool ShowVisualMarkers { get; set; }
         #endregion
     }
