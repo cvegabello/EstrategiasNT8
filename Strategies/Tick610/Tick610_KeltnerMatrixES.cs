@@ -90,7 +90,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "2.0";
+                Version                         = "2.1";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -104,7 +104,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 KeltnerBigMult                  = 3.5;
                 KeltnerSmallMult                = 1.75;
 
-                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6 / v1.7 / v2.0
+                // Filtros de Seguridad, Offsets de Bandas y Mejoras v1.6 / v1.7 / v2.0 / v2.1
                 MinCrossTicks                   = 2.3;    // v1.7: Decimal (double) para filtrar punticas de 2.0 ticks sin llegar a 3.0
                 UseSlopeFilter                  = true;   // Exigir que el TEMA lleve pendiente a favor
                 RequireCloseOnCrossSide         = true;   // Exigir que el precio de cierre Close[0] también esté del lado del cruce
@@ -121,7 +121,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MinBarsTrendBreakZona1          = 100;    // v1.7: Barras mínimas sin cruce real para habilitar tiro en Zona 1 (100 barras ~= 25-30 min)
                 Zone1FixedTpTicks               = 12;     // v1.7: Take Profit fijo rápido en Zona 1 (12 ticks = $150.00)
                 UseOuterBandBreakout            = true;   // v2.0: Permitir entrada de Francotirador aunque el precio cierre unos ticks por fuera de la banda 3.5
-                MaxOuterBufferTicks             = 6;      // v2.0: Tolerancia máxima en ticks por fuera de la banda 3.5 (6 ticks = 1.50 pts)
+                MaxOuterBufferTicks             = 12;     // v2.1: Tolerancia máxima en ticks por fuera de la banda 3.5 (12 ticks = 3.00 pts por optimización empírica)
                 ShowVisualMarkers               = false;  // No dibujar figuras extra en la gráfica por defecto
             }
             else if (State == State.DataLoaded)
@@ -252,13 +252,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             double slOffset   = SlOffsetTicks * TickSize;
             double tpOffset   = TpOffsetTicks * TickSize;
 
-            // === MEJORA v1.6 (FUGA #3): STOP & REVERSE ADAPTATIVO (ESCUDO ANTI-SANCOCHO) ===
-            // Si venimos de 0 pérdidas (o si el escudo está desactivado), el Stop & Reverse opera normal para capturar giros limpios (10/12, 10/13, 10/14).
-            // Si el trade anterior cerró en pérdida (consecutiveLosses >= 1), apagamos temporalmente el Stop & Reverse para no serrucharnos
-            // dentro de un sancocho y dejamos que la posición abierta respire hasta su SL en la banda 1.75 o su TP.
-            bool effectiveStopAndReverse = UseStopAndReverse && (!UseAdaptiveSancochoShield || consecutiveLosses < 1);
+            // === MEJORA v1.6 (FUGA #3) Y v2.1 (BLINDAJE ZONA 1): STOP & REVERSE ADAPTATIVO ===
+            // 1. Si venimos de 0 pérdidas, el Stop & Reverse opera normal para capturar giros limpios.
+            // 2. Si el trade anterior cerró en pérdida (consecutiveLosses >= 1), apagamos temporalmente el Stop & Reverse (Escudo Anti-Sancocho).
+            // 3. v2.1: Si estamos dentro de un trade de Zona 1 (Francotirador), el Stop & Reverse queda TOTALMENTE BLOQUEADO para que la posición
+            //    pueda respirar libremente a través de la EMA 200 hasta su Stop Loss en la Línea Blanca (Midline) sin voltearse anticipadamente.
+            bool isZone1Trade = (currentTradeMode == MatrixTradeMode.Long_Zone1TrendBreak || currentTradeMode == MatrixTradeMode.Short_Zone1TrendBreak);
+            bool effectiveStopAndReverse = UseStopAndReverse && (!UseAdaptiveSancochoShield || consecutiveLosses < 1) && !isZone1Trade;
 
-            // Si estamos dentro de una posición y el Stop & Reverse está desactivado (manual o por Escudo Anti-Sancocho),
+            // Si estamos dentro de una posición y el Stop & Reverse está desactivado (manual, por Escudo Anti-Sancocho, o por Inmunidad de Zona 1),
             // consumimos silenciosamente cualquier cruce que ocurra mientras estamos adentro para evitar que se dispare con retraso al tocar el SL.
             if (Position.MarketPosition == MarketPosition.Short && !effectiveStopAndReverse && tema9[0] > ema200[0])
             {
@@ -267,7 +269,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     crossUpConsumed = true;
                     lastTemaSide = 1;
-                    Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce alcista ignorado con Corto abierto (Stop & Reverse en enfriamiento).");
+                    if (isZone1Trade)
+                        Print(Time[0] + " - [INMUNIDAD ZONA 1] Cruce alcista ignorado con Corto Zona 1 abierto (respiro protegido hasta Midline).");
+                    else
+                        Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce alcista ignorado con Corto abierto (Stop & Reverse en enfriamiento).");
                 }
             }
             else if (Position.MarketPosition == MarketPosition.Long && !effectiveStopAndReverse && tema9[0] < ema200[0])
@@ -277,7 +282,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     crossDownConsumed = true;
                     lastTemaSide = -1;
-                    Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce bajista ignorado con Largo abierto (Stop & Reverse en enfriamiento).");
+                    if (isZone1Trade)
+                        Print(Time[0] + " - [INMUNIDAD ZONA 1] Cruce bajista ignorado con Largo Zona 1 abierto (respiro protegido hasta Midline).");
+                    else
+                        Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce bajista ignorado con Largo abierto (Stop & Reverse en enfriamiento).");
                 }
             }
 
