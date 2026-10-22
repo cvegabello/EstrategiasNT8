@@ -35,9 +35,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             Long_InnerChannel,      // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Upper_3.5, SL: Lower_1.75
             Long_ExtremeBelow,      // Cruce debajo de Lower_1.75          -> TP: Midline,   SL: Lower_3.5
             Long_Zone1TrendBreak,   // v2.0: Ruptura en Zona 1 / Ruptura Externa tras N barras sin cruzar EMA200 -> TP Fijo, SL: Midline
+            Long_Surfer,            // v3.0: Modo Surfer (Expansión 3.5) -> Salida dinámica: EMA200 corta Lower 3.5, SL: Midline
             Short_InnerChannel,     // Cruce entre Lower_1.75 y Upper_1.75 -> TP: Lower_3.5, SL: Upper_1.75
             Short_ExtremeAbove,     // Cruce arriba de Upper_1.75          -> TP: Midline,   SL: Upper_3.5
-            Short_Zone1TrendBreak   // v2.0: Ruptura en Zona 1 / Ruptura Externa tras N barras sin cruzar EMA200 -> TP Fijo, SL: Midline
+            Short_Zone1TrendBreak,  // v2.0: Ruptura en Zona 1 / Ruptura Externa tras N barras sin cruzar EMA200 -> TP Fijo, SL: Midline
+            Short_Surfer            // v3.0: Modo Surfer (Expansión 3.5) -> Salida dinámica: EMA200 corta Upper 3.5, SL: Midline
         }
 
         private MatrixTradeMode currentTradeMode = MatrixTradeMode.None;
@@ -90,7 +92,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "2.1";
+                Version                         = "3.0";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -252,15 +254,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             double slOffset   = SlOffsetTicks * TickSize;
             double tpOffset   = TpOffsetTicks * TickSize;
 
-            // === MEJORA v1.6 (FUGA #3) Y v2.1 (BLINDAJE ZONA 1): STOP & REVERSE ADAPTATIVO ===
+            // === MEJORA v1.6, v2.1 y v3.0: STOP & REVERSE ADAPTATIVO CON INMUNIDAD ===
             // 1. Si venimos de 0 pérdidas, el Stop & Reverse opera normal para capturar giros limpios.
             // 2. Si el trade anterior cerró en pérdida (consecutiveLosses >= 1), apagamos temporalmente el Stop & Reverse (Escudo Anti-Sancocho).
-            // 3. v2.1: Si estamos dentro de un trade de Zona 1 (Francotirador), el Stop & Reverse queda TOTALMENTE BLOQUEADO para que la posición
-            //    pueda respirar libremente a través de la EMA 200 hasta su Stop Loss en la Línea Blanca (Midline) sin voltearse anticipadamente.
-            bool isZone1Trade = (currentTradeMode == MatrixTradeMode.Long_Zone1TrendBreak || currentTradeMode == MatrixTradeMode.Short_Zone1TrendBreak);
-            bool effectiveStopAndReverse = UseStopAndReverse && (!UseAdaptiveSancochoShield || consecutiveLosses < 1) && !isZone1Trade;
+            // 3. v2.1/v3.0: Si estamos dentro de un trade de Zona 1 o Modo Surfer, el Stop & Reverse queda TOTALMENTE BLOQUEADO
+            //    para que la posición pueda respirar libremente hasta su Stop Loss o fin de ciclo sin voltearse anticipadamente.
+            bool isImmuneFromReversal = (currentTradeMode == MatrixTradeMode.Long_Zone1TrendBreak || 
+                                         currentTradeMode == MatrixTradeMode.Short_Zone1TrendBreak ||
+                                         currentTradeMode == MatrixTradeMode.Long_Surfer ||
+                                         currentTradeMode == MatrixTradeMode.Short_Surfer);
+            bool effectiveStopAndReverse = UseStopAndReverse && (!UseAdaptiveSancochoShield || consecutiveLosses < 1) && !isImmuneFromReversal;
 
-            // Si estamos dentro de una posición y el Stop & Reverse está desactivado (manual, por Escudo Anti-Sancocho, o por Inmunidad de Zona 1),
+            // Si estamos dentro de una posición y el Stop & Reverse está desactivado (manual, por Escudo Anti-Sancocho, o por Inmunidad),
             // consumimos silenciosamente cualquier cruce que ocurra mientras estamos adentro para evitar que se dispare con retraso al tocar el SL.
             if (Position.MarketPosition == MarketPosition.Short && !effectiveStopAndReverse && tema9[0] > ema200[0])
             {
@@ -269,8 +274,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     crossUpConsumed = true;
                     lastTemaSide = 1;
-                    if (isZone1Trade)
-                        Print(Time[0] + " - [INMUNIDAD ZONA 1] Cruce alcista ignorado con Corto Zona 1 abierto (respiro protegido hasta Midline).");
+                    if (isImmuneFromReversal)
+                        Print(Time[0] + " - [INMUNIDAD ACTIVA] Cruce alcista ignorado con posición protegida abierta (respiro protegido hasta Midline/Salida Surfer).");
                     else
                         Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce alcista ignorado con Corto abierto (Stop & Reverse en enfriamiento).");
                 }
@@ -282,10 +287,78 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     crossDownConsumed = true;
                     lastTemaSide = -1;
-                    if (isZone1Trade)
-                        Print(Time[0] + " - [INMUNIDAD ZONA 1] Cruce bajista ignorado con Largo Zona 1 abierto (respiro protegido hasta Midline).");
+                    if (isImmuneFromReversal)
+                        Print(Time[0] + " - [INMUNIDAD ACTIVA] Cruce bajista ignorado con posición protegida abierta (respiro protegido hasta Midline/Salida Surfer).");
                     else
                         Print(Time[0] + " - [ESCUDO ANTI-SANCOCHO] Cruce bajista ignorado con Largo abierto (Stop & Reverse en enfriamiento).");
+                }
+            }
+
+            // =========================================================================
+            // === MÓDULO v3.0: MATRIX SURFER (CAZADOR DE SUPER-TENDENCIAS POR EXPANSIÓN) ===
+            // =========================================================================
+            // Se activa cuando estamos Flat, el precio explota despegando la vela entera fuera de la banda 3.5,
+            // la EMA200 está en zona de colchón institucional y las pendientes confirman expansión de volatilidad.
+            if (Position.MarketPosition == MarketPosition.Flat && CurrentBar >= 2)
+            {
+                // Pendientes comparadas entre barra actual y 2 barras atrás (Abanico de Volatilidad)
+                double emaSlope     = ema200[0] - ema200[2];
+                double midlineSlope = midline - keltnerBig.Midline[2];
+                double upperSlope   = upperBig - keltnerBig.Upper[2];
+                double lowerSlope   = lowerBig - keltnerBig.Lower[2];
+
+                // CASO SURFER LARGO:
+                // 1. Toda la vela flotando libre en el aire por encima de la Banda Gris 3.5 (ni mechas dentro)
+                // 2. EMA 200 entre la Midline y la Banda Azul Inferior (Lower 1.75)
+                // 3. Pendientes a favor: Midline y Upper subiendo, y EMA200 subiendo más lento que la Midline
+                bool isVelaFlotandoLargo = (Low[0] > upperBig);
+                bool isEmaZonaLargo      = (ema200[0] <= midline && ema200[0] >= lowerSmall);
+                bool isPendientesLargo   = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
+
+                if (isVelaFlotandoLargo && isEmaZonaLargo && isPendientesLargo)
+                {
+                    double rawSlPrice     = midline - slOffset;
+                    double minSafeSlPrice = Close[0] - (MinSafetySlTicks * TickSize);
+                    double finalSlPrice   = Instrument.MasterInstrument.RoundToTickSize(Math.Min(rawSlPrice, minSafeSlPrice));
+
+                    currentTradeMode = MatrixTradeMode.Long_Surfer;
+                    isInnerBreakEvenActive = false;
+                    SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, finalSlPrice, false);
+                    EnterLong("MatrixLong_Surfer");
+
+                    if (ShowVisualMarkers)
+                        Draw.TriangleUp(this, "SurferLong_" + CurrentBar, true, 0, Low[0] - (6 * TickSize), Brushes.DodgerBlue);
+
+                    Print(Time[0] + string.Format(" - [SURFER -> LARGO ABIERTO] Expansión Volatilidad 3.5 | Entrada @ ~{0:F2} | SL Respaldo Midline: {1:F2} | Esperando fin de ciclo (EMA200 <= Lower 3.5)",
+                        Close[0], finalSlPrice));
+                    return;
+                }
+
+                // CASO SURFER CORTO (ESPEJO INVERSO):
+                // 1. Toda la vela flotando libre en el aire por debajo de la Banda Gris 3.5 (ni mechas dentro)
+                // 2. EMA 200 entre la Midline y la Banda Azul Superior (Upper 1.75)
+                // 3. Pendientes a favor: Midline y Lower cayendo, y EMA200 cayendo más lento que la Midline
+                bool isVelaFlotandoCorto = (High[0] < lowerBig);
+                bool isEmaZonaCorto      = (ema200[0] >= midline && ema200[0] <= upperSmall);
+                bool isPendientesCorto   = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
+
+                if (isVelaFlotandoCorto && isEmaZonaCorto && isPendientesCorto)
+                {
+                    double rawSlPrice     = midline + slOffset;
+                    double minSafeSlPrice = Close[0] + (MinSafetySlTicks * TickSize);
+                    double finalSlPrice   = Instrument.MasterInstrument.RoundToTickSize(Math.Max(rawSlPrice, minSafeSlPrice));
+
+                    currentTradeMode = MatrixTradeMode.Short_Surfer;
+                    isInnerBreakEvenActive = false;
+                    SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, finalSlPrice, false);
+                    EnterShort("MatrixShort_Surfer");
+
+                    if (ShowVisualMarkers)
+                        Draw.TriangleDown(this, "SurferShort_" + CurrentBar, true, 0, High[0] + (6 * TickSize), Brushes.DeepSkyBlue);
+
+                    Print(Time[0] + string.Format(" - [SURFER -> CORTO ABIERTO] Expansión Volatilidad 3.5 | Entrada @ ~{0:F2} | SL Respaldo Midline: {1:F2} | Esperando fin de ciclo (EMA200 >= Upper 3.5)",
+                        Close[0], finalSlPrice));
+                    return;
                 }
             }
 
@@ -726,6 +799,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (safeZone1LongSl < Close[0])
                         SetStopLoss("MatrixLong_Zona1", CalculationMode.Price, safeZone1LongSl, false);
                 }
+                else if (currentTradeMode == MatrixTradeMode.Long_Surfer)
+                {
+                    // v3.0: Stop Loss dinámico anclado en la Línea Media (Midline) con colchón de seguridad
+                    double safeSurferLongSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerBig.Midline[0] - slOffset, entryPrice - (MinSafetySlTicks * TickSize)));
+
+                    // SALIDA MAGISTRAL SURFER: Cierre dinámico cuando la EMA200 corta la banda inferior 3.5 (Fin de Expansión)
+                    if (ema200[0] <= keltnerBig.Lower[0])
+                    {
+                        ExitLong("Exit_Surfer_CicloTerminado", "MatrixLong_Surfer");
+                        Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR FIN DE CICLO] EMA200 ({0:F2}) cortó Lower 3.5 ({1:F2}) | Salida @ ~{2:F2}",
+                            ema200[0], keltnerBig.Lower[0], Close[0]));
+                    }
+                    else if (Close[0] <= safeSurferLongSl)
+                    {
+                        ExitLong("SL_Midline_Surfer", "MatrixLong_Surfer");
+                        Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP] Precio perforó Midline ({0:F2}) | Salida @ ~{1:F2}",
+                            safeSurferLongSl, Close[0]));
+                    }
+                    else if (safeSurferLongSl < Close[0])
+                    {
+                        SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, safeSurferLongSl, false);
+                    }
+                }
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
@@ -783,6 +879,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ExitShort("SL_Midline_Zona1", "MatrixShort_Zona1");
                     else if (safeZone1ShortSl > Close[0])
                         SetStopLoss("MatrixShort_Zona1", CalculationMode.Price, safeZone1ShortSl, false);
+                }
+                else if (currentTradeMode == MatrixTradeMode.Short_Surfer)
+                {
+                    // v3.0: Stop Loss dinámico anclado en la Línea Media (Midline) con colchón de seguridad
+                    double safeSurferShortSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerBig.Midline[0] + slOffset, entryPrice + (MinSafetySlTicks * TickSize)));
+
+                    // SALIDA MAGISTRAL SURFER: Cierre dinámico cuando la EMA200 corta la banda superior 3.5 (Fin de Expansión)
+                    if (ema200[0] >= keltnerBig.Upper[0])
+                    {
+                        ExitShort("Exit_Surfer_CicloTerminado", "MatrixShort_Surfer");
+                        Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR FIN DE CICLO] EMA200 ({0:F2}) cortó Upper 3.5 ({1:F2}) | Salida @ ~{2:F2}",
+                            ema200[0], keltnerBig.Upper[0], Close[0]));
+                    }
+                    else if (Close[0] >= safeSurferShortSl)
+                    {
+                        ExitShort("SL_Midline_Surfer", "MatrixShort_Surfer");
+                        Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP] Precio perforó Midline ({0:F2}) | Salida @ ~{1:F2}",
+                            safeSurferShortSl, Close[0]));
+                    }
+                    else if (safeSurferShortSl > Close[0])
+                    {
+                        SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, safeSurferShortSl, false);
+                    }
                 }
             }
         }
