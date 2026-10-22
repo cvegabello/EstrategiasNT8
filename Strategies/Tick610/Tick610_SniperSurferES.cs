@@ -667,18 +667,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         public string Version { get; set; }
 
         [NinjaScriptProperty]
-        [PropertyEditor("NinjaTrader.Gui.Tools.TimeEditorKey")]
-        [Display(Name = "Hora Inicio RTH (hhmmss)", Order = 2, GroupName = "2. Horario RTH")]
+        [Range(0, 235959)]
+        [Display(Name = "Hora Inicio RTH (HHMMSS)", Order = 2, GroupName = "2. Horario RTH")]
         public int StartTime { get; set; }
 
         [NinjaScriptProperty]
-        [PropertyEditor("NinjaTrader.Gui.Tools.TimeEditorKey")]
-        [Display(Name = "Hora Límite Entradas (hhmmss)", Order = 3, GroupName = "2. Horario RTH")]
+        [Range(0, 235959)]
+        [Display(Name = "Hora Límite Entradas (HHMMSS)", Order = 3, GroupName = "2. Horario RTH")]
         public int StopEntriesTime { get; set; }
 
         [NinjaScriptProperty]
-        [PropertyEditor("NinjaTrader.Gui.Tools.TimeEditorKey")]
-        [Display(Name = "Hora Cierre Forzoso (hhmmss)", Order = 4, GroupName = "2. Horario RTH")]
+        [Range(0, 235959)]
+        [Display(Name = "Hora Cierre Forzoso (HHMMSS)", Order = 4, GroupName = "2. Horario RTH")]
         public int ForceCloseTime { get; set; }
 
         [NinjaScriptProperty]
