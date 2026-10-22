@@ -92,7 +92,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "3.0";
+                Version                         = "3.1";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -317,7 +317,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 if (isVelaFlotandoLargo && isEmaZonaLargo && isPendientesLargo)
                 {
-                    double rawSlPrice     = midline - slOffset;
+                    // v3.1: Stop Loss anclado a 1 tick detrás de la banda superior del canal pequeño (Upper 1.75)
+                    double rawSlPrice     = upperSmall - (1 * TickSize);
                     double minSafeSlPrice = Close[0] - (MinSafetySlTicks * TickSize);
                     double finalSlPrice   = Instrument.MasterInstrument.RoundToTickSize(Math.Min(rawSlPrice, minSafeSlPrice));
 
@@ -329,7 +330,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (ShowVisualMarkers)
                         Draw.TriangleUp(this, "SurferLong_" + CurrentBar, true, 0, Low[0] - (6 * TickSize), Brushes.DodgerBlue);
 
-                    Print(Time[0] + string.Format(" - [SURFER -> LARGO ABIERTO] Expansión Volatilidad 3.5 | Entrada @ ~{0:F2} | SL Respaldo Midline: {1:F2} | Esperando fin de ciclo (EMA200 <= Lower 3.5)",
+                    Print(Time[0] + string.Format(" - [SURFER -> LARGO ABIERTO] Expansión Volatilidad 3.5 | Entrada @ ~{0:F2} | SL Respaldo Upper 1.75 -1tk: {1:F2} | Esperando fin de ciclo (EMA200 <= Lower 3.5)",
                         Close[0], finalSlPrice));
                     return;
                 }
@@ -344,7 +345,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 if (isVelaFlotandoCorto && isEmaZonaCorto && isPendientesCorto)
                 {
-                    double rawSlPrice     = midline + slOffset;
+                    // v3.1: Stop Loss anclado a 1 tick detrás de la banda inferior del canal pequeño (Lower 1.75)
+                    double rawSlPrice     = lowerSmall + (1 * TickSize);
                     double minSafeSlPrice = Close[0] + (MinSafetySlTicks * TickSize);
                     double finalSlPrice   = Instrument.MasterInstrument.RoundToTickSize(Math.Max(rawSlPrice, minSafeSlPrice));
 
@@ -356,7 +358,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (ShowVisualMarkers)
                         Draw.TriangleDown(this, "SurferShort_" + CurrentBar, true, 0, High[0] + (6 * TickSize), Brushes.DeepSkyBlue);
 
-                    Print(Time[0] + string.Format(" - [SURFER -> CORTO ABIERTO] Expansión Volatilidad 3.5 | Entrada @ ~{0:F2} | SL Respaldo Midline: {1:F2} | Esperando fin de ciclo (EMA200 >= Upper 3.5)",
+                    Print(Time[0] + string.Format(" - [SURFER -> CORTO ABIERTO] Expansión Volatilidad 3.5 | Entrada @ ~{0:F2} | SL Respaldo Lower 1.75 +1tk: {1:F2} | Esperando fin de ciclo (EMA200 >= Upper 3.5)",
                         Close[0], finalSlPrice));
                     return;
                 }
@@ -801,8 +803,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTradeMode == MatrixTradeMode.Long_Surfer)
                 {
-                    // v3.0: Stop Loss dinámico anclado en la Línea Media (Midline) con colchón de seguridad
-                    double safeSurferLongSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerBig.Midline[0] - slOffset, entryPrice - (MinSafetySlTicks * TickSize)));
+                    // v3.1: Stop Loss dinámico / Trailing anclado a 1 tick por debajo de la banda superior del canal pequeño (Upper 1.75)
+                    double dynamicSurferLongSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
+                    double safeSurferLongSl = Math.Min(dynamicSurferLongSl, entryPrice - (MinSafetySlTicks * TickSize));
 
                     // SALIDA MAGISTRAL SURFER: Cierre dinámico cuando la EMA200 corta la banda inferior 3.5 (Fin de Expansión)
                     if (ema200[0] <= keltnerBig.Lower[0])
@@ -813,8 +816,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (Close[0] <= safeSurferLongSl)
                     {
-                        ExitLong("SL_Midline_Surfer", "MatrixLong_Surfer");
-                        Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP] Precio perforó Midline ({0:F2}) | Salida @ ~{1:F2}",
+                        ExitLong("SL_BandaPequena_Surfer", "MatrixLong_Surfer");
+                        Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP DINÁMICO] Precio perforó Upper 1.75 -1tk ({0:F2}) | Salida @ ~{1:F2}",
                             safeSurferLongSl, Close[0]));
                     }
                     else if (safeSurferLongSl < Close[0])
@@ -882,8 +885,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTradeMode == MatrixTradeMode.Short_Surfer)
                 {
-                    // v3.0: Stop Loss dinámico anclado en la Línea Media (Midline) con colchón de seguridad
-                    double safeSurferShortSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerBig.Midline[0] + slOffset, entryPrice + (MinSafetySlTicks * TickSize)));
+                    // v3.1: Stop Loss dinámico / Trailing anclado a 1 tick por encima de la banda inferior del canal pequeño (Lower 1.75)
+                    double dynamicSurferShortSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
+                    double safeSurferShortSl = Math.Max(dynamicSurferShortSl, entryPrice + (MinSafetySlTicks * TickSize));
 
                     // SALIDA MAGISTRAL SURFER: Cierre dinámico cuando la EMA200 corta la banda superior 3.5 (Fin de Expansión)
                     if (ema200[0] >= keltnerBig.Upper[0])
@@ -894,8 +898,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (Close[0] >= safeSurferShortSl)
                     {
-                        ExitShort("SL_Midline_Surfer", "MatrixShort_Surfer");
-                        Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP] Precio perforó Midline ({0:F2}) | Salida @ ~{1:F2}",
+                        ExitShort("SL_BandaPequena_Surfer", "MatrixShort_Surfer");
+                        Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 +1tk ({0:F2}) | Salida @ ~{1:F2}",
                             safeSurferShortSl, Close[0]));
                     }
                     else if (safeSurferShortSl > Close[0])
