@@ -169,6 +169,30 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (CurrentBar < BarsRequiredToTrade)
                 return;
 
+            // Inicializamos lastTemaSide la primera vez que tenemos datos válidos
+            if (lastTemaSide == 0)
+            {
+                lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
+            }
+
+            // === CONTADOR CONTINUO DE BARRAS SIN CRUCE REAL (ZONA 1) ===
+            // Guardamos cuántas barras acumuladas traíamos ANTES de evaluar la barra actual
+            int priorBarsBelowEma = barsBelowEmaWithoutCross;
+            int priorBarsAboveEma = barsAboveEmaWithoutCross;
+
+            double currentUpTicks   = (tema9[0] - ema200[0]) / TickSize;
+            double currentDownTicks = (ema200[0] - tema9[0]) / TickSize;
+
+            if (currentUpTicks < MinCrossTicks)
+                barsBelowEmaWithoutCross++;
+            else if (Close[0] > ema200[0])
+                barsBelowEmaWithoutCross = 0;
+
+            if (currentDownTicks < MinCrossTicks)
+                barsAboveEmaWithoutCross++;
+            else if (Close[0] < ema200[0])
+                barsAboveEmaWithoutCross = 0;
+
             // 1. Control de Horario RTH Estricto
             int currentTime = ToTime(Time[0]);
 
@@ -197,28 +221,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 2. Conteo acumulado de barras sin cruce real (para Francotirador Zona 1)
-            double distanceTicks = (tema9[0] - ema200[0]) / TickSize;
-            if (distanceTicks >= MinCrossTicks)
-            {
-                barsAboveEmaWithoutCross++;
-                barsBelowEmaWithoutCross = 0;
-            }
-            else if (distanceTicks <= -MinCrossTicks)
-            {
-                barsBelowEmaWithoutCross++;
-                barsAboveEmaWithoutCross = 0;
-            }
-            else
-            {
-                barsAboveEmaWithoutCross++;
-                barsBelowEmaWithoutCross++;
-            }
-
-            int priorBarsBelowEma = barsBelowEmaWithoutCross;
-            int priorBarsAboveEma = barsAboveEmaWithoutCross;
-
-            // 3. Seguimiento Dinámico de Posiciones Abiertas
+            // 2. Seguimiento Dinámico de Posiciones Abiertas
             if (Position.MarketPosition != MarketPosition.Flat)
             {
                 UpdateDynamicExits();
