@@ -16,7 +16,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 #if PRODUCTION
-[assembly: AssemblyVersion("8.1.8.1")]
+[assembly: AssemblyVersion("8.1.8.4")]
 #else
 [assembly: AssemblyVersion("8.1.9.0")]
 #endif

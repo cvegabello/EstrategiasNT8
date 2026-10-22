@@ -49,8 +49,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool crossUpConsumed = false;
         private bool crossDownConsumed = false;
 
-        // === VARIABLES v1.6 y v1.7: ESCUDO MFE BREAKEVEN, ANTI-SANCOCHO Y CONTADOR DE TENDENCIA VIRGEN ZONA 1 ===
+        // === VARIABLES v1.6, v1.7 y v3.3: ESCUDO MFE BREAKEVEN, CANDADO SURFER $180, ANTI-SANCOCHO Y ZONA 1 ===
         private bool isInnerBreakEvenActive = false;       // Indica si el trade de canal interno ya aseguró BreakEven tras superar la banda 1.75
+        private bool isSurferLockActive = false;           // v3.3: Indica si el trade de Surfer superó $180 y activó el candado de SL en banda cercana
+        private const double SurferLockTriggerDollars = 180.0; // v3.3: Ganancia mínima flotante para activar el candado del Surfer
         private int consecutiveLosses = 0;                 // Contador de pérdidas seguidas para apagar el Stop & Reverse en sancochos
         private int barsBelowEmaWithoutRealCross = 0;      // v1.7: Barras acumuladas con TEMA debajo de EMA200 sin cruce alcista real (>= MinCrossTicks)
         private int barsAboveEmaWithoutRealCross = 0;      // v1.7: Barras acumuladas con TEMA arriba de EMA200 sin cruce bajista real (>= MinCrossTicks)
@@ -92,7 +94,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "3.2";
+                Version                         = "3.3";
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -219,6 +221,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 currentTradeMode = MatrixTradeMode.None;
                 isInnerBreakEvenActive = false;
+                isSurferLockActive = false;
             }
 
             // 4. Si el Botón de Pánico está en PAUSADO (Rojo) o pasó la hora límite de entradas, no abrimos trades
@@ -324,6 +327,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     currentTradeMode = MatrixTradeMode.Long_Surfer;
                     isInnerBreakEvenActive = false;
+                    isSurferLockActive = false;
                     SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, finalSlPrice, false);
                     EnterLong("MatrixLong_Surfer");
 
@@ -352,6 +356,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     currentTradeMode = MatrixTradeMode.Short_Surfer;
                     isInnerBreakEvenActive = false;
+                    isSurferLockActive = false;
                     SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, finalSlPrice, false);
                     EnterShort("MatrixShort_Surfer");
 
@@ -803,9 +808,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTradeMode == MatrixTradeMode.Long_Surfer)
                 {
-                    // v3.2: Stop Loss dinámico / Trailing anclado a 1 tick por debajo de la banda exterior inferior del canal pequeño (Lower 1.75 -1tk)
-                    double dynamicSurferLongSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] - (1 * TickSize));
-                    double safeSurferLongSl = Math.Min(dynamicSurferLongSl, entryPrice - (MinSafetySlTicks * TickSize));
+                    double currentFavorableTicks = (High[0] - entryPrice) / TickSize;
+                    double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+
+                    // v3.3: Candado de Seguridad de $180 (aprox. 14.4 ticks en ES)
+                    if (!isSurferLockActive && currentProfitDollars >= SurferLockTriggerDollars)
+                    {
+                        isSurferLockActive = true;
+                        Print(Time[0] + string.Format(" - [SURFER -> CANDADO $180 ACTIVADO - LARGO] Ganancia flotante alcanzó {0:C2} (+{1:F1} tks). Stop Loss salta a Banda Superior Pequeña (Upper 1.75 -1tk) para blindar el trade.",
+                            currentProfitDollars, currentFavorableTicks));
+                    }
 
                     // SALIDA MAGISTRAL SURFER: Cierre dinámico cuando la EMA200 corta la banda inferior 3.5 (Fin de Expansión)
                     if (ema200[0] <= keltnerBig.Lower[0])
@@ -814,15 +826,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR FIN DE CICLO] EMA200 ({0:F2}) cortó Lower 3.5 ({1:F2}) | Salida @ ~{2:F2}",
                             ema200[0], keltnerBig.Lower[0], Close[0]));
                     }
-                    else if (Close[0] <= safeSurferLongSl)
+                    else if (isSurferLockActive)
                     {
-                        ExitLong("SL_BandaOpuesta_Surfer", "MatrixLong_Surfer");
-                        Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 -1tk ({0:F2}) | Salida @ ~{1:F2}",
-                            safeSurferLongSl, Close[0]));
+                        // SL con Candado: anclado a 1 tick por debajo de la banda superior del canal pequeño (Upper 1.75 -1tk)
+                        double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
+                        double safeLockSl = Math.Max(lockSl, entryPrice - (MinSafetySlTicks * TickSize));
+
+                        if (Close[0] <= safeLockSl)
+                        {
+                            ExitLong("SL_Candado_Surfer", "MatrixLong_Surfer");
+                            Print(Time[0] + string.Format(" - [SURFER -> LARGO PROTEGIDO POR CANDADO] Precio perforó Upper 1.75 -1tk ({0:F2}) | Salida @ ~{1:F2}",
+                                safeLockSl, Close[0]));
+                        }
+                        else if (safeLockSl < Close[0])
+                        {
+                            SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, safeLockSl, false);
+                        }
                     }
-                    else if (safeSurferLongSl < Close[0])
+                    else
                     {
-                        SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, safeSurferLongSl, false);
+                        // SL Inicial (antes de $180): en banda opuesta inferior del canal pequeño (Lower 1.75 -1tk)
+                        double dynamicSurferLongSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] - (1 * TickSize));
+                        double safeSurferLongSl = Math.Min(dynamicSurferLongSl, entryPrice - (MinSafetySlTicks * TickSize));
+
+                        if (Close[0] <= safeSurferLongSl)
+                        {
+                            ExitLong("SL_BandaOpuesta_Surfer", "MatrixLong_Surfer");
+                            Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 -1tk ({0:F2}) | Salida @ ~{1:F2}",
+                                safeSurferLongSl, Close[0]));
+                        }
+                        else if (safeSurferLongSl < Close[0])
+                        {
+                            SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, safeSurferLongSl, false);
+                        }
                     }
                 }
             }
@@ -885,9 +921,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (currentTradeMode == MatrixTradeMode.Short_Surfer)
                 {
-                    // v3.2: Stop Loss dinámico / Trailing anclado a 1 tick por encima de la banda exterior superior del canal pequeño (Upper 1.75 +1tk)
-                    double dynamicSurferShortSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] + (1 * TickSize));
-                    double safeSurferShortSl = Math.Max(dynamicSurferShortSl, entryPrice + (MinSafetySlTicks * TickSize));
+                    double currentFavorableTicks = (entryPrice - Low[0]) / TickSize;
+                    double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+
+                    // v3.3: Candado de Seguridad de $180 (aprox. 14.4 ticks en ES)
+                    if (!isSurferLockActive && currentProfitDollars >= SurferLockTriggerDollars)
+                    {
+                        isSurferLockActive = true;
+                        Print(Time[0] + string.Format(" - [SURFER -> CANDADO $180 ACTIVADO - CORTO] Ganancia flotante alcanzó {0:C2} (+{1:F1} tks). Stop Loss salta a Banda Inferior Pequeña (Lower 1.75 +1tk) para blindar el trade.",
+                            currentProfitDollars, currentFavorableTicks));
+                    }
 
                     // SALIDA MAGISTRAL SURFER: Cierre dinámico cuando la EMA200 corta la banda superior 3.5 (Fin de Expansión)
                     if (ema200[0] >= keltnerBig.Upper[0])
@@ -896,15 +939,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR FIN DE CICLO] EMA200 ({0:F2}) cortó Upper 3.5 ({1:F2}) | Salida @ ~{2:F2}",
                             ema200[0], keltnerBig.Upper[0], Close[0]));
                     }
-                    else if (Close[0] >= safeSurferShortSl)
+                    else if (isSurferLockActive)
                     {
-                        ExitShort("SL_BandaOpuesta_Surfer", "MatrixShort_Surfer");
-                        Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP DINÁMICO] Precio superó Upper 1.75 +1tk ({0:F2}) | Salida @ ~{1:F2}",
-                            safeSurferShortSl, Close[0]));
+                        // SL con Candado: anclado a 1 tick por encima de la banda inferior del canal pequeño (Lower 1.75 +1tk)
+                        double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
+                        double safeLockSl = Math.Min(lockSl, entryPrice + (MinSafetySlTicks * TickSize));
+
+                        if (Close[0] >= safeLockSl)
+                        {
+                            ExitShort("SL_Candado_Surfer", "MatrixShort_Surfer");
+                            Print(Time[0] + string.Format(" - [SURFER -> CORTO PROTEGIDO POR CANDADO] Precio superó Lower 1.75 +1tk ({0:F2}) | Salida @ ~{1:F2}",
+                                safeLockSl, Close[0]));
+                        }
+                        else if (safeLockSl > Close[0])
+                        {
+                            SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, safeLockSl, false);
+                        }
                     }
-                    else if (safeSurferShortSl > Close[0])
+                    else
                     {
-                        SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, safeSurferShortSl, false);
+                        // SL Inicial (antes de $180): en banda opuesta superior del canal pequeño (Upper 1.75 +1tk)
+                        double dynamicSurferShortSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] + (1 * TickSize));
+                        double safeSurferShortSl = Math.Max(dynamicSurferShortSl, entryPrice + (MinSafetySlTicks * TickSize));
+
+                        if (Close[0] >= safeSurferShortSl)
+                        {
+                            ExitShort("SL_BandaOpuesta_Surfer", "MatrixShort_Surfer");
+                            Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP DINÁMICO] Precio superó Upper 1.75 +1tk ({0:F2}) | Salida @ ~{1:F2}",
+                                safeSurferShortSl, Close[0]));
+                        }
+                        else if (safeSurferShortSl > Close[0])
+                        {
+                            SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, safeSurferShortSl, false);
+                        }
                     }
                 }
             }
