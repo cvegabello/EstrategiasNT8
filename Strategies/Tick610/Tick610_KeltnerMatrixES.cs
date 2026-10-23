@@ -94,7 +94,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // v1.6: Incluir comisiones por defecto siempre en Strategy Performance
 
                 // Propiedades generales
-                Version                         = "3.3";
+                Version                         = "3.4"; // v3.4: Blindaje de seguridad en modificación de SL (buffer 3 ticks e IgnoreAllErrors)
 
                 // Horarios RTH (Nueva York EST) - Inicia 09:50 AM por regla transversal
                 StartTime                       = 95000;  // 09:50 AM EST

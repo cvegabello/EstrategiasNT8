@@ -108,7 +108,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones incluidas siempre ($4.36 RT)
 
                 // Propiedades generales
-                Version                         = "1.0";
+                Version                         = "1.1"; // v1.1: Blindaje de seguridad en modificación de SL (buffer 3 ticks e IgnoreAllErrors)
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                       = 95000;  // 09:50 AM EST
