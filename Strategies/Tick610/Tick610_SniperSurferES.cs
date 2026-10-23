@@ -101,7 +101,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 StartBehavior                               = StartBehavior.WaitUntilFlat;
                 TimeInForce                                 = TimeInForce.Gtc;
                 TraceOrders                                 = false;
-                RealtimeErrorHandling                       = RealtimeErrorHandling.StopCancelClose;
+                RealtimeErrorHandling                       = RealtimeErrorHandling.IgnoreAllErrors; // Resiliencia total: jamás mata la estrategia por descalce temporal de orden
                 StopTargetHandling                          = StopTargetHandling.PerEntryExecution;
                 BarsRequiredToTrade                         = 200;
                 IsInstantiatedOnEachOptimizationIteration   = true;
@@ -422,11 +422,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     // SL anclado a la Línea Media con colchón
                     double safeZone1Sl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerBig.Midline[0] - slOffset, entryPrice - (MinSafetySlTicks * TickSize)));
-                    if (Close[0] <= safeZone1Sl + (1 * TickSize))
+                    if (Close[0] <= safeZone1Sl + (3 * TickSize))
                         ExitLong("SL_Midline_Zona1", "SniperZona1_Long");
                     else
                     {
-                        double finalSl = Math.Min(safeZone1Sl, Close[0] - (2 * TickSize));
+                        double finalSl = Math.Min(safeZone1Sl, Close[0] - (3 * TickSize));
                         SetStopLoss("SniperZona1_Long", CalculationMode.Price, finalSl, false);
                     }
                 }
@@ -456,8 +456,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
                         double safeLockSl = Math.Max(lockSl, entryPrice - (MinSafetySlTicks * TickSize));
 
-                        // Si el precio ya alcanzó o está a 1 tick de la zona de stop, salimos a mercado para evitar rechazos de orden
-                        if (Close[0] <= safeLockSl + (1 * TickSize))
+                        // Blindaje de seguridad: si el precio está a 3 ticks o menos de la zona de stop, salimos de inmediato a mercado
+                        if (Close[0] <= safeLockSl + (3 * TickSize))
                         {
                             ExitLong("SL_Candado_Surfer", "SniperSurfer_Long");
                             Print(Time[0] + string.Format(" - [SURFER -> LARGO PROTEGIDO POR CANDADO] Precio perforó Upper 1.75 -1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
@@ -465,8 +465,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                         else
                         {
-                            // Garantizar que la orden StopMarket esté SIEMPRE al menos 2 ticks por debajo del precio actual
-                            double finalStopPrice = Math.Min(safeLockSl, Close[0] - (2 * TickSize));
+                            // Garantizar que la orden StopMarket esté SIEMPRE al menos 3 ticks por debajo del precio actual para evitar rechazos en caídas rápidas
+                            double finalStopPrice = Math.Min(safeLockSl, Close[0] - (3 * TickSize));
                             SetStopLoss("SniperSurfer_Long", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
@@ -476,7 +476,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] - (1 * TickSize));
                         double safeSl = Math.Min(dynamicSl, entryPrice - (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] <= safeSl + (1 * TickSize))
+                        if (Close[0] <= safeSl + (3 * TickSize))
                         {
                             ExitLong("SL_BandaOpuesta_Surfer", "SniperSurfer_Long");
                             Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP INICIAL] Precio perforó Lower 1.75 -1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
@@ -484,7 +484,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                         else
                         {
-                            double finalStopPrice = Math.Min(safeSl, Close[0] - (2 * TickSize));
+                            double finalStopPrice = Math.Min(safeSl, Close[0] - (3 * TickSize));
                             SetStopLoss("SniperSurfer_Long", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
@@ -496,11 +496,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     // SL anclado a la Línea Media con colchón
                     double safeZone1Sl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerBig.Midline[0] + slOffset, entryPrice + (MinSafetySlTicks * TickSize)));
-                    if (Close[0] >= safeZone1Sl - (1 * TickSize))
+                    if (Close[0] >= safeZone1Sl - (3 * TickSize))
                         ExitShort("SL_Midline_Zona1", "SniperZona1_Short");
                     else
                     {
-                        double finalSl = Math.Max(safeZone1Sl, Close[0] + (2 * TickSize));
+                        double finalSl = Math.Max(safeZone1Sl, Close[0] + (3 * TickSize));
                         SetStopLoss("SniperZona1_Short", CalculationMode.Price, finalSl, false);
                     }
                 }
@@ -530,7 +530,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
                         double safeLockSl = Math.Min(lockSl, entryPrice + (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] >= safeLockSl - (1 * TickSize))
+                        if (Close[0] >= safeLockSl - (3 * TickSize))
                         {
                             ExitShort("SL_Candado_Surfer", "SniperSurfer_Short");
                             Print(Time[0] + string.Format(" - [SURFER -> CORTO PROTEGIDO POR CANDADO] Precio superó Lower 1.75 +1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
@@ -538,8 +538,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                         else
                         {
-                            // Garantizar que la orden StopMarket esté SIEMPRE al menos 2 ticks por encima del precio actual
-                            double finalStopPrice = Math.Max(safeLockSl, Close[0] + (2 * TickSize));
+                            // Garantizar que la orden StopMarket esté SIEMPRE al menos 3 ticks por encima del precio actual para evitar rechazos en subidas rápidas
+                            double finalStopPrice = Math.Max(safeLockSl, Close[0] + (3 * TickSize));
                             SetStopLoss("SniperSurfer_Short", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
@@ -549,7 +549,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] + (1 * TickSize));
                         double safeSl = Math.Max(dynamicSl, entryPrice + (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] >= safeSl - (1 * TickSize))
+                        if (Close[0] >= safeSl - (3 * TickSize))
                         {
                             ExitShort("SL_BandaOpuesta_Surfer", "SniperSurfer_Short");
                             Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP INICIAL] Precio superó Upper 1.75 +1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
@@ -557,7 +557,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                         else
                         {
-                            double finalStopPrice = Math.Max(safeSl, Close[0] + (2 * TickSize));
+                            double finalStopPrice = Math.Max(safeSl, Close[0] + (3 * TickSize));
                             SetStopLoss("SniperSurfer_Short", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
