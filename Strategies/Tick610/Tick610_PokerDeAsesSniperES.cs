@@ -68,10 +68,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int barsBelowEmaWithoutCross = 0;  // Acumulación continua para Long
         private int barsAboveEmaWithoutCross = 0;  // Acumulación continua para Short
 
-        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda) ===
-        private bool sobbLevel1Achieved = false;   // Piso 1 alcanzado (Contrato 1 cerrado, BE armado)
-        private bool sobbLevel2Achieved = false;   // Piso 2 alcanzado (Contrato 2 cerrado, Banda 3.5 anclada)
-        private bool sobbLevel3ChokeActive = false;// Piso 3 activo (Modo Ahogo para Contrato 3)
+        // === VARIABLES DEL ESCUADRÓN DE 3 CONTRATOS (ESCALONES UNIVERSALES) ===
+        private bool escalon1Achieved = false;     // Piso 1 alcanzado (Contrato 1 cerrado, BE armado)
+        private bool escalon2Achieved = false;     // Piso 2 alcanzado (Contrato 2 cerrado, Banda 3.5 anclada)
+        private bool escalon3ChokeActive = false;  // Piso 3 activo (Modo Ahogo para Contrato 3 Runner)
 
         // === VARIABLES DEL AS 3: RATCHET (CHICLE PARABÓLICO) ===
         private int ratchetCountdown = 0;
@@ -140,7 +140,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "1.0 - Poker de Ases (PAS)";
+                Version                                     = "1.1 - Poker de Ases (PAS) [Escalones Universales 3C]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -640,9 +640,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             highestPriceSinceEntry = High[0];
             lowestPriceSinceEntry  = Low[0];
 
-            sobbLevel1Achieved = false;
-            sobbLevel2Achieved = false;
-            sobbLevel3ChokeActive = false;
+            escalon1Achieved = false;
+            escalon2Achieved = false;
+            escalon3ChokeActive = false;
 
             ratchetBreakEvenActive = false;
             ratchetChicleActive = false;
@@ -714,96 +714,111 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 double currentGainTicks = (High[0] - entryPrice) / TickSize;
                 double currentGainDollars = currentGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                double peakGainTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
+                double peakGainDollars = peakGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
 
-                // --- GESTIÓN AS 2: SOBB (ESCALONAMIENTO DE 3 CONTRATOS Y 3 PISOS) ---
-                if (currentAce == AceType.As2_SOBB)
+                // --- GESTIÓN ESCUADRÓN DE 3 CONTRATOS (AS 2: SOBB & AS 3: RATCHET) ---
+                if (currentAce == AceType.As2_SOBB || currentAce == AceType.As3_Ratchet)
                 {
                     // PISO 1: Al alcanzar $180 ES / $18 MES
-                    if (!sobbLevel1Achieved && currentGainDollars >= SobbLevel1Dollars)
+                    if (!escalon1Achieved && (currentGainDollars >= SobbLevel1Dollars || peakGainDollars >= SobbLevel1Dollars))
                     {
-                        sobbLevel1Achieved = true;
+                        escalon1Achieved = true;
                         if (currentQty >= 3)
                         {
-                            ExitLong(1, "SOBB_Piso1_Asegurador", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 1 SUPERADO] Ganancia flotante: {1:C2} (+{2:F1} tks). Contrato 1 liquidado con ganancia fija.",
-                                Time[0], currentGainDollars, currentGainTicks));
-                            Print(string.Format("{0} - [PAS - SOBB | BLINDAJE BREAKEVEN] Stops de Contratos 2 y 3 blindados en Breakeven +1tk ({1:F2}). ¡Trade libre de riesgo!",
-                                Time[0], entryPrice + (1 * TickSize)));
+                            ExitLong(1, "Escalon1_Asegurador", "");
+                            Print(string.Format("{0} - [PAS | ESCALÓN 1 SUPERADO] As: {1} | Ganancia alcanzada: {2:C2} (+{3:F1} tks). Contrato 1 liquidado. Stops restantes blindados en BREAKEVEN +1tk ({4:F2}). ¡Trade libre de riesgo!",
+                                Time[0], currentAce, Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), entryPrice + (1 * TickSize)));
                         }
                     }
 
                     // PISO 2: Al alcanzar $220 ES / $22 MES
-                    if (sobbLevel1Achieved && !sobbLevel2Achieved && currentGainDollars >= SobbLevel2Dollars)
+                    if (escalon1Achieved && !escalon2Achieved && (currentGainDollars >= SobbLevel2Dollars || peakGainDollars >= SobbLevel2Dollars))
                     {
-                        sobbLevel2Achieved = true;
+                        escalon2Achieved = true;
                         if (currentQty >= 2)
                         {
-                            ExitLong(1, "SOBB_Piso2_Estructural", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 2 SUPERADO] Ganancia flotante: {1:C2} (+{2:F1} tks). Contrato 2 liquidado en zona de expansión.",
-                                Time[0], currentGainDollars, currentGainTicks));
-                            Print(string.Format("{0} - [PAS - SOBB | ANCLAJE BANDA 3.5] Stop de Contrato 3 anclado al piso de Banda Upper 3.5 -1tk ({1:F2}).",
+                            ExitLong(1, "Escalon2_Estructural", "");
+                            Print(string.Format("{0} - [PAS | ESCALÓN 2 SUPERADO] As: {1} | Ganancia alcanzada: {2:C2} (+{3:F1} tks). Contrato 2 liquidado en zona de expansión.",
+                                Time[0], currentAce, Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks)));
+                            Print(string.Format("{0} - [PAS | ANCLAJE BANDA 3.5] Stop de Contrato 3 anclado al piso de Banda Upper 3.5 -1tk ({1:F2}).",
                                 Time[0], keltnerBig.Upper[0] - (1 * TickSize)));
                         }
                     }
 
                     // PISO 3: Al superar $280 ES / $28 MES (Modo Ahogo / Trailing Ceñido para Contrato 3)
-                    if (sobbLevel2Achieved && !sobbLevel3ChokeActive && currentGainDollars >= SobbLevel3Dollars)
+                    if (escalon2Achieved && !escalon3ChokeActive && (currentGainDollars >= SobbLevel3Dollars || peakGainDollars >= SobbLevel3Dollars))
                     {
-                        sobbLevel3ChokeActive = true;
-                        Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 3 - MODO AHOGO ACTIVADO] Ganancia flotante: {1:C2} (+{2:F1} tks). Contrato 3 Runner en Modo Ahogo a {3} ticks del High.",
-                            Time[0], currentGainDollars, currentGainTicks, SobbChokeTicks));
+                        escalon3ChokeActive = true;
+                        Print(string.Format("{0} - [PAS | ESCALÓN 3 - MODO AHOGO ACTIVADO] As: {1} | Ganancia alcanzada: {2:C2} (+{3:F1} tks). Contrato 3 Runner en Modo Ahogo a {4} ticks del High.",
+                            Time[0], currentAce, Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), SobbChokeTicks));
                     }
 
-                    // EJECUCIÓN DE STOPS DINÁMICOS DEL SOBB (DIRECTO A MERCADO, CERO RECHAZOS)
-                    if (sobbLevel3ChokeActive)
+                    // EJECUCIÓN DE STOPS DINÁMICOS DEL ESCUADRÓN (DIRECTO A MERCADO, CERO RECHAZOS)
+                    if (escalon3ChokeActive)
                     {
                         // Stop de Ahogo: High máximo menos N ticks
                         double chokeSlPrice = highestPriceSinceEntry - (SobbChokeTicks * TickSize);
                         if (Close[0] <= chokeSlPrice || Low[0] <= chokeSlPrice)
                         {
-                            ExitLong("SOBB_Runner_Ahogo", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | RUNNER COBRADO POR AHOGO] Salida a Mercado @ ~{1:F2} | Ganancia asegurada en la cima.",
-                                Time[0], Close[0]));
+                            ExitLong("Runner_Ahogo", "");
+                            Print(string.Format("{0} - [PAS | RUNNER COBRADO POR AHOGO] As: {1} | Salida a Mercado @ ~{2:F2} | Ganancia asegurada en la cima.",
+                                Time[0], currentAce, Close[0]));
                         }
                     }
-                    else if (sobbLevel2Achieved)
+                    else if (escalon2Achieved)
                     {
                         // Stop anclado a Banda Upper 3.5 - 1 tick
                         double band35Sl = keltnerBig.Upper[0] - (1 * TickSize);
                         if (Close[0] <= band35Sl || Low[0] <= band35Sl)
                         {
-                            ExitLong("SOBB_Stop_Banda35", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | SALIDA EN PISO BANDA 3.5] Precio perforó Banda 3.5 ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], band35Sl, Close[0]));
+                            ExitLong("Stop_Banda35", "");
+                            Print(string.Format("{0} - [PAS | SALIDA EN PISO BANDA 3.5] As: {1} | Precio perforó Banda 3.5 ({2:F2}) | Salida a Mercado @ ~{3:F2}",
+                                Time[0], currentAce, band35Sl, Close[0]));
                         }
                     }
-                    else if (sobbLevel1Achieved)
+                    else if (escalon1Achieved)
                     {
                         // Stop en Breakeven + 1 tick
                         double bePrice = entryPrice + (1 * TickSize);
                         if (Close[0] <= bePrice || Low[0] <= bePrice)
                         {
-                            ExitLong("SOBB_Stop_BreakEven", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | SALIDA EN BREAKEVEN] Posición restante protegida @ {1:F2}. Salida sin pérdida.",
-                                Time[0], bePrice));
+                            ExitLong("Stop_BreakEven", "");
+                            Print(string.Format("{0} - [PAS | SALIDA EN BREAKEVEN] As: {1} | Posición restante protegida @ {2:F2}. Salida sin pérdida.",
+                                Time[0], currentAce, bePrice));
                         }
                     }
                     else
                     {
-                        // Stop de Candado Inicial: Upper 1.75 - 1 tick
-                        double lockSl = keltnerSmall.Upper[0] - (1 * TickSize);
-                        if (Close[0] <= lockSl || Low[0] <= lockSl)
+                        // Stop inicial antes del Escalón 1
+                        if (currentAce == AceType.As2_SOBB)
                         {
-                            ExitLong("SOBB_Stop_Candado", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | SALIDA CANDADO 1.75] Precio perforó Upper 1.75 ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], lockSl, Close[0]));
+                            // Candado Inicial SOBB: Upper 1.75 - 1 tick
+                            double lockSl = keltnerSmall.Upper[0] - (1 * TickSize);
+                            if (Close[0] <= lockSl || Low[0] <= lockSl)
+                            {
+                                ExitLong("SOBB_Stop_Candado", "");
+                                Print(string.Format("{0} - [PAS - SOBB | SALIDA CANDADO 1.75] Precio perforó Upper 1.75 ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                    Time[0], lockSl, Close[0]));
+                            }
+                        }
+                        else if (currentAce == AceType.As3_Ratchet)
+                        {
+                            // Stop estructural Ratchet: Midline - 2 ticks
+                            double ratchetMidlineSl = keltnerBig.Midline[0] - (2 * TickSize);
+                            if (Close[0] <= ratchetMidlineSl || Low[0] <= ratchetMidlineSl)
+                            {
+                                ExitLong("Ratchet_Stop_Midline", "");
+                                Print(string.Format("{0} - [PAS - Ratchet | SALIDA MIDLINE] Precio perforó Midline ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                    Time[0], ratchetMidlineSl, Close[0]));
+                            }
                         }
                     }
 
-                    // Salida por Fin de Ciclo (EMA 200 corta banda inferior 3.5)
-                    if (ema200[0] <= keltnerBig.Lower[0])
+                    // Salida por Fin de Ciclo (EMA 200 corta banda inferior 3.5 para SOBB)
+                    if (currentAce == AceType.As2_SOBB && ema200[0] <= keltnerBig.Lower[0])
                     {
-                        ExitLong("Exit_SOBB_FinCiclo", "SOBB_Long");
+                        ExitLong("Exit_SOBB_FinCiclo", "");
                         Print(string.Format("{0} - [PAS - SOBB | FIN DE CICLO] EMA200 ({1:F2}) cortó Lower 3.5 ({2:F2}) | Cierre total a Mercado @ ~{3:F2}",
                             Time[0], ema200[0], keltnerBig.Lower[0], Close[0]));
                     }
@@ -838,92 +853,106 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 double currentGainTicks = (entryPrice - Low[0]) / TickSize;
                 double currentGainDollars = currentGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                double peakGainTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
+                double peakGainDollars = peakGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
 
-                // --- GESTIÓN AS 2: SOBB (ESCALONAMIENTO DE 3 CONTRATOS Y 3 PISOS) ---
-                if (currentAce == AceType.As2_SOBB)
+                // --- GESTIÓN ESCUADRÓN DE 3 CONTRATOS (AS 2: SOBB & AS 3: RATCHET) ---
+                if (currentAce == AceType.As2_SOBB || currentAce == AceType.As3_Ratchet)
                 {
                     // PISO 1: Al alcanzar $180 ES / $18 MES
-                    if (!sobbLevel1Achieved && currentGainDollars >= SobbLevel1Dollars)
+                    if (!escalon1Achieved && (currentGainDollars >= SobbLevel1Dollars || peakGainDollars >= SobbLevel1Dollars))
                     {
-                        sobbLevel1Achieved = true;
+                        escalon1Achieved = true;
                         if (currentQty >= 3)
                         {
-                            ExitShort(1, "SOBB_Piso1_Asegurador", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 1 SUPERADO] Ganancia flotante: {1:C2} (+{2:F1} tks). Contrato 1 liquidado con ganancia fija.",
-                                Time[0], currentGainDollars, currentGainTicks));
-                            Print(string.Format("{0} - [PAS - SOBB | BLINDAJE BREAKEVEN] Stops de Contratos 2 y 3 blindados en Breakeven -1tk ({1:F2}). ¡Trade libre de riesgo!",
-                                Time[0], entryPrice - (1 * TickSize)));
+                            ExitShort(1, "Escalon1_Asegurador", "");
+                            Print(string.Format("{0} - [PAS | ESCALÓN 1 SUPERADO] As: {1} | Ganancia alcanzada: {2:C2} (+{3:F1} tks). Contrato 1 liquidado. Stops restantes blindados en BREAKEVEN -1tk ({4:F2}). ¡Trade libre de riesgo!",
+                                Time[0], currentAce, Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), entryPrice - (1 * TickSize)));
                         }
                     }
 
                     // PISO 2: Al alcanzar $220 ES / $22 MES
-                    if (sobbLevel1Achieved && !sobbLevel2Achieved && currentGainDollars >= SobbLevel2Dollars)
+                    if (escalon1Achieved && !escalon2Achieved && (currentGainDollars >= SobbLevel2Dollars || peakGainDollars >= SobbLevel2Dollars))
                     {
-                        sobbLevel2Achieved = true;
+                        escalon2Achieved = true;
                         if (currentQty >= 2)
                         {
-                            ExitShort(1, "SOBB_Piso2_Estructural", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 2 SUPERADO] Ganancia flotante: {1:C2} (+{2:F1} tks). Contrato 2 liquidado en zona de expansión.",
-                                Time[0], currentGainDollars, currentGainTicks));
-                            Print(string.Format("{0} - [PAS - SOBB | ANCLAJE BANDA 3.5] Stop de Contrato 3 anclado al piso de Banda Lower 3.5 +1tk ({1:F2}).",
+                            ExitShort(1, "Escalon2_Estructural", "");
+                            Print(string.Format("{0} - [PAS | ESCALÓN 2 SUPERADO] As: {1} | Ganancia alcanzada: {2:C2} (+{3:F1} tks). Contrato 2 liquidado en zona de expansión.",
+                                Time[0], currentAce, Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks)));
+                            Print(string.Format("{0} - [PAS | ANCLAJE BANDA 3.5] Stop de Contrato 3 anclado al piso de Banda Lower 3.5 +1tk ({1:F2}).",
                                 Time[0], keltnerBig.Lower[0] + (1 * TickSize)));
                         }
                     }
 
                     // PISO 3: Al superar $280 ES / $28 MES (Modo Ahogo / Trailing Ceñido para Contrato 3)
-                    if (sobbLevel2Achieved && !sobbLevel3ChokeActive && currentGainDollars >= SobbLevel3Dollars)
+                    if (escalon2Achieved && !escalon3ChokeActive && (currentGainDollars >= SobbLevel3Dollars || peakGainDollars >= SobbLevel3Dollars))
                     {
-                        sobbLevel3ChokeActive = true;
-                        Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 3 - MODO AHOGO ACTIVADO] Ganancia flotante: {1:C2} (+{2:F1} tks). Contrato 3 Runner en Modo Ahogo a {3} ticks del Low.",
-                            Time[0], currentGainDollars, currentGainTicks, SobbChokeTicks));
+                        escalon3ChokeActive = true;
+                        Print(string.Format("{0} - [PAS | ESCALÓN 3 - MODO AHOGO ACTIVADO] As: {1} | Ganancia alcanzada: {2:C2} (+{3:F1} tks). Contrato 3 Runner en Modo Ahogo a {4} ticks del Low.",
+                            Time[0], currentAce, Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), SobbChokeTicks));
                     }
 
-                    // EJECUCIÓN DE STOPS DINÁMICOS DEL SOBB (DIRECTO A MERCADO)
-                    if (sobbLevel3ChokeActive)
+                    // EJECUCIÓN DE STOPS DINÁMICOS DEL ESCUADRÓN (DIRECTO A MERCADO)
+                    if (escalon3ChokeActive)
                     {
                         double chokeSlPrice = lowestPriceSinceEntry + (SobbChokeTicks * TickSize);
                         if (Close[0] >= chokeSlPrice || High[0] >= chokeSlPrice)
                         {
-                            ExitShort("SOBB_Runner_Ahogo", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | RUNNER COBRADO POR AHOGO] Salida a Mercado @ ~{1:F2} | Ganancia asegurada en el piso.",
-                                Time[0], Close[0]));
+                            ExitShort("Runner_Ahogo", "");
+                            Print(string.Format("{0} - [PAS | RUNNER COBRADO POR AHOGO] As: {1} | Salida a Mercado @ ~{2:F2} | Ganancia asegurada en el piso.",
+                                Time[0], currentAce, Close[0]));
                         }
                     }
-                    else if (sobbLevel2Achieved)
+                    else if (escalon2Achieved)
                     {
                         double band35Sl = keltnerBig.Lower[0] + (1 * TickSize);
                         if (Close[0] >= band35Sl || High[0] >= band35Sl)
                         {
-                            ExitShort("SOBB_Stop_Banda35", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | SALIDA EN PISO BANDA 3.5] Precio superó Banda 3.5 ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], band35Sl, Close[0]));
+                            ExitShort("Stop_Banda35", "");
+                            Print(string.Format("{0} - [PAS | SALIDA EN PISO BANDA 3.5] As: {1} | Precio superó Banda 3.5 ({2:F2}) | Salida a Mercado @ ~{3:F2}",
+                                Time[0], currentAce, band35Sl, Close[0]));
                         }
                     }
-                    else if (sobbLevel1Achieved)
+                    else if (escalon1Achieved)
                     {
                         double bePrice = entryPrice - (1 * TickSize);
                         if (Close[0] >= bePrice || High[0] >= bePrice)
                         {
-                            ExitShort("SOBB_Stop_BreakEven", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | SALIDA EN BREAKEVEN] Posición restante protegida @ {1:F2}. Salida sin pérdida.",
-                                Time[0], bePrice));
+                            ExitShort("Stop_BreakEven", "");
+                            Print(string.Format("{0} - [PAS | SALIDA EN BREAKEVEN] As: {1} | Posición restante protegida @ {2:F2}. Salida sin pérdida.",
+                                Time[0], currentAce, bePrice));
                         }
                     }
                     else
                     {
-                        double lockSl = keltnerSmall.Lower[0] + (1 * TickSize);
-                        if (Close[0] >= lockSl || High[0] >= lockSl)
+                        // Stop inicial antes del Escalón 1
+                        if (currentAce == AceType.As2_SOBB)
                         {
-                            ExitShort("SOBB_Stop_Candado", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | SALIDA CANDADO 1.75] Precio superó Lower 1.75 ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                lockSl, Close[0]));
+                            double lockSl = keltnerSmall.Lower[0] + (1 * TickSize);
+                            if (Close[0] >= lockSl || High[0] >= lockSl)
+                            {
+                                ExitShort("SOBB_Stop_Candado", "");
+                                Print(string.Format("{0} - [PAS - SOBB | SALIDA CANDADO 1.75] Precio superó Lower 1.75 ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                    Time[0], lockSl, Close[0]));
+                            }
+                        }
+                        else if (currentAce == AceType.As3_Ratchet)
+                        {
+                            double ratchetMidlineSl = keltnerBig.Midline[0] + (2 * TickSize);
+                            if (Close[0] >= ratchetMidlineSl || High[0] >= ratchetMidlineSl)
+                            {
+                                ExitShort("Ratchet_Stop_Midline", "");
+                                Print(string.Format("{0} - [PAS - Ratchet | SALIDA MIDLINE] Precio superó Midline ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                    Time[0], ratchetMidlineSl, Close[0]));
+                            }
                         }
                     }
 
-                    // Salida por Fin de Ciclo (EMA 200 corta banda superior 3.5)
-                    if (ema200[0] >= keltnerBig.Upper[0])
+                    // Salida por Fin de Ciclo (EMA 200 corta banda superior 3.5 para SOBB)
+                    if (currentAce == AceType.As2_SOBB && ema200[0] >= keltnerBig.Upper[0])
                     {
-                        ExitShort("Exit_SOBB_FinCiclo", "SOBB_Short");
+                        ExitShort("Exit_SOBB_FinCiclo", "");
                         Print(string.Format("{0} - [PAS - SOBB | FIN DE CICLO] EMA200 ({1:F2}) cortó Upper 3.5 ({2:F2}) | Cierre total a Mercado @ ~{3:F2}",
                             Time[0], ema200[0], keltnerBig.Upper[0], Close[0]));
                     }
@@ -964,9 +993,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ResetAllTradeCounters()
         {
             currentAce = AceType.None;
-            sobbLevel1Achieved = false;
-            sobbLevel2Achieved = false;
-            sobbLevel3ChokeActive = false;
+            escalon1Achieved = false;
+            escalon2Achieved = false;
+            escalon3ChokeActive = false;
             highestPriceSinceEntry = 0.0;
             lowestPriceSinceEntry = double.MaxValue;
         }
@@ -1166,22 +1195,22 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(10.0, 1000.0)]
-        [Display(Name = "SOBB Escalón 1 ($)", Description = "Flotante para cerrar Contrato 1 y armar BE ($180 ES / $18 MES)", GroupName = "5. As 2: SOBB (Surfer)", Order = 1)]
+        [Display(Name = "Escuadrón Escalón 1 ($)", Description = "Flotante para cerrar Contrato 1 y armar BE ($180 ES / $18 MES)", GroupName = "5. Escuadrón 3 Contratos (Escalones)", Order = 1)]
         public double SobbLevel1Dollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(10.0, 1000.0)]
-        [Display(Name = "SOBB Escalón 2 ($)", Description = "Flotante para cerrar Contrato 2 en Banda 3.5 ($220 ES / $22 MES)", GroupName = "5. As 2: SOBB (Surfer)", Order = 2)]
+        [Display(Name = "Escuadrón Escalón 2 ($)", Description = "Flotante para cerrar Contrato 2 en Banda 3.5 ($220 ES / $22 MES)", GroupName = "5. Escuadrón 3 Contratos (Escalones)", Order = 2)]
         public double SobbLevel2Dollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(10.0, 2000.0)]
-        [Display(Name = "SOBB Escalón 3 ($)", Description = "Flotante para activar Modo Ahogo ($280 ES / $28 MES)", GroupName = "5. As 2: SOBB (Surfer)", Order = 3)]
+        [Display(Name = "Escuadrón Escalón 3 ($)", Description = "Flotante para activar Modo Ahogo ($280 ES / $28 MES)", GroupName = "5. Escuadrón 3 Contratos (Escalones)", Order = 3)]
         public double SobbLevel3Dollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "SOBB Distancia Ahogo (Ticks)", Description = "Ticks de separación del High/Low para el trailing del Runner", GroupName = "5. As 2: SOBB (Surfer)", Order = 4)]
+        [Display(Name = "Escuadrón Distancia Ahogo (Ticks)", Description = "Ticks de separación del High/Low para el trailing del Runner", GroupName = "5. Escuadrón 3 Contratos (Escalones)", Order = 4)]
         public int SobbChokeTicks { get; set; }
 
         [NinjaScriptProperty]
