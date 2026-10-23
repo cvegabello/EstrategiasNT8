@@ -832,15 +832,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
                         double safeLockSl = Math.Max(lockSl, entryPrice - (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] <= safeLockSl)
+                        if (Close[0] <= safeLockSl + (1 * TickSize))
                         {
                             ExitLong("SL_Candado_Surfer", "MatrixLong_Surfer");
-                            Print(Time[0] + string.Format(" - [SURFER -> LARGO PROTEGIDO POR CANDADO] Precio perforó Upper 1.75 -1tk ({0:F2}) | Salida @ ~{1:F2}",
+                            Print(Time[0] + string.Format(" - [SURFER -> LARGO PROTEGIDO POR CANDADO] Precio alcanzó zona de stop ({0:F2}) | Salida a Mercado @ ~{1:F2}",
                                 safeLockSl, Close[0]));
                         }
-                        else if (safeLockSl < Close[0])
+                        else
                         {
-                            SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, safeLockSl, false);
+                            double finalStopPrice = Math.Min(safeLockSl, Close[0] - (2 * TickSize));
+                            SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
                     else
@@ -849,15 +850,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double dynamicSurferLongSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] - (1 * TickSize));
                         double safeSurferLongSl = Math.Min(dynamicSurferLongSl, entryPrice - (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] <= safeSurferLongSl)
+                        if (Close[0] <= safeSurferLongSl + (1 * TickSize))
                         {
                             ExitLong("SL_BandaOpuesta_Surfer", "MatrixLong_Surfer");
-                            Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 -1tk ({0:F2}) | Salida @ ~{1:F2}",
+                            Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP DINÁMICO] Precio alcanzó zona de stop ({0:F2}) | Salida a Mercado @ ~{1:F2}",
                                 safeSurferLongSl, Close[0]));
                         }
-                        else if (safeSurferLongSl < Close[0])
+                        else
                         {
-                            SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, safeSurferLongSl, false);
+                            double finalStopPrice = Math.Min(safeSurferLongSl, Close[0] - (2 * TickSize));
+                            SetStopLoss("MatrixLong_Surfer", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
                 }
@@ -945,15 +947,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
                         double safeLockSl = Math.Min(lockSl, entryPrice + (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] >= safeLockSl)
+                        if (Close[0] >= safeLockSl - (1 * TickSize))
                         {
                             ExitShort("SL_Candado_Surfer", "MatrixShort_Surfer");
-                            Print(Time[0] + string.Format(" - [SURFER -> CORTO PROTEGIDO POR CANDADO] Precio superó Lower 1.75 +1tk ({0:F2}) | Salida @ ~{1:F2}",
+                            Print(Time[0] + string.Format(" - [SURFER -> CORTO PROTEGIDO POR CANDADO] Precio alcanzó zona de stop ({0:F2}) | Salida a Mercado @ ~{1:F2}",
                                 safeLockSl, Close[0]));
                         }
-                        else if (safeLockSl > Close[0])
+                        else
                         {
-                            SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, safeLockSl, false);
+                            double finalStopPrice = Math.Max(safeLockSl, Close[0] + (2 * TickSize));
+                            SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
                     else
@@ -962,15 +965,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double dynamicSurferShortSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] + (1 * TickSize));
                         double safeSurferShortSl = Math.Max(dynamicSurferShortSl, entryPrice + (MinSafetySlTicks * TickSize));
 
-                        if (Close[0] >= safeSurferShortSl)
+                        if (Close[0] >= safeSurferShortSl - (1 * TickSize))
                         {
                             ExitShort("SL_BandaOpuesta_Surfer", "MatrixShort_Surfer");
-                            Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP DINÁMICO] Precio superó Upper 1.75 +1tk ({0:F2}) | Salida @ ~{1:F2}",
+                            Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP DINÁMICO] Precio alcanzó zona de stop ({0:F2}) | Salida a Mercado @ ~{1:F2}",
                                 safeSurferShortSl, Close[0]));
                         }
-                        else if (safeSurferShortSl > Close[0])
+                        else
                         {
-                            SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, safeSurferShortSl, false);
+                            double finalStopPrice = Math.Max(safeSurferShortSl, Close[0] + (2 * TickSize));
+                            SetStopLoss("MatrixShort_Surfer", CalculationMode.Price, finalStopPrice, false);
                         }
                     }
                 }
