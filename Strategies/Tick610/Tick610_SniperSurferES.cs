@@ -108,7 +108,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones incluidas siempre ($4.36 RT)
 
                 // Propiedades generales
-                Version                         = "1.1"; // v1.1: Blindaje de seguridad en modificación de SL (buffer 3 ticks e IgnoreAllErrors)
+                Version                         = "1.2"; // v1.2: Salidas por Candado/Banda 100% a mercado (elimina SetStopLoss dinámico y anula error de orden)
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                       = 95000;  // 09:50 AM EST
@@ -420,14 +420,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (currentMode == SniperSurferMode.Long_Zona1)
                 {
-                    // SL anclado a la Línea Media con colchón
+                    // SL anclado a la Línea Media: salida directa a mercado al perforar
                     double safeZone1Sl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerBig.Midline[0] - slOffset, entryPrice - (MinSafetySlTicks * TickSize)));
-                    if (Close[0] <= safeZone1Sl + (3 * TickSize))
-                        ExitLong("SL_Midline_Zona1", "SniperZona1_Long");
-                    else
+                    if (Close[0] <= safeZone1Sl || Low[0] <= safeZone1Sl)
                     {
-                        double finalSl = Math.Min(safeZone1Sl, Close[0] - (3 * TickSize));
-                        SetStopLoss("SniperZona1_Long", CalculationMode.Price, finalSl, false);
+                        ExitLong("SL_Midline_Zona1", "SniperZona1_Long");
+                        Print(Time[0] + string.Format(" - [ZONA 1 -> LARGO CERRADO POR MIDLINE] Precio tocó o perforó Midline ({0:F2}) | Salida a Mercado @ ~{1:F2}",
+                            safeZone1Sl, Close[0]));
                     }
                 }
                 else if (currentMode == SniperSurferMode.Long_Surfer)
@@ -435,11 +434,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double currentFavorableTicks = (High[0] - entryPrice) / TickSize;
                     double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
 
-                    // CANDADO DE $180: Al superar $180 a favor, el SL salta a la banda superior 1.75
+                    // CANDADO DE $180: Al superar $180 a favor, el candado se arma
                     if (!isSurferLockActive && currentProfitDollars >= SurferLockTriggerDollars)
                     {
                         isSurferLockActive = true;
-                        Print(Time[0] + string.Format(" - [SURFER -> CANDADO $180 ACTIVADO - LARGO] Ganancia flotante alcanzó {0:C2} (+{1:F1} tks). Stop Loss blindado en Upper 1.75 -1tk.",
+                        Print(Time[0] + string.Format(" - [SURFER -> CANDADO $180 ACTIVADO - LARGO] Ganancia flotante alcanzó {0:C2} (+{1:F1} tks). Candado armado en Upper 1.75 -1tk.",
                             currentProfitDollars, currentFavorableTicks));
                     }
 
@@ -452,40 +451,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (isSurferLockActive)
                     {
-                        // SL con Candado: Upper 1.75 - 1 tick
+                        // Salida por Candado: salida directa a mercado al tocar Upper 1.75 - 1 tick (cero modificaciones de orden Stop)
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
-                        double safeLockSl = Math.Max(lockSl, entryPrice - (MinSafetySlTicks * TickSize));
-
-                        // Blindaje de seguridad: si el precio está a 3 ticks o menos de la zona de stop, salimos de inmediato a mercado
-                        if (Close[0] <= safeLockSl + (3 * TickSize))
+                        if (Close[0] <= lockSl || Low[0] <= lockSl)
                         {
                             ExitLong("SL_Candado_Surfer", "SniperSurfer_Long");
                             Print(Time[0] + string.Format(" - [SURFER -> LARGO PROTEGIDO POR CANDADO] Precio perforó Upper 1.75 -1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
-                                safeLockSl, Close[0]));
-                        }
-                        else
-                        {
-                            // Garantizar que la orden StopMarket esté SIEMPRE al menos 3 ticks por debajo del precio actual para evitar rechazos en caídas rápidas
-                            double finalStopPrice = Math.Min(safeLockSl, Close[0] - (3 * TickSize));
-                            SetStopLoss("SniperSurfer_Long", CalculationMode.Price, finalStopPrice, false);
+                                lockSl, Close[0]));
                         }
                     }
                     else
                     {
-                        // SL Inicial: Lower 1.75 - 1 tick (máximo respiro)
+                        // SL Inicial (antes de $180): salida a mercado si perfora la banda opuesta Lower 1.75 - 1 tick
                         double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] - (1 * TickSize));
-                        double safeSl = Math.Min(dynamicSl, entryPrice - (MinSafetySlTicks * TickSize));
-
-                        if (Close[0] <= safeSl + (3 * TickSize))
+                        if (Close[0] <= dynamicSl || Low[0] <= dynamicSl)
                         {
                             ExitLong("SL_BandaOpuesta_Surfer", "SniperSurfer_Long");
-                            Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP INICIAL] Precio perforó Lower 1.75 -1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
-                                safeSl, Close[0]));
-                        }
-                        else
-                        {
-                            double finalStopPrice = Math.Min(safeSl, Close[0] - (3 * TickSize));
-                            SetStopLoss("SniperSurfer_Long", CalculationMode.Price, finalStopPrice, false);
+                            Print(Time[0] + string.Format(" - [SURFER -> LARGO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 -1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
+                                dynamicSl, Close[0]));
                         }
                     }
                 }
@@ -494,14 +477,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (currentMode == SniperSurferMode.Short_Zona1)
                 {
-                    // SL anclado a la Línea Media con colchón
+                    // SL anclado a la Línea Media: salida directa a mercado al perforar
                     double safeZone1Sl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerBig.Midline[0] + slOffset, entryPrice + (MinSafetySlTicks * TickSize)));
-                    if (Close[0] >= safeZone1Sl - (3 * TickSize))
-                        ExitShort("SL_Midline_Zona1", "SniperZona1_Short");
-                    else
+                    if (Close[0] >= safeZone1Sl || High[0] >= safeZone1Sl)
                     {
-                        double finalSl = Math.Max(safeZone1Sl, Close[0] + (3 * TickSize));
-                        SetStopLoss("SniperZona1_Short", CalculationMode.Price, finalSl, false);
+                        ExitShort("SL_Midline_Zona1", "SniperZona1_Short");
+                        Print(Time[0] + string.Format(" - [ZONA 1 -> CORTO CERRADO POR MIDLINE] Precio tocó o superó Midline ({0:F2}) | Salida a Mercado @ ~{1:F2}",
+                            safeZone1Sl, Close[0]));
                     }
                 }
                 else if (currentMode == SniperSurferMode.Short_Surfer)
@@ -509,11 +491,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double currentFavorableTicks = (entryPrice - Low[0]) / TickSize;
                     double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
 
-                    // CANDADO DE $180: Al superar $180 a favor, el SL salta a la banda inferior 1.75
+                    // CANDADO DE $180: Al superar $180 a favor, el candado se arma
                     if (!isSurferLockActive && currentProfitDollars >= SurferLockTriggerDollars)
                     {
                         isSurferLockActive = true;
-                        Print(Time[0] + string.Format(" - [SURFER -> CANDADO $180 ACTIVADO - CORTO] Ganancia flotante alcanzó {0:C2} (+{1:F1} tks). Stop Loss blindado en Lower 1.75 +1tk.",
+                        Print(Time[0] + string.Format(" - [SURFER -> CANDADO $180 ACTIVADO - CORTO] Ganancia flotante alcanzó {0:C2} (+{1:F1} tks). Candado armado en Lower 1.75 +1tk.",
                             currentProfitDollars, currentFavorableTicks));
                     }
 
@@ -526,39 +508,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (isSurferLockActive)
                     {
-                        // SL con Candado: Lower 1.75 + 1 tick
+                        // Salida por Candado: salida directa a mercado al tocar Lower 1.75 + 1 tick (cero modificaciones de orden Stop)
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
-                        double safeLockSl = Math.Min(lockSl, entryPrice + (MinSafetySlTicks * TickSize));
-
-                        if (Close[0] >= safeLockSl - (3 * TickSize))
+                        if (Close[0] >= lockSl || High[0] >= lockSl)
                         {
                             ExitShort("SL_Candado_Surfer", "SniperSurfer_Short");
                             Print(Time[0] + string.Format(" - [SURFER -> CORTO PROTEGIDO POR CANDADO] Precio superó Lower 1.75 +1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
-                                safeLockSl, Close[0]));
-                        }
-                        else
-                        {
-                            // Garantizar que la orden StopMarket esté SIEMPRE al menos 3 ticks por encima del precio actual para evitar rechazos en subidas rápidas
-                            double finalStopPrice = Math.Max(safeLockSl, Close[0] + (3 * TickSize));
-                            SetStopLoss("SniperSurfer_Short", CalculationMode.Price, finalStopPrice, false);
+                                lockSl, Close[0]));
                         }
                     }
                     else
                     {
-                        // SL Inicial: Upper 1.75 + 1 tick (máximo respiro)
+                        // SL Inicial (antes de $180): salida a mercado si perfora la banda opuesta Upper 1.75 + 1 tick
                         double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] + (1 * TickSize));
-                        double safeSl = Math.Max(dynamicSl, entryPrice + (MinSafetySlTicks * TickSize));
-
-                        if (Close[0] >= safeSl - (3 * TickSize))
+                        if (Close[0] >= dynamicSl || High[0] >= dynamicSl)
                         {
                             ExitShort("SL_BandaOpuesta_Surfer", "SniperSurfer_Short");
-                            Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP INICIAL] Precio superó Upper 1.75 +1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
-                                safeSl, Close[0]));
-                        }
-                        else
-                        {
-                            double finalStopPrice = Math.Max(safeSl, Close[0] + (3 * TickSize));
-                            SetStopLoss("SniperSurfer_Short", CalculationMode.Price, finalStopPrice, false);
+                            Print(Time[0] + string.Format(" - [SURFER -> CORTO CERRADO POR STOP DINÁMICO] Precio superó Upper 1.75 +1tk ({0:F2}) | Salida a Mercado @ ~{1:F2}",
+                                dynamicSl, Close[0]));
                         }
                     }
                 }
