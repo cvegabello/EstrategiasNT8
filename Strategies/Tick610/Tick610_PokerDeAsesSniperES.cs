@@ -90,12 +90,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double highestPriceSinceEntry = 0.0;
         private double lowestPriceSinceEntry = double.MaxValue;
 
-        // === ESCUDO DIARIO Y GESTIÓN DE RIESGO DE CUENTA ===
+        // === ESCUDO DIARIO Y GESTIÓN DE RIESGO DE CUENTA (3 PISOS ESCALONADOS) ===
         private double dailyRealizedPnL = 0.0;
         private int consecutiveLosses = 0;
         private bool isDailyLocked = false;
         private string dailyLockReason = string.Empty;
         private int lastSessionDate = 0;
+        private double currentDailyFloor = -300.0; // Piso de pérdida en vivo
+        private int currentDailyTier = 0;          // 0 = Base (-$300), 1 = Piso 1 (+$400), 2 = Piso 2 (+$650), 3 = Techo Gloria
 
         // === FACTOR MULTIPLICADOR (AUTO-ADAPTACIÓN MINI ES VS MICRO MES) ===
         private double instrumentMultiplier = 1.0; // 1.0 para ES, 0.1 para MES
@@ -142,7 +144,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "1.2 - Poker de Ases (PAS) [4 Ases Independientes]";
+                Version                                     = "1.3 - Poker de Ases (PAS) [Escudo Diario 3 Pisos]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -186,10 +188,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
                 CascadaFixedTpTicks                         = 16;     // Target objetivo ($200 ES / $20 MES)
 
-                // Escudo Diario de Cuenta
+                // Escudo Diario de Cuenta (3 Pisos Escalonados)
                 UseDailyManagement                          = true;   // Activar Cortacircuito y Meta Diaria
-                DailyLossLimit                              = 300.0;  // Cortacircuito estricto: -$300 ES / -$30 MES
-                DailyProfitGoal                             = 600.0;  // Meta Diaria para irse a montar bicicleta: +$600 ES / +$60 MES
+                DailyLossLimit                              = 300.0;  // Cortacircuito estricto inicial: -$300 ES / -$30 MES
+                DailyGoal_Piso1                             = 600.0;  // Meta Escalón 1: +$600 ES / +$60 MES (Piso a +$400)
+                DailyFloor_Piso1                            = 400.0;  // Piso protegido Escalón 1: +$400 ES / +$40 MES
+                DailyGoal_Piso2                             = 800.0;  // Meta Escalón 2: +$800 ES / +$80 MES (Piso a +$650)
+                DailyFloor_Piso2                            = 650.0;  // Piso protegido Escalón 2: +$650 ES / +$65 MES
+                DailyGoal_Piso3                             = 1000.0; // Techo de Gloria: +$1,000 ES / +$100 MES (Apague y vámonos)
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes consecutivos
             }
             else if (State == State.DataLoaded)
@@ -201,18 +207,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Si es Micro MES, escalamos proporcionalmente los umbrales en dólares por defecto
                 if (isMicroInstrument)
                 {
-                    DailyLossLimit     = 30.0;
-                    DailyProfitGoal    = 60.0;
-                    SobbLevel1Dollars  = 18.0;
-                    SobbLevel2Dollars  = 22.0;
-                    SobbLevel3Dollars  = 28.0;
-                    Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Meta: +${1:F2}",
-                        DailyLossLimit, DailyProfitGoal));
+                    DailyLossLimit      = 30.0;
+                    DailyGoal_Piso1     = 60.0;
+                    DailyFloor_Piso1    = 40.0;
+                    DailyGoal_Piso2     = 80.0;
+                    DailyFloor_Piso2    = 65.0;
+                    DailyGoal_Piso3     = 100.0;
+                    SobbLevel1Dollars   = 18.0;
+                    SobbLevel2Dollars   = 22.0;
+                    SobbLevel3Dollars   = 28.0;
+                    currentDailyFloor   = -DailyLossLimit;
+                    Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Gloria: +${5:F2}",
+                        DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3));
                 }
                 else
                 {
-                    Print(string.Format("=== [PAS] INSTRUMENTO ESTÁNDAR (ES) DETECTADO === Cortacircuito: -${0:F2} | Meta: +${1:F2}",
-                        DailyLossLimit, DailyProfitGoal));
+                    currentDailyFloor = -DailyLossLimit;
+                    Print(string.Format("=== [PAS] INSTRUMENTO ESTÁNDAR (ES) DETECTADO === Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Gloria: +${5:F2}",
+                        DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3));
                 }
 
                 // Instanciamos indicadores en memoria
@@ -262,7 +274,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 consecutiveLosses = 0;
                 isDailyLocked = false;
                 dailyLockReason = string.Empty;
-                Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario Reiniciado a $0.00", Time[0]));
+                currentDailyFloor = -DailyLossLimit;
+                currentDailyTier = 0;
+                Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
+                    Time[0], DailyLossLimit));
             }
 
             // 3. HORARIO RTH ESTRICTO (09:50 AM - 04:00 PM EST)
@@ -301,16 +316,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 double totalDailyFloatingPnL = dailyRealizedPnL + unrealizedPnL;
 
-                // CORTACIRCUITO EN VIVO: Si la cuenta toca el límite de pérdida diaria
-                if (!isDailyLocked && totalDailyFloatingPnL <= -DailyLossLimit)
+                // CORTACIRCUITO EN VIVO: Si el PnL total (realizado + flotante) toca el piso actual
+                if (!isDailyLocked && totalDailyFloatingPnL <= currentDailyFloor)
                 {
                     isDailyLocked = true;
-                    dailyLockReason = string.Format("CORTACIRCUITO DIARIO (-${0:F2}) ALCANZADO", DailyLossLimit);
-                    Print(string.Format("{0} - [CORTACIRCUITO EN VIVO] Pérdida diaria tocó ${1:F2} (Límite: -${2:F2}). ¡PUM, ADIÓS! Liquidando a mercado y bloqueando operativa.",
-                        Time[0], totalDailyFloatingPnL, DailyLossLimit));
+                    dailyLockReason = string.Format("CORTACIRCUITO DIARIO ({0}) ALCANZADO (${1:F2})",
+                        currentDailyTier == 0 ? "PÉRDIDA MÁXIMA" : ("PISO ESCALÓN " + currentDailyTier), currentDailyFloor);
+                    
+                    Print(string.Format("****************************************************************************************\n" +
+                                        "{0} - [CORTACIRCUITO EN VIVO | PISO ACTIVADO] PnL total cayó a ${1:F2} (Piso protegido: ${2:F2}).\n" +
+                                        "¡PUM, ADIÓS! Liquidando a mercado inmediatamente para proteger el capital planeado. Operativa bloqueada por hoy.\n" +
+                                        "****************************************************************************************",
+                        Time[0], totalDailyFloatingPnL, currentDailyFloor));
                     
                     if (Position.MarketPosition != MarketPosition.Flat)
-                        LiquidateAllMarket("Cortacircuito_Diario");
+                        LiquidateAllMarket("Cortacircuito_Diario_Piso");
                     return;
                 }
 
@@ -1239,19 +1259,59 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 ResetAllTradeCounters();
 
-                // EVALUACIÓN DE META DIARIA Y 3 STRIKES AL CERRAR OPERACIONES
+                // EVALUACIÓN DE ESCALONES DIARIOS Y META DE GLORIA AL CERRAR OPERACIONES
                 if (UseDailyManagement && !isDailyLocked)
                 {
-                    if (dailyRealizedPnL >= DailyProfitGoal)
+                    // 1. TECHO DE GLORIA: Si llegó a $1,000+ USD ($100 MES) -> ¡Apague y vámonos!
+                    if (dailyRealizedPnL >= DailyGoal_Piso3)
                     {
                         isDailyLocked = true;
-                        dailyLockReason = string.Format("META DIARIA (+${0:F2}) LOGRADA", DailyProfitGoal);
+                        currentDailyTier = 3;
+                        currentDailyFloor = dailyRealizedPnL;
+                        dailyLockReason = string.Format("TECHO DE GLORIA (+${0:F2}) ALCANZADO", DailyGoal_Piso3);
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [META DIARIA ALCANZADA] PnL Diario: ${1:F2} (Meta: +${2:F2}). ¡A tomar tinto y montar bicicleta!\n" +
-                                           "Operativa bloqueada por el resto de la sesión.\n" +
+                                           "{0} - [¡TECHO DE GLORIA ALCANZADO!] PnL Diario Realizado: ${1:F2} (Meta Gloria: +${2:F2}).\n" +
+                                           "¡DÍA HISTÓRICO! Cerramos la oficina, apagamos y nos vamos a celebrar. Operativa bloqueada.\n" +
                                            "****************************************************************************************",
-                            Time[0], dailyRealizedPnL, DailyProfitGoal));
+                            Time[0], dailyRealizedPnL, DailyGoal_Piso3));
                     }
+                    // 2. ESCALÓN 2: Si cerró entre $800 y $999 -> Piso protegido en +$650 USD (+ $65 MES)
+                    else if (dailyRealizedPnL >= DailyGoal_Piso2)
+                    {
+                        if (currentDailyTier < 2)
+                        {
+                            currentDailyTier = 2;
+                            currentDailyFloor = DailyFloor_Piso2;
+                            Print(string.Format("========================================================================================\n" +
+                                               "{0} - [ESCUDO DIARIO | ESCALÓN 2 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta 2: ${2:F2}).\n" +
+                                               "Nuevo Piso Protegido clavado en +${3:F2} USD. ¡Pase lo que pase, hoy salimos ganando en grande!\n" +
+                                               "========================================================================================",
+                                Time[0], dailyRealizedPnL, DailyGoal_Piso2, currentDailyFloor));
+                        }
+                    }
+                    // 3. ESCALÓN 1: Si cerró entre $600 y $799 -> Piso protegido en +$400 USD (+ $40 MES)
+                    else if (dailyRealizedPnL >= DailyGoal_Piso1)
+                    {
+                        if (currentDailyTier < 1)
+                        {
+                            currentDailyTier = 1;
+                            currentDailyFloor = DailyFloor_Piso1;
+                            Print(string.Format("========================================================================================\n" +
+                                               "{0} - [ESCUDO DIARIO | ESCALÓN 1 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta Base: ${2:F2}).\n" +
+                                               "Nuevo Piso Protegido clavado en +${3:F2} USD. Jugamos con la plata de la casa buscando el Escalón 2.\n" +
+                                               "========================================================================================",
+                                Time[0], dailyRealizedPnL, DailyGoal_Piso1, currentDailyFloor));
+                        }
+                    }
+                    // 4. Si el trade cerrado cayó por debajo del piso protegido
+                    else if (dailyRealizedPnL <= currentDailyFloor)
+                    {
+                        isDailyLocked = true;
+                        dailyLockReason = string.Format("PISO DE PROTECCIÓN (${0:F2}) ALCANZADO", currentDailyFloor);
+                        Print(string.Format("{0} - [ESCUDO DIARIO | CIERRE POR PISO] PnL Diario Realizado cayó a ${1:F2} (Piso protegido: ${2:F2}). Operativa bloqueada por el resto del día.",
+                            Time[0], dailyRealizedPnL, currentDailyFloor));
+                    }
+                    // 5. Regla de 3 Strikes consecutivos
                     else if (consecutiveLosses >= MaxConsecutiveLosses)
                     {
                         isDailyLocked = true;
@@ -1376,22 +1436,42 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int ForceCloseTime { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Gestión Diaria", Description = "Activa Cortacircuito y Meta Diaria", GroupName = "4. Escudo de Cuenta", Order = 1)]
+        [Display(Name = "Activar Gestión Diaria", Description = "Activa Cortacircuito y Meta Diaria", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 1)]
         public bool UseDailyManagement { get; set; }
 
         [NinjaScriptProperty]
         [Range(10.0, 5000.0)]
-        [Display(Name = "Cortacircuito Diario ($)", Description = "Pérdida máxima diaria para apagar bot ($300 ES / $30 MES)", GroupName = "4. Escudo de Cuenta", Order = 2)]
+        [Display(Name = "Cortacircuito Diario Inicial ($)", Description = "Pérdida máxima inicial para apagar bot ($300 ES / $30 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 2)]
         public double DailyLossLimit { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10.0, 10000.0)]
-        [Display(Name = "Meta Diaria ($)", Description = "Ganancia objetivo para cerrar sesión ($600 ES / $60 MES)", GroupName = "4. Escudo de Cuenta", Order = 3)]
-        public double DailyProfitGoal { get; set; }
+        [Range(50.0, 5000.0)]
+        [Display(Name = "Meta Escalón 1 ($)", Description = "Meta para activar Piso 1 ($600 ES / $60 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 3)]
+        public double DailyGoal_Piso1 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(10.0, 5000.0)]
+        [Display(Name = "Piso Protegido Escalón 1 ($)", Description = "Piso mínimo garantizado tras tocar Meta 1 ($400 ES / $40 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 4)]
+        public double DailyFloor_Piso1 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(100.0, 10000.0)]
+        [Display(Name = "Meta Escalón 2 ($)", Description = "Meta para activar Piso 2 ($800 ES / $80 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 5)]
+        public double DailyGoal_Piso2 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(50.0, 10000.0)]
+        [Display(Name = "Piso Protegido Escalón 2 ($)", Description = "Piso mínimo garantizado tras tocar Meta 2 ($650 ES / $65 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 6)]
+        public double DailyFloor_Piso2 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(200.0, 20000.0)]
+        [Display(Name = "Techo de Gloria ($)", Description = "Meta definitiva para cerrar sesión y celebrar ($1,000 ES / $100 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 7)]
+        public double DailyGoal_Piso3 { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Máximo Strikes Seguidos", Description = "Número de pérdidas seguidas para apagar por el día", GroupName = "4. Escudo de Cuenta", Order = 4)]
+        [Display(Name = "Máximo Strikes Seguidos", Description = "Número de pérdidas seguidas para apagar por el día", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 8)]
         public int MaxConsecutiveLosses { get; set; }
 
         [NinjaScriptProperty]
