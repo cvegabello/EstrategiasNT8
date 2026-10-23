@@ -5,12 +5,15 @@ $excel.DisplayAlerts = $false
 
 $allTrades = @()
 
-$files = Get-ChildItem -Path $folder -Filter "*.xlsx" | Where-Object { $_.Name -notlike "*Tabla_Maestra*" }
+$files = Get-ChildItem -Path $folder -Filter "*.xlsx" | Where-Object { $_.Name -notlike "*Tabla_Maestra*" -and $_.Name -notlike "*test*" }
 
 foreach ($file in $files) {
-    Write-Host "Leyendo: $($file.Name)"
+    Write-Host "Procesando: $($file.Name)"
     $wb = $excel.Workbooks.Open($file.FullName)
     $ws = $wb.Sheets.Item(1)
+    
+    # AutoAjustar columnas para que nunca devuelva '###'
+    $ws.Columns.AutoFit() | Out-Null
     
     $row = 1
     $headers = @()
@@ -30,11 +33,24 @@ foreach ($file in $files) {
         $item = [ordered]@{}
         for ($c = 1; $c -le $headers.Count; $c++) {
             $h = $headers[$c - 1]
-            $v = $ws.Cells.Item($row, $c).Text
-            $item[$h] = $v
+            $cell = $ws.Cells.Item($row, $c)
+            $textVal = [string]$cell.Text
+            $val2 = $cell.Value2
+
+            # Si es fecha/hora o si el texto vino como '###', convertir desde OADate numérico
+            if ($h -in @("Entry time", "Exit time") -or $textVal -match '^#+$') {
+                if ($val2 -is [double] -or $val2 -is [int]) {
+                    try {
+                        $dt = [DateTime]::FromOADate([double]$val2)
+                        $textVal = $dt.ToString("MM/dd/yyyy HH:mm")
+                    } catch {}
+                }
+            }
+            
+            $item[$h] = $textVal
         }
         
-        # Extraer Fecha limpia de 'Entry time'
+        # Extraer Fecha limpia (MM/dd/yyyy)
         $entryTimeStr = $item["Entry time"]
         $fecha = ""
         if (-not [string]::IsNullOrWhiteSpace($entryTimeStr)) {
@@ -44,6 +60,12 @@ foreach ($file in $files) {
                 $fecha = $matches[1]
             } else {
                 $fecha = $entryTimeStr.Split(' ')[0]
+            }
+        }
+        
+        if ([string]::IsNullOrWhiteSpace($fecha) -or $fecha -match '^#+$') {
+            if ($file.Name -match "(\d{2})(\d{2})(\d{4})") {
+                $fecha = "$($matches[1])/$($matches[2])/$($matches[3])"
             }
         }
         
@@ -66,13 +88,13 @@ foreach ($file in $files) {
 
 Write-Host "Total trades acumulados: $($allTrades.Count)"
 
-# 1. Exportar CSV Maestro (Siempre disponible para cualquier herramienta)
+# 1. Guardar CSV Maestro
 $csvPath = Join-Path $folder "Tabla_Maestra_Trades.csv"
 $allTrades | Export-Csv -Path $csvPath -NoTypeInformation -Encoding UTF8
-Write-Host "CSV Maestro guardado: $csvPath"
+Write-Host "CSV Maestro guardado con éxito: $csvPath"
 
-# 2. Generar Excel Maestro Oficial
-$xlsxPath = Join-Path $folder "Tabla_Maestra_Trades.xlsx"
+# 2. Guardar Excel Maestro Consolidado
+$xlsxPath = Join-Path $folder "Tabla_Maestra_Consolidada.xlsx"
 if (Test-Path $xlsxPath) { 
     try { Remove-Item $xlsxPath -Force } catch {} 
 }
@@ -136,6 +158,10 @@ $summaryWs.Columns.AutoFit() | Out-Null
 $masterWb.SaveAs($xlsxPath)
 $masterWb.Close($true)
 
+# También intentar actualizar Tabla_Maestra_Trades.xlsx si no está bloqueado
+$legacyPath = Join-Path $folder "Tabla_Maestra_Trades.xlsx"
+try { Copy-Item $xlsxPath $legacyPath -Force } catch {}
+
 $excel.Quit()
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($detailWs) | Out-Null
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($summaryWs) | Out-Null
@@ -144,4 +170,7 @@ $excel.Quit()
 [GC]::Collect()
 [GC]::WaitForPendingFinalizers()
 
-Write-Host "Excel Maestro listo en: $xlsxPath"
+# Limpiar temporales
+Remove-Item (Join-Path $folder "test_*.ps1") -Force -ErrorAction SilentlyContinue
+
+Write-Host "Excel Maestro Consolidado generado exitosamente: $xlsxPath"
