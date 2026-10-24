@@ -380,7 +380,6 @@
     <Compile Include="Strategies\Tick610\Tick610_RangeFisherES.cs" />
     <Compile Include="Strategies\Tick610\Tick610_SniperExperimentES.cs" />
     <Compile Include="Strategies\Tick610\Tick610_SniperRatchetES.cs" />
-    <Compile Include="obj\x64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
     <Compile Include="NinjaTrader.Vendor.cs" />
     <Compile Include="Strategies\Tick610\Tick610_SniperSurferES.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES.cs" />
