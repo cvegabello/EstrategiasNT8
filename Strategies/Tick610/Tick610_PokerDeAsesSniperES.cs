@@ -25,10 +25,10 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 1.7 - Poker de Ases (PAS) [SOBB Primera Vela One-Shot & SL Escalonado Canales + Targets Límite]
+// VERSIÓN: 2.0 - Poker de Ases (PAS) [Z1 Filtro Zona 0 + Escudo Pisos Exactos & Strikes por Operación]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
-//   1. As 1: [Z1-100Bar] - Ruptura quirúrgica de tendencia madura tras >= 100 barras comprimidas en EMA 200.
+//   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0.
 //                          (Fiel al SniperSurfer original con TEMA 9 y MinCrossTicks 2.3).
 //   2. As 2: [SOBB]      - SurferOutBigBanda: Cruce TEMA 9 + Disparo en Primera Vela Fuera (One-Shot Estricto)
 //                          con SL Escalonado Estructural (C1 Pequeña, C2 Midline, C3 Pequeña Opuesta).
@@ -136,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v1.7 en 610 Ticks para ES/MES. Combina Z1-100Bar (Sniper Fiel 151 barras), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite y Trailing Diario Infinito.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.0 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Escudo de Pisos Exactos y Strikes por Operación.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -157,7 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "1.7 - Poker de Ases (PAS) [SOBB Primera Vela One-Shot & SL Escalonado Canales + Targets Límite]";
+                Version                                     = "2.0 - Poker de Ases (PAS) [Z1 Filtro Zona 0 + Escudo Pisos Exactos & Strikes por Operación]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -203,16 +203,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTp2Ticks                             = 16;     // C2 TP (16 ticks = $200 ES / $20 MES) -> Meta clásica
                 CascadaChokeTicks                           = 8;      // C3 Runner Ahogo a 8 ticks del High/Low
 
-                // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración v1.5 para 3 Contratos)
+                // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Ceñida v2.0 para 3 Contratos)
                 UseDailyManagement                          = true;   // Activar Cortacircuito y Trailing Diario
                 DailyLossLimit                              = 800.0;  // Cortacircuito estricto inicial: -$800 ES / -$80 MES (2.5 - 3 vidas)
-                DailyGoal_Piso1                             = 450.0;  // Meta Escalón 1: +$450 ES / +$45 MES (Piso a +$300)
-                DailyFloor_Piso1                            = 300.0;  // Piso protegido Escalón 1: +$300 ES / +$30 MES
-                DailyGoal_Piso2                             = 750.0;  // Meta Escalón 2: +$750 ES / +$75 MES (Piso a +$550)
-                DailyFloor_Piso2                            = 550.0;  // Piso protegido Escalón 2: +$550 ES / +$55 MES
-                DailyGoal_Piso3                             = 1000.0; // Umbral Modo Dulce: +$1,000 ES / +$100 MES (Activa Trailing Infinito)
+                DailyGoal_Piso1                             = 400.0;  // Meta Escalón 1: +$400 ES / +$40 MES (Piso a +$250)
+                DailyFloor_Piso1                            = 250.0;  // Piso protegido Escalón 1: +$250 ES / +$25 MES
+                DailyGoal_Piso2                             = 600.0;  // Meta Escalón 2: +$600 ES / +$60 MES (Piso a +$500)
+                DailyFloor_Piso2                            = 500.0;  // Piso protegido Escalón 2: +$500 ES / +$50 MES
+                DailyGoal_Piso3                             = 900.0;  // Umbral Modo Dulce: +$900 ES / +$90 MES (Activa Trailing Infinito)
                 DailyTrailingGiveback                       = 150.0;  // Colchón de retroceso permitido del pico ganado ($150 ES / $15 MES)
-                MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes consecutivos
+                MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
             }
             else if (State == State.DataLoaded)
             {
@@ -224,11 +224,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isMicroInstrument)
                 {
                     DailyLossLimit        = 80.0;
-                    DailyGoal_Piso1       = 45.0;
-                    DailyFloor_Piso1      = 30.0;
-                    DailyGoal_Piso2       = 75.0;
-                    DailyFloor_Piso2      = 55.0;
-                    DailyGoal_Piso3       = 100.0;
+                    DailyGoal_Piso1       = 40.0;
+                    DailyFloor_Piso1      = 25.0;
+                    DailyGoal_Piso2       = 60.0;
+                    DailyFloor_Piso2      = 50.0;
+                    DailyGoal_Piso3       = 90.0;
                     DailyTrailingGiveback = 15.0;
                     SobbLevel1Dollars     = 18.0;
                     SobbLevel2Dollars     = 22.0;
@@ -326,7 +326,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (Low[0] < lowestPriceSinceEntry) lowestPriceSinceEntry = Low[0];
             }
 
-            // 5. CORTACIRCUITO DIARIO EN VIVO ("PUM, ADIÓS") Y META DIARIA
+            // 5. CORTACIRCUITO DIARIO EN VIVO ("PUM, ADIÓS") Y PISO EXACTO POR TICKS
             if (UseDailyManagement)
             {
                 double unrealizedPnL = 0.0;
@@ -335,6 +335,54 @@ namespace NinjaTrader.NinjaScript.Strategies
                     unrealizedPnL = Position.GetUnrealizedProfitLoss(PerformanceUnit.Currency, Close[0]);
                 }
                 double totalDailyFloatingPnL = dailyRealizedPnL + unrealizedPnL;
+
+                // CORTACIRCUITO DE PISO EXACTO EN TIEMPO REAL:
+                // Si el piso protegido está activo y el PnL cerrado lo supera, calculamos el precio
+                // exacto en ticks donde el retroceso alcanzaría el piso, para liquidar sin esperar slippage de barra.
+                if (!isDailyLocked && Position.MarketPosition != MarketPosition.Flat && dailyRealizedPnL > currentDailyFloor)
+                {
+                    double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
+                    double tickValue = TickSize * Instrument.MasterInstrument.PointValue;
+                    double dollarsPerTickPosition = Position.Quantity * tickValue;
+
+                    if (dollarsPerTickPosition > 0)
+                    {
+                        int maxLossTicks = (int)Math.Floor(allowedLossDollars / dollarsPerTickPosition);
+
+                        if (Position.MarketPosition == MarketPosition.Long)
+                        {
+                            double exactFloorPrice = Instrument.MasterInstrument.RoundToTickSize(Position.AveragePrice - (maxLossTicks * TickSize));
+                            if (Low[0] <= exactFloorPrice || Close[0] <= exactFloorPrice)
+                            {
+                                isDailyLocked = true;
+                                dailyLockReason = string.Format("PISO EXACTO ALCANZADO (${0:F2})", currentDailyFloor);
+                                Print(string.Format("****************************************************************************************\n" +
+                                                    "{0} - [ESCUDO DIARIO | PISO EXACTO ALCANZADO] Precio tocó {1:F2} (Límite {2} ticks desde entrada {3:F2}).\n" +
+                                                    "¡PUM, ADIÓS! Liquidando a mercado en el tick exacto para asegurar Piso de ${4:F2} USD.\n" +
+                                                    "****************************************************************************************",
+                                    Time[0], exactFloorPrice, maxLossTicks, Position.AveragePrice, currentDailyFloor));
+                                LiquidateAllMarket("Cortacircuito_Diario_Piso_Exacto");
+                                return;
+                            }
+                        }
+                        else if (Position.MarketPosition == MarketPosition.Short)
+                        {
+                            double exactFloorPrice = Instrument.MasterInstrument.RoundToTickSize(Position.AveragePrice + (maxLossTicks * TickSize));
+                            if (High[0] >= exactFloorPrice || Close[0] >= exactFloorPrice)
+                            {
+                                isDailyLocked = true;
+                                dailyLockReason = string.Format("PISO EXACTO ALCANZADO (${0:F2})", currentDailyFloor);
+                                Print(string.Format("****************************************************************************************\n" +
+                                                    "{0} - [ESCUDO DIARIO | PISO EXACTO ALCANZADO] Precio tocó {1:F2} (Límite {2} ticks desde entrada {3:F2}).\n" +
+                                                    "¡PUM, ADIÓS! Liquidando a mercado en el tick exacto para asegurar Piso de ${4:F2} USD.\n" +
+                                                    "****************************************************************************************",
+                                    Time[0], exactFloorPrice, maxLossTicks, Position.AveragePrice, currentDailyFloor));
+                                LiquidateAllMarket("Cortacircuito_Diario_Piso_Exacto");
+                                return;
+                            }
+                        }
+                    }
+                }
 
                 // CORTACIRCUITO EN VIVO: Si el PnL total (realizado + flotante) toca el piso actual
                 if (!isDailyLocked && totalDailyFloatingPnL <= currentDailyFloor)
@@ -503,7 +551,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     crossUpConsumed = true;
                     lastTemaSide = 1;
 
-                    if (tema9[0] >= upperSmall && Close[0] <= upperBig + (12 * TickSize))
+                    // Filtro Anti-Zona 0: El cruce solo es válido si el precio permanece DENTRO de las bandas (Close <= Upper 3.5)
+                    if (tema9[0] >= upperSmall && Close[0] <= upperBig)
                     {
                         if (priorBarsBelowEma >= MinBarsZona1)
                         {
@@ -520,8 +569,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO] Cruce EMA200 válido pero TEMA9 ({1:F2}) < UpperSmall ({2:F2}) o Close ({3:F2}) fuera de banda.",
-                            Time[0], tema9[0], upperSmall, Close[0]));
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO ZONA 0] Cruce EMA200 detectado pero TEMA9 ({1:F2}) < UpperSmall ({2:F2}) o precio en Zona 0 (Close {3:F2} > UpperBig {4:F2}). Trade descartado.",
+                            Time[0], tema9[0], upperSmall, Close[0], upperBig));
                     }
                 }
             }
@@ -537,7 +586,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     crossDownConsumed = true;
                     lastTemaSide = -1;
 
-                    if (tema9[0] <= lowerSmall && Close[0] >= lowerBig - (12 * TickSize))
+                    // Filtro Anti-Zona 5: El cruce solo es válido si el precio permanece DENTRO de las bandas (Close >= Lower 3.5)
+                    if (tema9[0] <= lowerSmall && Close[0] >= lowerBig)
                     {
                         if (priorBarsAboveEma >= MinBarsZona1)
                         {
@@ -554,8 +604,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO] Cruce EMA200 válido pero TEMA9 ({1:F2}) > LowerSmall ({2:F2}) o Close ({3:F2}) fuera de banda.",
-                            Time[0], tema9[0], lowerSmall, Close[0]));
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO ZONA 5] Cruce EMA200 detectado pero TEMA9 ({1:F2}) > LowerSmall ({2:F2}) o precio en Zona 5 (Close {3:F2} < LowerBig {4:F2}). Trade descartado.",
+                            Time[0], tema9[0], lowerSmall, Close[0], lowerBig));
                     }
                 }
             }
@@ -1589,16 +1639,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                     dailyRealizedPnL += netProfit;
                     sessionTradesProfit += netProfit;
 
-                    if (netProfit < 0)
-                        consecutiveLosses++;
-                    else if (netProfit > 0)
-                        consecutiveLosses = 0;
-
-                    Print(string.Format("{0} - [PAS | TRADE COMPLETADO] Salida: {1} | PnL: {2:C2} | PnL Diario Realizado: {3:C2} | Strikes: {4}",
-                        trade.Exit.Time, trade.Exit.Name, netProfit, dailyRealizedPnL, consecutiveLosses));
+                    Print(string.Format("{0} - [PAS | CONTRATO CERRADO] Salida: {1} | PnL Contrato: {2:C2} | PnL Diario Acumulado: {3:C2}",
+                        trade.Exit.Time, trade.Exit.Name, netProfit, dailyRealizedPnL));
                 }
 
                 lastReportedTradeCount = SystemPerformance.AllTrades.Count;
+
+                // REGLA DE 3 STRIKES POR OPERACIÓN GLOBAL (CICLO FLAT -> FLAT):
+                // Evaluamos el resultado neto combinado de todos los contratos de esta operación completa
+                if (sessionTradesProfit < 0)
+                {
+                    consecutiveLosses++;
+                    Print(string.Format("{0} - [PAS | STRIKE REGISTRADO] Operación global cerrada con pérdida neta ({1:C2}). Strikes consecutivos: {2}/{3}",
+                        Time[0], sessionTradesProfit, consecutiveLosses, MaxConsecutiveLosses));
+                }
+                else if (sessionTradesProfit > 0)
+                {
+                    consecutiveLosses = 0;
+                    Print(string.Format("{0} - [PAS | STRIKES REINICIADOS] Operación global cerrada con ganancia neta ({1:C2}). Contador de strikes en 0.",
+                        Time[0], sessionTradesProfit));
+                }
 
                 // Si se cerró Cascada, se resetea su contador para permitir re-entradas si la tendencia persiste
                 if (currentAce == AceType.As4_Cascada50)
@@ -1614,7 +1674,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // EVALUACIÓN DE ESCALONES DIARIOS Y TRAILING INFINITO AL CERRAR OPERACIONES
                 if (UseDailyManagement && !isDailyLocked)
                 {
-                    // 1. MODO DULCE (TRAILING DIARIO INFINITO): Si cerró >= $1,000+ USD ($100 MES) -> ¡Sigue operando y sube el piso!
+                    // 1. MODO DULCE (TRAILING DIARIO INFINITO): Si cerró >= $900+ USD ($90 MES) -> ¡Sigue operando y sube el piso!
                     if (dailyRealizedPnL >= DailyGoal_Piso3)
                     {
                         currentDailyTier = 3;
@@ -1631,7 +1691,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                            "****************************************************************************************",
                             Time[0], dailyRealizedPnL, peakDailyClosedPnL, currentDailyFloor, DailyTrailingGiveback));
                     }
-                    // 2. ESCALÓN 2: Si cerró entre $750 y $999 -> Piso protegido en +$550 USD (+ $55 MES)
+                    // 2. ESCALÓN 2: Si cerró entre $600 y $899 -> Piso protegido en +$500 USD (+ $50 MES)
                     else if (dailyRealizedPnL >= DailyGoal_Piso2)
                     {
                         if (currentDailyTier < 2)
@@ -1645,7 +1705,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], dailyRealizedPnL, DailyGoal_Piso2, currentDailyFloor));
                         }
                     }
-                    // 3. ESCALÓN 1: Si cerró entre $450 y $749 -> Piso protegido en +$300 USD (+ $30 MES)
+                    // 3. ESCALÓN 1: Si cerró entre $400 y $599 -> Piso protegido en +$250 USD (+ $25 MES)
                     else if (dailyRealizedPnL >= DailyGoal_Piso1)
                     {
                         if (currentDailyTier < 1)
