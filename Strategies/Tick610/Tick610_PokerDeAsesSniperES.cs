@@ -25,12 +25,12 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 1.6 - Poker de Ases (PAS) [SOBB Gatillo 2 Fases & SL Escalonado Canales + Targets Límite]
+// VERSIÓN: 1.7 - Poker de Ases (PAS) [SOBB Primera Vela One-Shot & SL Escalonado Canales + Targets Límite]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica de tendencia madura tras >= 100 barras comprimidas en EMA 200.
 //                          (Fiel al SniperSurfer original con TEMA 9 y MinCrossTicks 2.3).
-//   2. As 2: [SOBB]      - SurferOutBigBanda: Gatillo 2 Fases (Armado en TEMA 9 + Disparo en Vela 100% Fuera)
+//   2. As 2: [SOBB]      - SurferOutBigBanda: Cruce TEMA 9 + Disparo en Primera Vela Fuera (One-Shot Estricto)
 //                          con SL Escalonado Estructural (C1 Pequeña, C2 Midline, C3 Pequeña Opuesta).
 //   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
 //   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): SL por 6 Zonas Keltner, Targets Límite pasivos (C1 +8, C2 +16) y C3 Runner.
@@ -136,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v1.6 en 610 Ticks para ES/MES. Combina Z1-100Bar (Sniper Fiel 151 barras), SOBB (Gatillo 2 Fases & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite y Trailing Diario Infinito.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v1.7 en 610 Ticks para ES/MES. Combina Z1-100Bar (Sniper Fiel 151 barras), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite y Trailing Diario Infinito.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -157,7 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "1.6 - Poker de Ases (PAS) [SOBB Gatillo 2 Fases & SL Escalonado Canales + Targets Límite]";
+                Version                                     = "1.7 - Poker de Ases (PAS) [SOBB Primera Vela One-Shot & SL Escalonado Canales + Targets Límite]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -562,7 +562,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
-        // AS 2: SOBB (SurferOutBigBanda - CRUCE SINCRÓNICO FUERA DE 3.5 ATR)
+        // AS 2: SOBB (SurferOutBigBanda - CRUCE TEMA 9 + PRIMERA VELA FUERA ONE-SHOT)
         // =========================================================================
         private void EvaluateAs2_SOBB()
         {
@@ -578,27 +578,28 @@ namespace NinjaTrader.NinjaScript.Strategies
             double lowerSlope   = lowerBig - keltnerBig.Lower[2];
 
             // =========================================================================
-            // SOBB LARGO: Gatillo de 2 Fases (Armado en TEMA 9 + Disparo en Vela Completa)
-            // Fase 1: TEMA 9 cruza o se mantiene fuera de Upper 3.5 -> Arma el setup.
-            //         Si TEMA 9 regresa adentro del canal sin que la vela salga -> Se desarma.
-            // Fase 2: Con setup armado, espera a que la vela esté 100% afuera (Low > Upper 3.5).
-            //         En esa barra valida EMA 200 en Zona 3 y pendientes -> ¡DISPARA!
+            // SOBB LARGO: Cruce de TEMA 9 de adentro hacia afuera + Primera Vela One-Shot
+            // 1. Armado: Ocurre cuando TEMA 9 cruza por primera vez por encima de Upper 3.5.
+            // 2. Desarmado por repliegue: Si TEMA 9 regresa adentro (<= Upper 3.5), se desactiva.
+            // 3. Disparo One-Shot: En la primera barra donde la vela esté 100% afuera (Low > Upper 3.5),
+            //    se evalúan inmediatamente las condiciones institucionales (EMA 200 en Zona 3 y pendientes).
+            //    - Si se cumplen: ¡PUM! Se ejecuta la entrada.
+            //    - Si NO se cumplen: Apague y vámonos (sobbArmedLong = false). Se descarta definitivamente
+            //      y no vuelve a operar aunque vengan mil velas más afuera, hasta un nuevo cruce de TEMA 9.
             // =========================================================================
-            if (tema9[0] > upperBig)
+            bool isTemaCruzoSalidaLargo = (tema9[1] <= keltnerBig.Upper[1] && tema9[0] > upperBig);
+            if (isTemaCruzoSalidaLargo)
             {
-                if (!sobbArmedLong)
-                {
-                    sobbArmedLong = true;
-                    Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó fuera de Upper 3.5 ({2:F2}). Espera activa de vela completa afuera.",
-                        Time[0], tema9[0], upperBig));
-                }
+                sobbArmedLong = true;
+                Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó de adentro hacia afuera de Upper 3.5 ({2:F2}). Espera de la PRIMERA vela completa afuera.",
+                    Time[0], tema9[0], upperBig));
             }
-            else
+            else if (tema9[0] <= upperBig)
             {
                 if (sobbArmedLong)
                 {
                     sobbArmedLong = false;
-                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin confirmación de vela completa.",
+                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado vela completa. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
             }
@@ -608,47 +609,50 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isVelaFlotandoLargo = (Low[0] > upperBig);
                 if (isVelaFlotandoLargo)
                 {
+                    // ¡ENCONTRAMOS LA PRIMERA VELA AFUERA! Se apaga inmediatamente el armado (One-Shot estricto)
+                    sobbArmedLong = false;
+
                     bool isEmaZonaLargo    = (ema200[0] <= midline && ema200[0] >= lowerSmall);
                     bool isPendientesLargo = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
 
                     if (isEmaZonaLargo && isPendientesLargo)
                     {
-                        sobbArmedLong = false;
                         ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
-                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO CONFIRMADO! Vela completa en Zona 0 con EMA en Zona 3 | Entrada @ ~{1:F2} | SL Canales 3 Tiers armado.",
+                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO CONFIRMADO! Primera vela completa en Zona 0 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
                             Time[0], Close[0]));
                         return;
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - SOBB | LARGO ESPERANDO CONDICIONES] Vela en Zona 0 pero EMA_Zona3={1} o Pendientes={2}. Esperando...",
+                        Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO DEFINITIVAMENTE] Primera vela afuera detectada, pero condiciones no cumplidas (EMA_Zona3={1}, Pendientes={2}). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
                             Time[0], isEmaZonaLargo, isPendientesLargo));
                     }
                 }
             }
 
             // =========================================================================
-            // SOBB CORTO: Gatillo de 2 Fases (Armado en TEMA 9 + Disparo en Vela Completa)
-            // Fase 1: TEMA 9 cruza o se mantiene fuera de Lower 3.5 -> Arma el setup.
-            //         Si TEMA 9 regresa adentro del canal sin que la vela salga -> Se desarma.
-            // Fase 2: Con setup armado, espera a que la vela esté 100% afuera (High < Lower 3.5).
-            //         En esa barra valida EMA 200 en Zona 3 y pendientes -> ¡DISPARA!
+            // SOBB CORTO: Cruce de TEMA 9 de adentro hacia afuera + Primera Vela One-Shot
+            // 1. Armado: Ocurre cuando TEMA 9 cruza por primera vez por debajo de Lower 3.5.
+            // 2. Desarmado por repliegue: Si TEMA 9 regresa adentro (>= Lower 3.5), se desactiva.
+            // 3. Disparo One-Shot: En la primera barra donde la vela esté 100% afuera (High < Lower 3.5),
+            //    se evalúan inmediatamente las condiciones institucionales (EMA 200 en Zona 3 y pendientes).
+            //    - Si se cumplen: ¡PUM! Se ejecuta la entrada.
+            //    - Si NO se cumplen: Apague y vámonos (sobbArmedShort = false). Se descarta definitivamente
+            //      y no vuelve a operar aunque vengan mil velas más afuera, hasta un nuevo cruce de TEMA 9.
             // =========================================================================
-            if (tema9[0] < lowerBig)
+            bool isTemaCruzoSalidaCorto = (tema9[1] >= keltnerBig.Lower[1] && tema9[0] < lowerBig);
+            if (isTemaCruzoSalidaCorto)
             {
-                if (!sobbArmedShort)
-                {
-                    sobbArmedShort = true;
-                    Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó fuera de Lower 3.5 ({2:F2}). Espera activa de vela completa afuera.",
-                        Time[0], tema9[0], lowerBig));
-                }
+                sobbArmedShort = true;
+                Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó de adentro hacia afuera de Lower 3.5 ({2:F2}). Espera de la PRIMERA vela completa afuera.",
+                    Time[0], tema9[0], lowerBig));
             }
-            else
+            else if (tema9[0] >= lowerBig)
             {
                 if (sobbArmedShort)
                 {
                     sobbArmedShort = false;
-                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin confirmación de vela completa.",
+                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado vela completa. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
             }
@@ -658,20 +662,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isVelaFlotandoCorto = (High[0] < lowerBig);
                 if (isVelaFlotandoCorto)
                 {
+                    // ¡ENCONTRAMOS LA PRIMERA VELA AFUERA! Se apaga inmediatamente el armado (One-Shot estricto)
+                    sobbArmedShort = false;
+
                     bool isEmaZonaCorto    = (ema200[0] >= midline && ema200[0] <= upperSmall);
                     bool isPendientesCorto = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
 
                     if (isEmaZonaCorto && isPendientesCorto)
                     {
-                        sobbArmedShort = false;
                         ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
-                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO CONFIRMADO! Vela completa en Zona 5 con EMA en Zona 3 | Entrada @ ~{1:F2} | SL Canales 3 Tiers armado.",
+                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO CONFIRMADO! Primera vela completa en Zona 5 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
                             Time[0], Close[0]));
                         return;
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - SOBB | CORTO ESPERANDO CONDICIONES] Vela en Zona 5 pero EMA_Zona3={1} o Pendientes={2}. Esperando...",
+                        Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO DEFINITIVAMENTE] Primera vela afuera detectada, pero condiciones no cumplidas (EMA_Zona3={1}, Pendientes={2}). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
                             Time[0], isEmaZonaCorto, isPendientesCorto));
                     }
                 }
