@@ -1023,7 +1023,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 else if (currentAce == AceType.As4_Cascada50)
                 {
                     double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
-                    double currentGainTicks = (High[0] - entryPrice) / TickSize;
 
                     // CONTRATO 1: TP a +8 ticks (CascadaTp1Ticks) -> Pasa Stop restante a BREAKEVEN + 1 tick
                     if (!cascadaC1Achieved && (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
@@ -1279,7 +1278,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 else if (currentAce == AceType.As4_Cascada50)
                 {
                     double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
-                    double currentGainTicks = (entryPrice - Low[0]) / TickSize;
 
                     // CONTRATO 1: TP a +8 ticks (CascadaTp1Ticks) -> Pasa Stop restante a BREAKEVEN - 1 tick
                     if (!cascadaC1Achieved && (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
