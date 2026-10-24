@@ -25,17 +25,18 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 1.5 - Poker de Ases (PAS) [Sniper Fiel + SOBB Sincrónico & SL Escalonado + Targets Límite]
+// VERSIÓN: 1.6 - Poker de Ases (PAS) [SOBB Gatillo 2 Fases & SL Escalonado Canales + Targets Límite]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica de tendencia madura tras >= 100 barras comprimidas en EMA 200.
 //                          (Fiel al SniperSurfer original con TEMA 9 y MinCrossTicks 2.3).
-//   2. As 2: [SOBB]      - SurferOutBigBanda: Entrada sincrónica al cruce exacto de TEMA 9 + SL Escalonado 3 Tiers.
+//   2. As 2: [SOBB]      - SurferOutBigBanda: Gatillo 2 Fases (Armado en TEMA 9 + Disparo en Vela 100% Fuera)
+//                          con SL Escalonado Estructural (C1 Pequeña, C2 Midline, C3 Pequeña Opuesta).
 //   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
 //   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): SL por 6 Zonas Keltner, Targets Límite pasivos (C1 +8, C2 +16) y C3 Runner.
 //
 // GESTIÓN DE 3 CONTRATOS (EL ESCUADRÓN INSTITUCIONAL):
-//   - SOBB: C1 ($180 BE / SL Escalonado), C2 ($220 Banda 3.5 / SL Upper 1.75), C3 (Runner Ahogo $280 / SL Midline).
+//   - SOBB: C1 (SL Banda Pequeña 1.75 / TP $180 BE), C2 (SL Línea Media / TP $220 Banda 3.5), C3 (SL Pequeña Opuesta / Runner Ahogo $280).
 //   - Ratchet: C1 (Banda 3.5 o +22 tks BE), C2 (Línea Media o +72 tks), C3 (Chicle Parabólico 7 tks).
 //   - Cascada: C1 (+8 tks Límite BE), C2 (+16 tks Límite), C3 (Runner Ahogo 8 tks del Pico).
 //   - Z1-100Bar: Salida en bloque por TP Límite (12 ticks) o SL en Línea Media.
@@ -74,7 +75,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int priorBarsBelowEma = 0;         // Barras acumuladas antes del cruce alcista (Fiel a SniperSurfer)
         private int priorBarsAboveEma = 0;         // Barras acumuladas antes del cruce bajista (Fiel a SniperSurfer)
 
-        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda) ===
+        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 FASES) ===
+        private bool sobbArmedLong = false;        // Fase 1: TEMA 9 cruzó Upper 3.5 (Espera activa a que la vela salga)
+        private bool sobbArmedShort = false;       // Fase 1: TEMA 9 cruzó Lower 3.5 (Espera activa a que la vela salga)
         private bool sobbLevel1Achieved = false;   // Piso 1 alcanzado (Contrato 1 cerrado, BE armado)
         private bool sobbLevel2Achieved = false;   // Piso 2 alcanzado (Contrato 2 cerrado, Banda 3.5 anclada)
         private bool sobbLevel3ChokeActive = false;// Piso 3 activo (Modo Ahogo para Contrato 3 Runner)
@@ -133,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v1.5 en 610 Ticks para ES/MES. Combina Z1-100Bar (Sniper Fiel 151 barras), SOBB (Sincrónico & SL Escalonado 3 Tiers), Ratchet, Cascada 25 con Targets Límite y Trailing Diario Infinito.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v1.6 en 610 Ticks para ES/MES. Combina Z1-100Bar (Sniper Fiel 151 barras), SOBB (Gatillo 2 Fases & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite y Trailing Diario Infinito.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -154,7 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "1.5 - Poker de Ases (PAS) [Sniper Fiel + SOBB Sincrónico & SL Escalonado + Targets Límite]";
+                Version                                     = "1.6 - Poker de Ases (PAS) [SOBB Gatillo 2 Fases & SL Escalonado Canales + Targets Límite]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -575,54 +578,102 @@ namespace NinjaTrader.NinjaScript.Strategies
             double lowerSlope   = lowerBig - keltnerBig.Lower[2];
 
             // =========================================================================
-            // SOBB LARGO: Sincronía estricta en el cruce de TEMA 9 saliendo de Upper 3.5
-            // Solo se evalúa en la barra exacta donde TEMA 9 cruza la banda exterior.
+            // SOBB LARGO: Gatillo de 2 Fases (Armado en TEMA 9 + Disparo en Vela Completa)
+            // Fase 1: TEMA 9 cruza o se mantiene fuera de Upper 3.5 -> Arma el setup.
+            //         Si TEMA 9 regresa adentro del canal sin que la vela salga -> Se desarma.
+            // Fase 2: Con setup armado, espera a que la vela esté 100% afuera (Low > Upper 3.5).
+            //         En esa barra valida EMA 200 en Zona 3 y pendientes -> ¡DISPARA!
             // =========================================================================
-            bool isTemaCruzandoSalidaLargo = (tema9[1] <= keltnerBig.Upper[1] && tema9[0] > keltnerBig.Upper[0]);
+            if (tema9[0] > upperBig)
+            {
+                if (!sobbArmedLong)
+                {
+                    sobbArmedLong = true;
+                    Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó fuera de Upper 3.5 ({2:F2}). Espera activa de vela completa afuera.",
+                        Time[0], tema9[0], upperBig));
+                }
+            }
+            else
+            {
+                if (sobbArmedLong)
+                {
+                    sobbArmedLong = false;
+                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin confirmación de vela completa.",
+                        Time[0], tema9[0]));
+                }
+            }
 
-            if (isTemaCruzandoSalidaLargo)
+            if (sobbArmedLong)
             {
                 bool isVelaFlotandoLargo = (Low[0] > upperBig);
-                bool isEmaZonaLargo      = (ema200[0] <= midline && ema200[0] >= lowerSmall);
-                bool isPendientesLargo   = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
+                if (isVelaFlotandoLargo)
+                {
+                    bool isEmaZonaLargo    = (ema200[0] <= midline && ema200[0] >= lowerSmall);
+                    bool isPendientesLargo = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
 
-                if (isVelaFlotandoLargo && isEmaZonaLargo && isPendientesLargo)
-                {
-                    ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
-                    Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO SINCRÓNICO! Cruce de TEMA 9 fuera de Banda 3.5 validado | Entrada @ ~{1:F2} | SL Escalonado 3 Tiers armado.",
-                        Time[0], Close[0]));
-                    return;
-                }
-                else
-                {
-                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO] Cruce de TEMA 9 sobre Upper 3.5 detectado, pero condiciones no sincrónicas: Vela={1}, EMA_Zona3={2}, Pendientes={3}. Trade descartado.",
-                        Time[0], isVelaFlotandoLargo, isEmaZonaLargo, isPendientesLargo));
+                    if (isEmaZonaLargo && isPendientesLargo)
+                    {
+                        sobbArmedLong = false;
+                        ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
+                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO CONFIRMADO! Vela completa en Zona 0 con EMA en Zona 3 | Entrada @ ~{1:F2} | SL Canales 3 Tiers armado.",
+                            Time[0], Close[0]));
+                        return;
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS - SOBB | LARGO ESPERANDO CONDICIONES] Vela en Zona 0 pero EMA_Zona3={1} o Pendientes={2}. Esperando...",
+                            Time[0], isEmaZonaLargo, isPendientesLargo));
+                    }
                 }
             }
 
             // =========================================================================
-            // SOBB CORTO: Sincronía estricta en el cruce de TEMA 9 saliendo de Lower 3.5
-            // Solo se evalúa en la barra exacta donde TEMA 9 cruza la banda exterior.
+            // SOBB CORTO: Gatillo de 2 Fases (Armado en TEMA 9 + Disparo en Vela Completa)
+            // Fase 1: TEMA 9 cruza o se mantiene fuera de Lower 3.5 -> Arma el setup.
+            //         Si TEMA 9 regresa adentro del canal sin que la vela salga -> Se desarma.
+            // Fase 2: Con setup armado, espera a que la vela esté 100% afuera (High < Lower 3.5).
+            //         En esa barra valida EMA 200 en Zona 3 y pendientes -> ¡DISPARA!
             // =========================================================================
-            bool isTemaCruzandoSalidaCorto = (tema9[1] >= keltnerBig.Lower[1] && tema9[0] < keltnerBig.Lower[0]);
+            if (tema9[0] < lowerBig)
+            {
+                if (!sobbArmedShort)
+                {
+                    sobbArmedShort = true;
+                    Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó fuera de Lower 3.5 ({2:F2}). Espera activa de vela completa afuera.",
+                        Time[0], tema9[0], lowerBig));
+                }
+            }
+            else
+            {
+                if (sobbArmedShort)
+                {
+                    sobbArmedShort = false;
+                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin confirmación de vela completa.",
+                        Time[0], tema9[0]));
+                }
+            }
 
-            if (isTemaCruzandoSalidaCorto)
+            if (sobbArmedShort)
             {
                 bool isVelaFlotandoCorto = (High[0] < lowerBig);
-                bool isEmaZonaCorto      = (ema200[0] >= midline && ema200[0] <= upperSmall);
-                bool isPendientesCorto   = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
+                if (isVelaFlotandoCorto)
+                {
+                    bool isEmaZonaCorto    = (ema200[0] >= midline && ema200[0] <= upperSmall);
+                    bool isPendientesCorto = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
 
-                if (isVelaFlotandoCorto && isEmaZonaCorto && isPendientesCorto)
-                {
-                    ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
-                    Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO SINCRÓNICO! Cruce de TEMA 9 fuera de Banda 3.5 validado | Entrada @ ~{1:F2} | SL Escalonado 3 Tiers armado.",
-                        Time[0], Close[0]));
-                    return;
-                }
-                else
-                {
-                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO] Cruce de TEMA 9 bajo Lower 3.5 detectado, pero condiciones no sincrónicas: Vela={1}, EMA_Zona3={2}, Pendientes={3}. Trade descartado.",
-                        Time[0], isVelaFlotandoCorto, isEmaZonaCorto, isPendientesCorto));
+                    if (isEmaZonaCorto && isPendientesCorto)
+                    {
+                        sobbArmedShort = false;
+                        ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
+                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO CONFIRMADO! Vela completa en Zona 5 con EMA en Zona 3 | Entrada @ ~{1:F2} | SL Canales 3 Tiers armado.",
+                            Time[0], Close[0]));
+                        return;
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS - SOBB | CORTO ESPERANDO CONDICIONES] Vela en Zona 5 pero EMA_Zona3={1} o Pendientes={2}. Esperando...",
+                            Time[0], isEmaZonaCorto, isPendientesCorto));
+                    }
                 }
             }
         }
@@ -985,47 +1036,45 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], bePrice));
                         }
                     }
-                    // === STOP LOSS DEFENSIVO ESCALONADO (ANTES DE ALCANZAR EL PISO 1) ===
+                    // === STOP LOSS DEFENSIVO ESCALONADO POR CANALES (ANTES DE ALCANZAR EL PISO 1) ===
                     else
                     {
-                        // 1. TIER 1 (Contrato 1):
-                        // Si el precio recorrió > 3 ticks dentro de la Zona 0 (> Upper 3.5 + 3 ticks): SL en Upper 3.5 - 1tk.
-                        // Si el precio recorrió <= 3 ticks en Zona 0: SL en Upper Pequeña 1.75 - 1tk.
+                        // 1. TIER 1 (Contrato 1): Banda Pequeña Superior (Upper 1.75 - 1tk)
                         if (currentQty >= 3)
                         {
-                            bool traveledInZ0 = (highestPriceSinceEntry > (keltnerBig.Upper[0] + (3 * TickSize)));
-                            double slC1 = traveledInZ0 ? (keltnerBig.Upper[0] - (1 * TickSize)) : (keltnerSmall.Upper[0] - (1 * TickSize));
+                            double slC1 = keltnerSmall.Upper[0] - (1 * TickSize);
                             if (Close[0] <= slC1 || Low[0] <= slC1)
                             {
-                                ExitLong(1, "SOBB_SL_C1", "SOBB_Long");
+                                ExitLong(1, "SOBB_SL_C1_UpperSmall", "SOBB_Long");
                                 currentQty--;
-                                Print(string.Format("{0} - [PAS - SOBB | SL ESCALONADO C1] Contrato 1 liquidado a mercado. SL en {1:F2} (>3tk Zona 0: {2}). Contratos restantes: {3}",
-                                    Time[0], slC1, traveledInZ0, currentQty));
+                                Print(string.Format("{0} - [PAS - SOBB | SL CANALES C1] Contrato 1 liquidado en Banda Pequeña Upper 1.75 -1tk ({1:F2}). Contratos restantes: {2}",
+                                    Time[0], slC1, currentQty));
                             }
                         }
 
-                        // 2. TIER 2 (Contrato 2): Siempre en Upper Pequeña 1.75 - 1tk
+                        // 2. TIER 2 (Contrato 2): Línea Media (Midline - 1tk)
                         if (currentQty == 2)
                         {
-                            double slC2 = keltnerSmall.Upper[0] - (1 * TickSize);
+                            double slC2 = keltnerBig.Midline[0] - (1 * TickSize);
                             if (Close[0] <= slC2 || Low[0] <= slC2)
                             {
-                                ExitLong(1, "SOBB_SL_C2", "SOBB_Long");
+                                ExitLong(1, "SOBB_SL_C2_Midline", "SOBB_Long");
                                 currentQty--;
-                                Print(string.Format("{0} - [PAS - SOBB | SL ESCALONADO C2] Contrato 2 liquidado en Banda Pequeña Upper 1.75 -1tk ({1:F2}). Contratos restantes: {2}",
+                                Print(string.Format("{0} - [PAS - SOBB | SL CANALES C2] Contrato 2 liquidado en Línea Media ({1:F2}). Contratos restantes: {2}",
                                     Time[0], slC2, currentQty));
                             }
                         }
 
-                        // 3. TIER 3 (Contrato 3): En la Línea Media - 1tk
+                        // 3. TIER 3 (Contrato 3): Extremo Opuesto del Canal Pequeño (Lower 1.75 - 1tk)
                         if (currentQty == 1)
                         {
-                            double slC3 = keltnerBig.Midline[0] - (1 * TickSize);
+                            double slC3 = keltnerSmall.Lower[0] - (1 * TickSize);
                             if (Close[0] <= slC3 || Low[0] <= slC3)
                             {
-                                ExitLong("SOBB_SL_C3_Midline", "SOBB_Long");
-                                Print(string.Format("{0} - [PAS - SOBB | SL ESCALONADO C3] Contrato 3 liquidado en Línea Media ({1:F2}). Posición cerrada por completo.",
+                                ExitLong("SOBB_SL_C3_LowerSmall", "SOBB_Long");
+                                Print(string.Format("{0} - [PAS - SOBB | SL CANALES C3] Contrato 3 liquidado en Extremo Opuesto Lower 1.75 -1tk ({1:F2}). Posición cerrada por completo.",
                                     Time[0], slC3));
+                                return;
                             }
                         }
                     }
@@ -1275,47 +1324,45 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], bePrice));
                         }
                     }
-                    // === STOP LOSS DEFENSIVO ESCALONADO (ANTES DE ALCANZAR EL PISO 1) ===
+                    // === STOP LOSS DEFENSIVO ESCALONADO POR CANALES (ANTES DE ALCANZAR EL PISO 1) ===
                     else
                     {
-                        // 1. TIER 1 (Contrato 1):
-                        // Si el precio recorrió > 3 ticks dentro de Zona 0 (< Lower 3.5 - 3 ticks): SL en Lower 3.5 + 1tk.
-                        // Si el precio recorrió <= 3 ticks en Zona 0: SL en Lower Pequeña 1.75 + 1tk.
+                        // 1. TIER 1 (Contrato 1): Banda Pequeña Inferior (Lower 1.75 + 1tk)
                         if (currentQty >= 3)
                         {
-                            bool traveledInZ0 = (lowestPriceSinceEntry < (keltnerBig.Lower[0] - (3 * TickSize)));
-                            double slC1 = traveledInZ0 ? (keltnerBig.Lower[0] + (1 * TickSize)) : (keltnerSmall.Lower[0] + (1 * TickSize));
+                            double slC1 = keltnerSmall.Lower[0] + (1 * TickSize);
                             if (Close[0] >= slC1 || High[0] >= slC1)
                             {
-                                ExitShort(1, "SOBB_SL_C1", "SOBB_Short");
+                                ExitShort(1, "SOBB_SL_C1_LowerSmall", "SOBB_Short");
                                 currentQty--;
-                                Print(string.Format("{0} - [PAS - SOBB | SL ESCALONADO C1] Contrato 1 liquidado a mercado. SL en {1:F2} (>3tk Zona 0: {2}). Contratos restantes: {3}",
-                                    Time[0], slC1, traveledInZ0, currentQty));
+                                Print(string.Format("{0} - [PAS - SOBB | SL CANALES C1] Contrato 1 liquidado en Banda Pequeña Lower 1.75 +1tk ({1:F2}). Contratos restantes: {2}",
+                                    Time[0], slC1, currentQty));
                             }
                         }
 
-                        // 2. TIER 2 (Contrato 2): Siempre en Lower Pequeña 1.75 + 1tk
+                        // 2. TIER 2 (Contrato 2): Línea Media (Midline + 1tk)
                         if (currentQty == 2)
                         {
-                            double slC2 = keltnerSmall.Lower[0] + (1 * TickSize);
+                            double slC2 = keltnerBig.Midline[0] + (1 * TickSize);
                             if (Close[0] >= slC2 || High[0] >= slC2)
                             {
-                                ExitShort(1, "SOBB_SL_C2", "SOBB_Short");
+                                ExitShort(1, "SOBB_SL_C2_Midline", "SOBB_Short");
                                 currentQty--;
-                                Print(string.Format("{0} - [PAS - SOBB | SL ESCALONADO C2] Contrato 2 liquidado en Banda Pequeña Lower 1.75 +1tk ({1:F2}). Contratos restantes: {2}",
+                                Print(string.Format("{0} - [PAS - SOBB | SL CANALES C2] Contrato 2 liquidado en Línea Media ({1:F2}). Contratos restantes: {2}",
                                     Time[0], slC2, currentQty));
                             }
                         }
 
-                        // 3. TIER 3 (Contrato 3): En la Línea Media + 1tk
+                        // 3. TIER 3 (Contrato 3): Extremo Opuesto del Canal Pequeño (Upper 1.75 + 1tk)
                         if (currentQty == 1)
                         {
-                            double slC3 = keltnerBig.Midline[0] + (1 * TickSize);
+                            double slC3 = keltnerSmall.Upper[0] + (1 * TickSize);
                             if (Close[0] >= slC3 || High[0] >= slC3)
                             {
-                                ExitShort("SOBB_SL_C3_Midline", "SOBB_Short");
-                                Print(string.Format("{0} - [PAS - SOBB | SL ESCALONADO C3] Contrato 3 liquidado en Línea Media ({1:F2}). Posición cerrada por completo.",
+                                ExitShort("SOBB_SL_C3_UpperSmall", "SOBB_Short");
+                                Print(string.Format("{0} - [PAS - SOBB | SL CANALES C3] Contrato 3 liquidado en Extremo Opuesto Upper 1.75 +1tk ({1:F2}). Posición cerrada por completo.",
                                     Time[0], slC3));
+                                return;
                             }
                         }
                     }
@@ -1499,6 +1546,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ResetAllTradeCounters()
         {
             currentAce = AceType.None;
+            sobbArmedLong = false;
+            sobbArmedShort = false;
             sobbLevel1Achieved = false;
             sobbLevel2Achieved = false;
             sobbLevel3ChokeActive = false;
