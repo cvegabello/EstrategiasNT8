@@ -276,8 +276,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (CurrentBar < Math.Max(BarsRequiredToTrade, EmaPeriod)) return;
 
-            // 1. VERIFICACIÓN DEL BOTÓN DE PÁNICO
-            if (!isStrategyActive) return;
+            // 1. ACTUALIZACIÓN DE CONTADORES DE MERCADO (HISTÓRICO Y TIEMPO REAL)
+            // Es vital que los contadores de acumulación corran en CADA barra (incluso si está pausado
+            // o fuera de horario) para que la memoria matemática de 100/150 barras nunca se pierda.
+            UpdateMarketCounters();
 
             // 2. VERIFICACIÓN DE NUEVA SESIÓN DIARIA (RESET DE GESTIÓN DE RIESGO)
             int currentDate = Time[0].Date.DayOfYear;
@@ -359,11 +361,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ManageDynamicExits();
             }
 
-            // 7. ACTUALIZACIÓN DE CONTADORES DE MERCADO
-            UpdateMarketCounters();
-
-            // 8. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI FLAT Y EN HORARIO VÁLIDO)
-            if (Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
+            // 7. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI BOTÓN ACTIVO, FLAT Y EN HORARIO VÁLIDO)
+            if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
                 // AS 1: Francotirador Zona 1 (100 Barras)
                 EvaluateAs1_Zona1();
@@ -386,6 +385,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Actualización de Contadores de Mercado
         private void UpdateMarketCounters()
         {
+            // Inicialización de seguridad para lastTemaSide en la primera barra válida
+            if (lastTemaSide == 0)
+            {
+                lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
+            }
+
             // === CONTADOR AS 1: ZONA 1 (Acumulación continua fiel a SniperSurfer) ===
             // Guardamos cuántas barras acumuladas traíamos ANTES de evaluar la barra actual
             priorBarsBelowEma = barsBelowEmaWithoutCross;
@@ -405,15 +410,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                 barsAboveEmaWithoutCross = 0;
 
             // Rastrear estado de cruces de TEMA respecto a EMA200 (Fiel a SniperSurfer)
-            if (tema9[0] <= ema200[0])
+            int timeNow = ToTime(Time[0]);
+            if (timeNow < StartTime)
             {
-                crossUpConsumed = false;
-                if (crossDownConsumed) lastTemaSide = -1;
+                if (tema9[0] > ema200[0]) lastTemaSide = 1;
+                else if (tema9[0] < ema200[0]) lastTemaSide = -1;
             }
-            if (tema9[0] >= ema200[0])
+            else
             {
-                crossDownConsumed = false;
-                if (crossUpConsumed) lastTemaSide = 1;
+                if (tema9[0] <= ema200[0])
+                {
+                    crossUpConsumed = false;
+                    if (crossDownConsumed) lastTemaSide = -1;
+                }
+                if (tema9[0] >= ema200[0])
+                {
+                    crossDownConsumed = false;
+                    if (crossUpConsumed) lastTemaSide = 1;
+                }
             }
 
             // === CONTADOR AS 4: CASCADA 50 BARRAS (Separación de EMA 200 > 4 ticks de Banda 3.5) ===
@@ -495,6 +509,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], priorBarsBelowEma, Close[0], Contracts));
                             return;
                         }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - Z1-100Bar | IGNORADO] Cruce válido pero barras acumuladas insuficientes ({1}/{2}).",
+                                Time[0], priorBarsBelowEma, MinBarsZona1));
+                        }
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO] Cruce EMA200 válido pero TEMA9 ({1:F2}) < UpperSmall ({2:F2}) o Close ({3:F2}) fuera de banda.",
+                            Time[0], tema9[0], upperSmall, Close[0]));
                     }
                 }
             }
@@ -519,6 +543,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], priorBarsAboveEma, Close[0], Contracts));
                             return;
                         }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - Z1-100Bar | IGNORADO] Cruce válido pero barras acumuladas insuficientes ({1}/{2}).",
+                                Time[0], priorBarsAboveEma, MinBarsZona1));
+                        }
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO] Cruce EMA200 válido pero TEMA9 ({1:F2}) > LowerSmall ({2:F2}) o Close ({3:F2}) fuera de banda.",
+                            Time[0], tema9[0], lowerSmall, Close[0]));
                     }
                 }
             }
