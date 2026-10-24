@@ -25,22 +25,25 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
+// VERSIÓN: 1.4 - Poker de Ases (PAS) [Cascada 6 Zonas + Trailing Diario Infinito]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica de tendencia madura tras >= 100 barras comprimidas en EMA 200.
 //   2. As 2: [SOBB]      - SurferOutBigBanda: Expansión violenta fuera de 3.5 ATR con Escalonamiento de 3 Pisos.
-//   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras y Chicle Parabólico.
-//   4. As 4: [Cascada50] - El Tren Bala Desbocado: EMA 200 separada > 4 ticks de Banda 3.5 por >= 50 barras.
+//   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
+//   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): SL por 6 Zonas Keltner y Escalonamiento 3 Fases.
 //
 // GESTIÓN DE 3 CONTRATOS (EL ESCUADRÓN):
-//   - Contrato 1: Asegura plata en el Piso 1 ($180 ES / $18 MES) y mueve los contratos restantes a Breakeven.
-//   - Contrato 2: Cobra en el Piso 2 ($220 ES / $22 MES) anclando el piso a la Banda 3.5.
-//   - Contrato 3: El Runner salvaje en Modo Ahogo (Trailing ceñido) para capturar mega-corridas.
+//   - SOBB: C1 ($180 BE), C2 ($220 Banda 3.5), C3 (Runner Ahogo $280).
+//   - Ratchet: C1 (Banda 3.5 o +22 tks BE), C2 (Línea Media o +72 tks), C3 (Chicle Parabólico 7 tks).
+//   - Cascada: C1 (+8 tks BE), C2 (+16 tks Objetivo), C3 (Runner Ahogo 8 tks del Pico).
+//   - Z1-100Bar: Salida en bloque por TP (12 ticks) o SL en Línea Media.
 //
-// ESCUDO DE CUENTA (PAZ MENTAL):
-//   - Cortacircuito Diario en Vivo: -$300 USD (ES) / -$30 USD (MES) con liquidación inmediata a mercado.
-//   - Meta Diaria: +$600 USD (ES) / +$60 USD (MES) para bloquear nuevas entradas e irse a descansar.
-//   - Regla de 3 Strikes Consecutivos.
+// ESCUDO DE CUENTA (TRAILING DIARIO INFINITO - MODO DULCE):
+//   - Cortacircuito Inicial: -$300 USD (ES) / -$30 USD (MES) con corte a mercado.
+//   - Escalón 1 (+$600): Piso sube a +$400 USD.
+//   - Escalón 2 (+$800): Piso sube a +$650 USD.
+//   - Modo Dulce (+$1,000+): Trailing Infinito (Piso = Récord Ganado - Colchón $100). ¡No te para de ganar!
 //   - Botón de Pánico WPF en Gráfica y Atajo de Teclado (Ctrl + Espacio).
 // =========================================================================================================
 
@@ -81,23 +84,27 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ratchetC2Achieved = false;    // Contrato 2 cerrado (Stop Línea Media o Fase 3)
         private bool ratchetChokeActive = false;   // Contrato 3 Runner en Chicle Parabólico
 
-        // === VARIABLES DEL AS 4: CASCADA 50 BARRAS ===
+        // === VARIABLES DEL AS 4: CASCADA 25 BARRAS (ESCALONADA) ===
         private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks
         private int barsCascadaLongCount  = 0;     // Barras con EMA200 < Lower 3.5 - 4 ticks
+        private bool cascadaC1Achieved    = false; // Contrato 1 cerrado a +8 ticks (BE armado)
+        private bool cascadaC2Achieved    = false; // Contrato 2 cerrado a +16 ticks
+        private bool cascadaChokeActive   = false; // Contrato 3 Runner en Modo Ahogo (8 ticks)
 
         // Tracking de MFE/MAE de la posición activa
         private double entryPriceGlobal = 0.0;
         private double highestPriceSinceEntry = 0.0;
         private double lowestPriceSinceEntry = double.MaxValue;
 
-        // === ESCUDO DIARIO Y GESTIÓN DE RIESGO DE CUENTA (3 PISOS ESCALONADOS) ===
+        // === ESCUDO DIARIO Y GESTIÓN DE RIESGO DE CUENTA (TRAILING INFINITO) ===
         private double dailyRealizedPnL = 0.0;
         private int consecutiveLosses = 0;
         private bool isDailyLocked = false;
         private string dailyLockReason = string.Empty;
         private int lastSessionDate = 0;
         private double currentDailyFloor = -300.0; // Piso de pérdida en vivo
-        private int currentDailyTier = 0;          // 0 = Base (-$300), 1 = Piso 1 (+$400), 2 = Piso 2 (+$650), 3 = Techo Gloria
+        private int currentDailyTier = 0;          // 0 = Base (-$300), 1 = Piso 1 (+$400), 2 = Piso 2 (+$650), 3 = Trailing Infinito
+        private double peakDailyClosedPnL = 0.0;   // Máximo PnL diario cerrado para arrastre del Trailing Infinito
 
         // === FACTOR MULTIPLICADOR (AUTO-ADAPTACIÓN MINI ES VS MICRO MES) ===
         private double instrumentMultiplier = 1.0; // 1.0 para ES, 0.1 para MES
@@ -123,7 +130,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) en 610 Ticks para ES/MES. Combina Z1-100Bar, SOBB (Surfer), Ratchet y Cascada 50 barras con Escalonamiento de 3 Contratos y Cortacircuito Diario.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v1.4 en 610 Ticks para ES/MES. Combina Z1-100Bar, SOBB, Ratchet y Cascada 25 con 6 Zonas de Keltner, Escalonamiento 3 Fases y Trailing Diario Infinito.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -144,7 +151,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "1.3 - Poker de Ases (PAS) [Escudo Diario 3 Pisos]";
+                Version                                     = "1.4 - Poker de Ases (PAS) [Cascada 6 Zonas + Trailing Diario Infinito]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -182,20 +189,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetChokeThresholdTicks                  = 72;     // Fase 3 Choke a los 72 ticks ($900 ES / $90 MES)
                 RatchetChicleTicks                          = 7;      // Trailing ceñido del Chicle Parabólico (7 ticks)
 
-                // Parámetros del As 4: Cascada 50 Barras
-                CascadaMinBars                              = 50;     // 50 barras consecutivas requeridas
+                // Parámetros del As 4: Cascada 25 Barras (Escalonamiento 3 Fases + 6 Zonas Keltner)
+                CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (calibración óptima)
                 CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
-                CascadaFixedTpTicks                         = 16;     // Target objetivo ($200 ES / $20 MES)
+                CascadaTp1Ticks                             = 8;      // C1 TP (8 ticks = $100 ES / $10 MES) -> Pasa a BE +1tk
+                CascadaTp2Ticks                             = 16;     // C2 TP (16 ticks = $200 ES / $20 MES) -> Meta clásica
+                CascadaChokeTicks                           = 8;      // C3 Runner Ahogo a 8 ticks del High/Low
 
-                // Escudo Diario de Cuenta (3 Pisos Escalonados)
-                UseDailyManagement                          = true;   // Activar Cortacircuito y Meta Diaria
+                // Escudo Diario de Cuenta (Trailing Diario Infinito - Modo Dulce)
+                UseDailyManagement                          = true;   // Activar Cortacircuito y Trailing Diario
                 DailyLossLimit                              = 300.0;  // Cortacircuito estricto inicial: -$300 ES / -$30 MES
                 DailyGoal_Piso1                             = 600.0;  // Meta Escalón 1: +$600 ES / +$60 MES (Piso a +$400)
                 DailyFloor_Piso1                            = 400.0;  // Piso protegido Escalón 1: +$400 ES / +$40 MES
                 DailyGoal_Piso2                             = 800.0;  // Meta Escalón 2: +$800 ES / +$80 MES (Piso a +$650)
                 DailyFloor_Piso2                            = 650.0;  // Piso protegido Escalón 2: +$650 ES / +$65 MES
-                DailyGoal_Piso3                             = 1000.0; // Techo de Gloria: +$1,000 ES / +$100 MES (Apague y vámonos)
+                DailyGoal_Piso3                             = 1000.0; // Umbral Modo Dulce: +$1,000 ES / +$100 MES (Activa Trailing Infinito)
+                DailyTrailingGiveback                       = 100.0;  // Colchón de retroceso permitido del pico ganado ($100 ES / $10 MES)
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes consecutivos
             }
             else if (State == State.DataLoaded)
@@ -207,24 +217,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Si es Micro MES, escalamos proporcionalmente los umbrales en dólares por defecto
                 if (isMicroInstrument)
                 {
-                    DailyLossLimit      = 30.0;
-                    DailyGoal_Piso1     = 60.0;
-                    DailyFloor_Piso1    = 40.0;
-                    DailyGoal_Piso2     = 80.0;
-                    DailyFloor_Piso2    = 65.0;
-                    DailyGoal_Piso3     = 100.0;
-                    SobbLevel1Dollars   = 18.0;
-                    SobbLevel2Dollars   = 22.0;
-                    SobbLevel3Dollars   = 28.0;
-                    currentDailyFloor   = -DailyLossLimit;
-                    Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Gloria: +${5:F2}",
-                        DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3));
+                    DailyLossLimit        = 30.0;
+                    DailyGoal_Piso1       = 60.0;
+                    DailyFloor_Piso1      = 40.0;
+                    DailyGoal_Piso2       = 80.0;
+                    DailyFloor_Piso2      = 65.0;
+                    DailyGoal_Piso3       = 100.0;
+                    DailyTrailingGiveback = 10.0;
+                    SobbLevel1Dollars     = 18.0;
+                    SobbLevel2Dollars     = 22.0;
+                    SobbLevel3Dollars     = 28.0;
+                    currentDailyFloor     = -DailyLossLimit;
+                    Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
+                        DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
                 }
                 else
                 {
                     currentDailyFloor = -DailyLossLimit;
-                    Print(string.Format("=== [PAS] INSTRUMENTO ESTÁNDAR (ES) DETECTADO === Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Gloria: +${5:F2}",
-                        DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3));
+                    Print(string.Format("=== [PAS] INSTRUMENTO ESTÁNDAR (ES) DETECTADO === Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
+                        DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
                 }
 
                 // Instanciamos indicadores en memoria
@@ -276,6 +287,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 dailyLockReason = string.Empty;
                 currentDailyFloor = -DailyLossLimit;
                 currentDailyTier = 0;
+                peakDailyClosedPnL = 0.0;
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
             }
@@ -732,6 +744,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             ratchetC2Achieved = false;
             ratchetChokeActive = false;
 
+            cascadaC1Achieved = false;
+            cascadaC2Achieved = false;
+            cascadaChokeActive = false;
+
             // Stop Loss inicial de desastre lejano (se envía una sola vez)
             double initialSlPrice = 0.0;
             if (pos == MarketPosition.Long)
@@ -739,7 +755,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (ace == AceType.As1_Zona1_100Bar)
                     initialSlPrice = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
                 else if (ace == AceType.As4_Cascada50)
-                    initialSlPrice = keltnerBig.Midline[0] - (2 * TickSize);
+                {
+                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN LARGOS:
+                    // Zona 0 y Zona 1 (Close >= Upper 1.75): SL en Línea Media (Midline - 2 ticks)
+                    // Zona 2 (Close < Upper 1.75): SL en Banda Inferior Pequeña (Lower 1.75 - 2 ticks) para evitar amagues
+                    if (Close[0] >= keltnerSmall.Upper[0])
+                    {
+                        initialSlPrice = keltnerBig.Midline[0] - (2 * TickSize);
+                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 0/1 (Expansión Alta). SL en Línea Media: {1:F2}", Time[0], initialSlPrice));
+                    }
+                    else
+                    {
+                        initialSlPrice = keltnerSmall.Lower[0] - (2 * TickSize);
+                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 2 (Media Alta). SL en Lower 1.75 -2tk: {1:F2} (Anti-amague)", Time[0], initialSlPrice));
+                    }
+                }
                 else if (ace == AceType.As3_Ratchet)
                     initialSlPrice = keltnerBig.Lower[0] - (SlOffsetTicks * TickSize); // Banda opuesta en Ratchet
                 else
@@ -748,14 +778,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(initialSlPrice, Close[0] - (MinSafetySlTicks * TickSize)));
                 SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
 
+                // Solo Zona 1 lleva TP fijo en bloque. Cascada, Ratchet y SOBB se escalonan dinámicamente en ManageDynamicExits
                 if (ace == AceType.As1_Zona1_100Bar)
                 {
                     double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (Zone1FixedTpTicks * TickSize));
-                    SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
-                }
-                else if (ace == AceType.As4_Cascada50)
-                {
-                    double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaFixedTpTicks * TickSize));
                     SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
 
@@ -766,7 +792,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (ace == AceType.As1_Zona1_100Bar)
                     initialSlPrice = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
                 else if (ace == AceType.As4_Cascada50)
-                    initialSlPrice = keltnerBig.Midline[0] + (2 * TickSize);
+                {
+                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN CORTOS:
+                    // Zona 5 y Zona 4 (Close <= Lower 1.75): SL en Línea Media (Midline + 2 ticks)
+                    // Zona 3 (Close > Lower 1.75): SL en Banda Superior Pequeña (Upper 1.75 + 2 ticks) para evitar amagues
+                    if (Close[0] <= keltnerSmall.Lower[0])
+                    {
+                        initialSlPrice = keltnerBig.Midline[0] + (2 * TickSize);
+                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 5/4 (Expansión Baja). SL en Línea Media: {1:F2}", Time[0], initialSlPrice));
+                    }
+                    else
+                    {
+                        initialSlPrice = keltnerSmall.Upper[0] + (2 * TickSize);
+                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 3 (Media Baja). SL en Upper 1.75 +2tk: {1:F2} (Anti-amague)", Time[0], initialSlPrice));
+                    }
+                }
                 else if (ace == AceType.As3_Ratchet)
                     initialSlPrice = keltnerBig.Upper[0] + (SlOffsetTicks * TickSize); // Banda opuesta en Ratchet
                 else
@@ -775,14 +815,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(initialSlPrice, Close[0] + (MinSafetySlTicks * TickSize)));
                 SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
 
+                // Solo Zona 1 lleva TP fijo en bloque. Cascada, Ratchet y SOBB se escalonan dinámicamente en ManageDynamicExits
                 if (ace == AceType.As1_Zona1_100Bar)
                 {
                     double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (Zone1FixedTpTicks * TickSize));
-                    SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
-                }
-                else if (ace == AceType.As4_Cascada50)
-                {
-                    double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaFixedTpTicks * TickSize));
                     SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
 
@@ -983,15 +1019,72 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], midlineSl, Close[0]));
                     }
                 }
-                // --- GESTIÓN AS 4: CASCADA 50 (MIDLINE STOP CEÑIDO) ---
+                // --- GESTIÓN AS 4: CASCADA 25 (ESCALONAMIENTO 3 FASES + 6 ZONAS KELTNER) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
-                    double midlineSl = keltnerBig.Midline[0] - (2 * TickSize);
-                    if (Close[0] <= midlineSl || Low[0] <= midlineSl)
+                    double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
+                    double currentGainTicks = (High[0] - entryPrice) / TickSize;
+
+                    // CONTRATO 1: TP a +8 ticks (CascadaTp1Ticks) -> Pasa Stop restante a BREAKEVEN + 1 tick
+                    if (!cascadaC1Achieved && (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
                     {
-                        ExitLong("SL_Midline_Cascada", "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS - Cascada50 | SL MIDLINE] Precio perforó Midline -2tk ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                            Time[0], midlineSl, Close[0]));
+                        cascadaC1Achieved = true;
+                        if (currentQty >= 3)
+                        {
+                            ExitLong(1, "Cascada_C1_Tp8", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] +{1} ticks (+${2:F2}). Contrato 1 liquidado. Stop blindado en BREAKEVEN +1tk ({3:F2}). ¡Riesgo CERO!",
+                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice + (1 * TickSize)));
+                        }
+                    }
+
+                    // CONTRATO 2: TP clásico a +16 ticks (CascadaTp2Ticks)
+                    if (cascadaC1Achieved && !cascadaC2Achieved && (maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
+                    {
+                        cascadaC2Achieved = true;
+                        cascadaChokeActive = true;
+                        if (currentQty >= 2)
+                        {
+                            ExitLong(1, "Cascada_C2_Tp16", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] +{1} ticks (+${2:F2}). Contrato 2 cobrado. Contrato 3 Runner en MODO AHOGO a {3} ticks del High.",
+                                Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
+                        }
+                    }
+
+                    // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico (CascadaChokeTicks)
+                    if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
+                    {
+                        double chokeSl = highestPriceSinceEntry - (CascadaChokeTicks * TickSize);
+                        if (Close[0] <= chokeSl || Low[0] <= chokeSl)
+                        {
+                            ExitLong("Cascada_C3_RunnerAhogo", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN LA CIMA] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
+                                Time[0], Close[0], highestPriceSinceEntry));
+                        }
+                    }
+                    // Stop de Resguardo tras cobrar C1: BreakEven + 1 tick
+                    else if (cascadaC1Achieved)
+                    {
+                        double bePrice = entryPrice + (1 * TickSize);
+                        if (Close[0] <= bePrice || Low[0] <= bePrice)
+                        {
+                            ExitLong("Cascada_Stop_BE", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
+                                Time[0], bePrice));
+                        }
+                    }
+                    // Stop Inicial antes de C1 (según las 6 Zonas de Keltner):
+                    else
+                    {
+                        double initialSl = (entryPrice >= keltnerSmall.Upper[0]) 
+                            ? (keltnerBig.Midline[0] - (2 * TickSize)) 
+                            : (keltnerSmall.Lower[0] - (2 * TickSize));
+
+                        if (Close[0] <= initialSl || Low[0] <= initialSl)
+                        {
+                            ExitLong("SL_Zona_Cascada", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], initialSl, Close[0]));
+                        }
                     }
                 }
             }
@@ -1182,15 +1275,72 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], midlineSl, Close[0]));
                     }
                 }
-                // --- GESTIÓN AS 4: CASCADA 50 (MIDLINE STOP CEÑIDO) ---
+                // --- GESTIÓN AS 4: CASCADA 25 (ESCALONAMIENTO 3 FASES + 6 ZONAS KELTNER) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
-                    double midlineSl = keltnerBig.Midline[0] + (2 * TickSize);
-                    if (Close[0] >= midlineSl || High[0] >= midlineSl)
+                    double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
+                    double currentGainTicks = (entryPrice - Low[0]) / TickSize;
+
+                    // CONTRATO 1: TP a +8 ticks (CascadaTp1Ticks) -> Pasa Stop restante a BREAKEVEN - 1 tick
+                    if (!cascadaC1Achieved && (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
                     {
-                        ExitShort("SL_Midline_Cascada", "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS - Cascada50 | SL MIDLINE] Precio superó Midline +2tk ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                            Time[0], midlineSl, Close[0]));
+                        cascadaC1Achieved = true;
+                        if (currentQty >= 3)
+                        {
+                            ExitShort(1, "Cascada_C1_Tp8", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] +{1} ticks (+${2:F2}). Contrato 1 liquidado. Stop blindado en BREAKEVEN -1tk ({3:F2}). ¡Riesgo CERO!",
+                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice - (1 * TickSize)));
+                        }
+                    }
+
+                    // CONTRATO 2: TP clásico a +16 ticks (CascadaTp2Ticks)
+                    if (cascadaC1Achieved && !cascadaC2Achieved && (maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
+                    {
+                        cascadaC2Achieved = true;
+                        cascadaChokeActive = true;
+                        if (currentQty >= 2)
+                        {
+                            ExitShort(1, "Cascada_C2_Tp16", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] +{1} ticks (+${2:F2}). Contrato 2 cobrado. Contrato 3 Runner en MODO AHOGO a {3} ticks del Low.",
+                                Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
+                        }
+                    }
+
+                    // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico bajista (CascadaChokeTicks)
+                    if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
+                    {
+                        double chokeSl = lowestPriceSinceEntry + (CascadaChokeTicks * TickSize);
+                        if (Close[0] >= chokeSl || High[0] >= chokeSl)
+                        {
+                            ExitShort("Cascada_C3_RunnerAhogo", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN EL FONDO] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
+                                Time[0], Close[0], lowestPriceSinceEntry));
+                        }
+                    }
+                    // Stop de Resguardo tras cobrar C1: BreakEven - 1 tick
+                    else if (cascadaC1Achieved)
+                    {
+                        double bePrice = entryPrice - (1 * TickSize);
+                        if (Close[0] >= bePrice || High[0] >= bePrice)
+                        {
+                            ExitShort("Cascada_Stop_BE", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
+                                Time[0], bePrice));
+                        }
+                    }
+                    // Stop Inicial antes de C1 (según las 6 Zonas de Keltner):
+                    else
+                    {
+                        double initialSl = (entryPrice <= keltnerSmall.Lower[0]) 
+                            ? (keltnerBig.Midline[0] + (2 * TickSize)) 
+                            : (keltnerSmall.Upper[0] + (2 * TickSize));
+
+                        if (Close[0] >= initialSl || High[0] >= initialSl)
+                        {
+                            ExitShort("SL_Zona_Cascada", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], initialSl, Close[0]));
+                        }
                     }
                 }
             }
@@ -1216,6 +1366,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             ratchetC1Achieved = false;
             ratchetC2Achieved = false;
             ratchetChokeActive = false;
+
+            cascadaC1Achieved = false;
+            cascadaC2Achieved = false;
+            cascadaChokeActive = false;
 
             highestPriceSinceEntry = 0.0;
             lowestPriceSinceEntry = double.MaxValue;
@@ -1249,31 +1403,36 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 lastReportedTradeCount = SystemPerformance.AllTrades.Count;
 
-                // Si se cerró Cascada 50, se resetea su contador para permitir re-entradas si la tendencia persiste
+                // Si se cerró Cascada, se resetea su contador para permitir re-entradas si la tendencia persiste
                 if (currentAce == AceType.As4_Cascada50)
                 {
                     barsCascadaShortCount = 0;
                     barsCascadaLongCount = 0;
-                    Print(Time[0] + " - [PAS - Cascada50] Posición cerrada. Contador reseteado a 0; re-entrará si la tendencia acumula 50 barras más.");
+                    Print(string.Format("{0} - [PAS - Cascada] Posición cerrada. Contador reseteado a 0; re-entrará si la tendencia acumula {1} barras más.",
+                        Time[0], CascadaMinBars));
                 }
 
                 ResetAllTradeCounters();
 
-                // EVALUACIÓN DE ESCALONES DIARIOS Y META DE GLORIA AL CERRAR OPERACIONES
+                // EVALUACIÓN DE ESCALONES DIARIOS Y TRAILING INFINITO AL CERRAR OPERACIONES
                 if (UseDailyManagement && !isDailyLocked)
                 {
-                    // 1. TECHO DE GLORIA: Si llegó a $1,000+ USD ($100 MES) -> ¡Apague y vámonos!
+                    // 1. MODO DULCE (TRAILING DIARIO INFINITO): Si cerró >= $1,000+ USD ($100 MES) -> ¡Sigue operando y sube el piso!
                     if (dailyRealizedPnL >= DailyGoal_Piso3)
                     {
-                        isDailyLocked = true;
                         currentDailyTier = 3;
-                        currentDailyFloor = dailyRealizedPnL;
-                        dailyLockReason = string.Format("TECHO DE GLORIA (+${0:F2}) ALCANZADO", DailyGoal_Piso3);
+                        peakDailyClosedPnL = Math.Max(peakDailyClosedPnL, dailyRealizedPnL);
+                        double dynamicFloor = peakDailyClosedPnL - DailyTrailingGiveback;
+                        if (dynamicFloor > currentDailyFloor)
+                        {
+                            currentDailyFloor = dynamicFloor;
+                        }
+
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [¡TECHO DE GLORIA ALCANZADO!] PnL Diario Realizado: ${1:F2} (Meta Gloria: +${2:F2}).\n" +
-                                           "¡DÍA HISTÓRICO! Cerramos la oficina, apagamos y nos vamos a celebrar. Operativa bloqueada.\n" +
+                                           "{0} - [¡MODO DULCE ACTIVO! TRAILING DIARIO INFINITO] PnL Diario Realizado: ${1:F2} (Pico: ${2:F2}).\n" +
+                                           "¡SEGUIMOS OPERANDO SIN TECHO ARTIFICIAL! Nuevo Piso Protegido clavado en: +${3:F2} USD (Colchón Giveback: -${4:F2}).\n" +
                                            "****************************************************************************************",
-                            Time[0], dailyRealizedPnL, DailyGoal_Piso3));
+                            Time[0], dailyRealizedPnL, peakDailyClosedPnL, currentDailyFloor, DailyTrailingGiveback));
                     }
                     // 2. ESCALÓN 2: Si cerró entre $800 y $999 -> Piso protegido en +$650 USD (+ $65 MES)
                     else if (dailyRealizedPnL >= DailyGoal_Piso2)
@@ -1466,12 +1625,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(200.0, 20000.0)]
-        [Display(Name = "Techo de Gloria ($)", Description = "Meta definitiva para cerrar sesión y celebrar ($1,000 ES / $100 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 7)]
+        [Display(Name = "Umbral Modo Dulce ($)", Description = "Meta para activar Trailing Infinito ($1,000 ES / $100 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 7)]
         public double DailyGoal_Piso3 { get; set; }
 
         [NinjaScriptProperty]
+        [Range(10.0, 2000.0)]
+        [Display(Name = "Colchón Trailing Infinito ($)", Description = "Distancia de retroceso permitida del récord ganado ($100 ES / $10 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 8)]
+        public double DailyTrailingGiveback { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Máximo Strikes Seguidos", Description = "Número de pérdidas seguidas para apagar por el día", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 8)]
+        [Display(Name = "Máximo Strikes Seguidos", Description = "Número de pérdidas seguidas para apagar por el día", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 9)]
         public int MaxConsecutiveLosses { get; set; }
 
         [NinjaScriptProperty]
@@ -1505,14 +1669,34 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Zone1FixedTpTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10, 200)]
-        [Display(Name = "Cascada Barras Mínimas", Description = "Barras con EMA 200 separada de Banda 3.5", GroupName = "7. As 4: Cascada 50", Order = 1)]
+        [Range(5, 200)]
+        [Display(Name = "Cascada Barras Mínimas", Description = "Barras con EMA 200 separada de Banda 3.5 (25 por defecto)", GroupName = "7. As 4: Cascada 25", Order = 1)]
         public int CascadaMinBars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(4, 50)]
-        [Display(Name = "Cascada TP Fijo (Ticks)", Description = "Target de salida de Cascada 50 (16 ticks = $200 ES / $20 MES)", GroupName = "7. As 4: Cascada 50", Order = 2)]
-        public int CascadaFixedTpTicks { get; set; }
+        [Range(4, 30)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "Target de salida de C1 y activación de BE (8 ticks = $100 ES / $10 MES)", GroupName = "7. As 4: Cascada 25", Order = 2)]
+        public int CascadaTp1Ticks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(8, 50)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "Target de salida de C2 (16 ticks = $200 ES / $20 MES)", GroupName = "7. As 4: Cascada 25", Order = 3)]
+        public int CascadaTp2Ticks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 20)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "Distancia ceñida para el trailing del C3 Runner (8 ticks)", GroupName = "7. As 4: Cascada 25", Order = 4)]
+        public int CascadaChokeTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name = "Cascada Separación Ticks", GroupName = "7. As 4: Cascada 25", Order = 5)]
+        public int CascadaSeparationTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "7. As 4: Cascada 25", Order = 6)]
+        public int CascadaMinSlopeTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 50)]
@@ -1583,16 +1767,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(2, 20)]
         [Display(Name = "Ratchet Chicle Trailing (Ticks)", Description = "Distancia ceñida del Chicle Parabólico para C3 Runner", GroupName = "9. As 3: Ratchet", Order = 6)]
         public int RatchetChicleTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, 10)]
-        [Display(Name = "Cascada Separación Ticks", GroupName = "7. As 4: Cascada 50", Order = 3)]
-        public int CascadaSeparationTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, 10)]
-        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "7. As 4: Cascada 50", Order = 4)]
-        public int CascadaMinSlopeTicks { get; set; }
         #endregion
     }
 }
