@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 2.2 - Poker de Ases (PAS) [Evaluación Continua de Pisos Diarios y Blindaje Inmediato a $500 USD]
+// VERSIÓN: 2.3 - Poker de Ases (PAS) [Desescalado Dinámico de Contratos & Blindaje Inviolable de Pisos]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0 y SL tope.
@@ -35,13 +35,11 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
 //   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): SL por 6 Zonas Keltner, Targets Límite pasivos (C1 +8, C2 +16) y C3 Runner.
 //
-// GESTIÓN DE 3 CONTRATOS (EL ESCUADRÓN INSTITUCIONAL):
-//   - SOBB: C1 (SL Banda Pequeña 1.75 / TP $180 BE), C2 (SL Línea Media / TP $220 Banda 3.5), C3 (SL Pequeña Opuesta / Runner Ahogo $280).
-//   - Ratchet: C1 (Banda 3.5 o +22 tks BE), C2 (Línea Media o +72 tks), C3 (Chicle Parabólico 7 tks).
-//   - Cascada: C1 (+8 tks Límite BE), C2 (+16 tks Límite), C3 (Runner Ahogo 8 tks del Pico).
-//   - Z1-100Bar: Salida en bloque por TP Límite (12 ticks) o SL en Línea Media.
+// GESTIÓN DE RIESGO INTELIGENTE (DESESCALADO DINÁMICO DE CONTRATOS):
+//   - Si el PnL está cerca del piso protegido, la estrategia reduce automáticamente el tamaño de posición (de 3 a 2 o 1 contrato)
+//     para garantizar un Stop Loss saludable de al menos 8 ticks sin romper el piso garantizado ($500 USD).
 //
-// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v2.2):
+// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v2.3):
 //   - Cortacircuito Inicial: -$800 USD (ES) / -$80 USD (MES) -> Respaldo para 2.5 a 3 trades de 3 contratos.
 //   - Escalón 1 (+$400): Piso protegido en +$250 USD.
 //   - Escalón 2 (+$600): Piso protegido CLAVADO en +$500 USD (inviolable, comprobación continua en cada barra).
@@ -111,6 +109,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double currentDailyFloor = -800.0; // Piso de pérdida en vivo (Calibrado a -$800 ES / -$80 MES)
         private int currentDailyTier = 0;          // 0 = Base (-$800), 1 = Piso 1 (+$300), 2 = Piso 2 (+$550), 3 = Trailing Infinito
         private double peakDailyClosedPnL = 0.0;   // Máximo PnL diario cerrado para arrastre del Trailing Infinito
+        private int activeTradeContracts = 3;      // Contratos asignados dinámicamente según el margen del piso
 
         // === FACTOR MULTIPLICADOR (AUTO-ADAPTACIÓN MINI ES VS MICRO MES) ===
         private double instrumentMultiplier = 1.0; // 1.0 para ES, 0.1 para MES
@@ -136,7 +135,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.2 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Stops Físicos Intrabarra en DOM y Evaluación Continua de Pisos Diarios Blindados.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.3 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Desescalado Dinámico de Contratos por Margen del Piso y Evaluación Continua de Pisos Diarios Blindados.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -157,7 +156,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "2.2 - Poker de Ases (PAS) [Evaluación Continua de Pisos Diarios y Blindaje Inmediato a $500 USD]";
+                Version                                     = "2.3 - Poker de Ases (PAS) [Desescalado Dinámico de Contratos & Blindaje Inviolable de Pisos]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -420,17 +419,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 7. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI BOTÓN ACTIVO, FLAT Y EN HORARIO VÁLIDO)
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
-                // FILTRO DE COLCHÓN MÍNIMO: Si ya hay piso ganador asegurado (Escalón 1 o superior),
-                // verificamos que tengamos al menos 4 ticks de amortiguación sobre el piso para arriesgar en una nueva entrada.
-                if (UseDailyManagement && currentDailyFloor > 0)
+                // GESTIÓN DE RIESGO INTELIGENTE: Verificamos si existe margen para operar al menos 1 contrato con Stop saludable
+                if (GetRiskAdjustedContracts() <= 0)
                 {
-                    double allowedLoss = dailyRealizedPnL - currentDailyFloor;
-                    double minRequiredCushion = Contracts * (4 * TickSize * Instrument.MasterInstrument.PointValue);
-                    if (allowedLoss < minRequiredCushion)
-                    {
-                        // No hay margen suficiente de seguridad para abrir otra operación sin violar el piso protegido
-                        return;
-                    }
+                    // No hay margen suficiente ni para 1 contrato sin arriesgar el piso; protegemos el capital
+                    return;
                 }
 
                 // AS 1: Francotirador Zona 1 (100 Barras)
@@ -913,6 +906,43 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         #region Ejecución y Gestión de Salidas Escalonadas
 
+        private int GetRiskAdjustedContracts()
+        {
+            int targetContracts = Contracts; // Configurado por defecto (3 contratos)
+
+            if (UseDailyManagement && !isDailyLocked && currentDailyFloor > 0)
+            {
+                double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
+                double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
+
+                // Buscamos cuántos contratos permiten un Stop saludable de al menos MinSafetySlTicks (8 ticks = 2 pts)
+                int minHealthyTicks = Math.Max(6, MinSafetySlTicks);
+
+                for (int qty = Contracts; qty >= 1; qty--)
+                {
+                    double dollarsPerTick = qty * tickDollarVal;
+                    int maxTicksForQty = (int)Math.Floor(allowedLossDollars / dollarsPerTick);
+
+                    if (maxTicksForQty >= minHealthyTicks)
+                    {
+                        if (qty < Contracts)
+                        {
+                            Print(string.Format("{0} - [PAS | DESESCALADO DINÁMICO] Margen disponible: ${1:F2} USD. Posición desescalada de {2} a {3} contrato(s) para dar Stop saludable de {4} ticks sin romper Piso (+${5:F2}).",
+                                Time[0], allowedLossDollars, Contracts, qty, maxTicksForQty, currentDailyFloor));
+                        }
+                        return qty;
+                    }
+                }
+
+                // Si ni siquiera con 1 contrato alcanzamos al menos 6 ticks de respiro, no arriesgamos el piso
+                Print(string.Format("{0} - [PAS | PROTECCIÓN TOTAL DE PISO] Margen disponible (${1:F2}) insuficiente para Stop mínimo de 6 ticks en 1 contrato. Protegiendo Piso de +${2:F2} USD.",
+                    Time[0], allowedLossDollars, currentDailyFloor));
+                return 0;
+            }
+
+            return targetContracts;
+        }
+
         private void ExecuteAceEntry(AceType ace, MarketPosition pos, string signalName)
         {
             currentAce = ace;
@@ -922,6 +952,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Sincronizamos pisos y PnL inmediatamente antes de calcular el SL
             UpdateDailyPnLAndFloors();
+
+            // DESESCALADO DINÁMICO DE CONTRATOS (Position Sizing Institucional)
+            int entryContracts = GetRiskAdjustedContracts();
+            if (entryContracts <= 0)
+            {
+                Print(string.Format("{0} - [PAS | ENTRADA DESCARTADA] Margen disponible insuficiente para arriesgar sin violar el piso garantizado (+${1:F2} USD).",
+                    Time[0], currentDailyFloor));
+                return;
+            }
+            activeTradeContracts = entryContracts;
 
             sobbLevel1Achieved = false;
             sobbLevel2Achieved = false;
@@ -965,10 +1005,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
                     double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaTp1Ticks * TickSize));
                     double tp2Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaTp2Ticks * TickSize));
-                    ExitLongLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Long");
-                    ExitLongLimit(1, tp2Price, "Cascada_C2_Tp16", "Cascada50_Long");
-                    Print(string.Format("{0} - [PAS - Cascada | TARGETS LÍMITE COLOCADOS] C1 (+{1}tk): {2:F2} | C2 (+{3}tk): {4:F2} (Pasivos en el libro)",
-                        Time[0], CascadaTp1Ticks, tp1Price, CascadaTp2Ticks, tp2Price));
+                    if (activeTradeContracts >= 3)
+                    {
+                        ExitLongLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Long");
+                        ExitLongLimit(1, tp2Price, "Cascada_C2_Tp16", "Cascada50_Long");
+                    }
+                    else if (activeTradeContracts == 2)
+                    {
+                        ExitLongLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Long");
+                    }
+                    Print(string.Format("{0} - [PAS - Cascada | TARGETS LÍMITE COLOCADOS] C1 (+{1}tk): {2:F2} | Posición activa: {3} contrato(s)",
+                        Time[0], CascadaTp1Ticks, tp1Price, activeTradeContracts));
                 }
                 else if (ace == AceType.As3_Ratchet)
                     initialSlPrice = keltnerBig.Lower[0] - (SlOffsetTicks * TickSize); // Banda opuesta en Ratchet
@@ -982,7 +1029,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
-                    double totalDollarPerTick = Contracts * tickDollarVal;
+                    double totalDollarPerTick = activeTradeContracts * tickDollarVal;
                     if (totalDollarPerTick > 0)
                     {
                         int maxTicksAllowedByFloor = (int)Math.Floor(allowedLossDollars / totalDollarPerTick);
@@ -990,8 +1037,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (floorSlPrice > initialSlPrice)
                         {
                             initialSlPrice = floorSlPrice;
-                            Print(string.Format("{0} - [ESCUDO PISO ACTIVO] Piso de +${1:F2} USD limita pérdida a {2} ticks. SL Ceñido en {3:F2} colocado en DOM.",
-                                Time[0], currentDailyFloor, maxTicksAllowedByFloor, initialSlPrice));
+                            Print(string.Format("{0} - [ESCUDO PISO ACTIVO] Piso de +${1:F2} USD limita pérdida a {2} ticks ({3} contrato(s)). SL Ceñido en {4:F2} colocado en DOM.",
+                                Time[0], currentDailyFloor, maxTicksAllowedByFloor, activeTradeContracts, initialSlPrice));
                         }
                     }
                 }
@@ -1005,7 +1052,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
 
-                EnterLong(Contracts, signalName);
+                EnterLong(activeTradeContracts, signalName);
             }
             else // Short
             {
@@ -1035,10 +1082,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
                     double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaTp1Ticks * TickSize));
                     double tp2Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaTp2Ticks * TickSize));
-                    ExitShortLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Short");
-                    ExitShortLimit(1, tp2Price, "Cascada_C2_Tp16", "Cascada50_Short");
-                    Print(string.Format("{0} - [PAS - Cascada | TARGETS LÍMITE COLOCADOS] C1 (-{1}tk): {2:F2} | C2 (-{3}tk): {4:F2} (Pasivos en el libro)",
-                        Time[0], CascadaTp1Ticks, tp1Price, CascadaTp2Ticks, tp2Price));
+                    if (activeTradeContracts >= 3)
+                    {
+                        ExitShortLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Short");
+                        ExitShortLimit(1, tp2Price, "Cascada_C2_Tp16", "Cascada50_Short");
+                    }
+                    else if (activeTradeContracts == 2)
+                    {
+                        ExitShortLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Short");
+                    }
+                    Print(string.Format("{0} - [PAS - Cascada | TARGETS LÍMITE COLOCADOS] C1 (-{1}tk): {2:F2} | Posición activa: {3} contrato(s)",
+                        Time[0], CascadaTp1Ticks, tp1Price, activeTradeContracts));
                 }
                 else if (ace == AceType.As3_Ratchet)
                     initialSlPrice = keltnerBig.Upper[0] + (SlOffsetTicks * TickSize); // Banda opuesta en Ratchet
@@ -1052,7 +1106,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
-                    double totalDollarPerTick = Contracts * tickDollarVal;
+                    double totalDollarPerTick = activeTradeContracts * tickDollarVal;
                     if (totalDollarPerTick > 0)
                     {
                         int maxTicksAllowedByFloor = (int)Math.Floor(allowedLossDollars / totalDollarPerTick);
@@ -1060,8 +1114,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (floorSlPrice < initialSlPrice)
                         {
                             initialSlPrice = floorSlPrice;
-                            Print(string.Format("{0} - [ESCUDO PISO ACTIVO] Piso de +${1:F2} USD limita pérdida a {2} ticks. SL Ceñido en {3:F2} colocado en DOM.",
-                                Time[0], currentDailyFloor, maxTicksAllowedByFloor, initialSlPrice));
+                            Print(string.Format("{0} - [ESCUDO PISO ACTIVO] Piso de +${1:F2} USD limita pérdida a {2} ticks ({3} contrato(s)). SL Ceñido en {4:F2} colocado en DOM.",
+                                Time[0], currentDailyFloor, maxTicksAllowedByFloor, activeTradeContracts, initialSlPrice));
                         }
                     }
                 }
@@ -1075,7 +1129,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
 
-                EnterShort(Contracts, signalName);
+                EnterShort(activeTradeContracts, signalName);
             }
         }
 
@@ -1107,6 +1161,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             ExitLong(1, "SOBB_Piso1_Asegurador", "SOBB_Long");
                             Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 1 SUPERADO] Ganancia: {1:C2} (+{2:F1} tks). Contrato 1 liquidado. Stops restantes blindados en BREAKEVEN +1tk ({3:F2}). ¡Riesgo CERO!",
                                 Time[0], Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), entryPrice + (1 * TickSize)));
+                        }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 1 SUPERADO] Ganancia: {1:C2} (+{2:F1} tks). Posición desescalada ({3} cto) blindada en BREAKEVEN +1tk ({4:F2}). ¡Riesgo CERO!",
+                                Time[0], Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), currentQty, entryPrice + (1 * TickSize)));
                         }
                     }
 
@@ -1395,6 +1454,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             ExitShort(1, "SOBB_Piso1_Asegurador", "SOBB_Short");
                             Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 1 SUPERADO] Ganancia: {1:C2} (+{2:F1} tks). Contrato 1 liquidado. Stops restantes blindados en BREAKEVEN -1tk ({3:F2}). ¡Riesgo CERO!",
                                 Time[0], Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), entryPrice - (1 * TickSize)));
+                        }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - SOBB | ESCALÓN 1 SUPERADO] Ganancia: {1:C2} (+{2:F1} tks). Posición desescalada ({3} cto) blindada en BREAKEVEN -1tk ({4:F2}). ¡Riesgo CERO!",
+                                Time[0], Math.Max(currentGainDollars, peakGainDollars), Math.Max(currentGainTicks, peakGainTicks), currentQty, entryPrice - (1 * TickSize)));
                         }
                     }
 
