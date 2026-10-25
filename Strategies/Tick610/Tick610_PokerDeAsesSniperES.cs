@@ -161,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "3.3 - Poker de Ases (PAS) [SOBB Escalas Totales $180-$220-$280 & Regla Oro Escalón 1]";
+                Version                                     = "3.4 - Poker de Ases (PAS) [Corte Universal 1:00 PM & Salidas Dinámicas Purificadas]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -341,22 +341,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 3.1 CORTACIRCUITO DE VICTORIA TEMPRANA A LA 1:00 PM (ESCALÓN 1)
+            // 3.1 CORTACIRCUITO UNIVERSAL A LA 1:00 PM (ZONA BASE Y ESCALÓN 1)
+            // Si son las 01:00 PM EST y el mercado no despegó a Escalón 2 (estamos en Base o Escalón 1),
+            // se apaga la operativa para evitar operar en la tarde de bajo volumen y arriesgar pérdidas innecesarias.
             if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && timeNow >= Tier1CutoffTime)
             {
-                // Si estamos en Escalón 1 ($400 - $599 USD / $40 - $59 MES)
-                if (currentDailyTier == 1)
+                if (currentDailyTier <= 1)
                 {
                     if (Position.MarketPosition == MarketPosition.Flat)
                     {
                         isDailyLocked = true;
-                        dailyLockReason = string.Format("VICTORIA TEMPRANA ESCALÓN 1 ASEGURADA A LA 1:00 PM (${0:F2})", dailyRealizedPnL);
+                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LA 1:00 PM (PnL ${0:F2})", dailyRealizedPnL);
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [ESCUDO DIARIO | VICTORIA TEMPRANA A LA 1:00 PM] Hora actual ({1}) alcanzó las 01:00 PM EST.\n" +
-                                           "PnL Diario Realizado: ${2:F2} USD en Escalón 1. ¡APAGANDO OPERATIVA Y ASEGURANDO GANANCIA!\n" +
-                                           "Se evitan amagues de bajo volumen en la tarde. ¡Día completado en victoria!\n" +
+                                           "{0} - [ESCUDO DIARIO | CORTE A LA 1:00 PM EST] Hora actual ({1}) alcanzó las 01:00 PM.\n" +
+                                           "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
+                                           "No se regala dinero en la tarde sin volumen. ¡Día cerrado con disciplina!\n" +
                                            "****************************************************************************************",
-                            Time[0], timeNow, dailyRealizedPnL));
+                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 1 ? "Escalón 1" : "Base"));
                         return;
                     }
                 }
@@ -1195,11 +1196,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
-
-                // Solo Zona 1 lleva TP fijo en bloque. Cascada, Ratchet y SOBB se escalonan dinámicamente en ManageDynamicExits
+                // Solo Zona 1 lleva TP y SL fijos en bloque de NinjaTrader (SetStopLoss / SetProfitTarget).
+                // SOBB, Cascada y Ratchet son escuadrones con salidas escalonadas que gestionan sus paradas
+                // de resguardo EXCLUSIVAMENTE en ManageDynamicExits, eliminando cualquier posibilidad
+                // de sobrellenado (overshoot) que voltee la posición al revés en el broker.
                 if (ace == AceType.As1_Zona1_100Bar)
                 {
+                    SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
                     double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (Zone1FixedTpTicks * TickSize));
                     SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
@@ -1272,11 +1275,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
-
-                // Solo Zona 1 lleva TP fijo en bloque. Cascada, Ratchet y SOBB se escalonan dinámicamente en ManageDynamicExits
+                // Solo Zona 1 lleva TP y SL fijos en bloque de NinjaTrader (SetStopLoss / SetProfitTarget).
+                // SOBB, Cascada y Ratchet son escuadrones con salidas escalonadas que gestionan sus paradas
+                // de resguardo EXCLUSIVAMENTE en ManageDynamicExits, eliminando cualquier posibilidad
+                // de sobrellenado (overshoot) que voltee la posición al revés en el broker.
                 if (ace == AceType.As1_Zona1_100Bar)
                 {
+                    SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
                     double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (Zone1FixedTpTicks * TickSize));
                     SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
@@ -1922,19 +1927,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SyncTradesAndStrikes();
                 UpdateDailyPnLAndFloors();
 
-                // Verificación de Victoria Temprana a la 1:00 PM si el trade que acaba de cerrar ocurrió después de la 1:00 PM
-                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier == 1)
+                // Verificación de corte a la 1:00 PM si el trade que acaba de cerrar ocurrió después de la 1:00 PM
+                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier <= 1)
                 {
                     int timeNow = ToTime(Time[0]);
                     if (timeNow >= Tier1CutoffTime)
                     {
                         isDailyLocked = true;
-                        dailyLockReason = string.Format("VICTORIA TEMPRANA ESCALÓN 1 ASEGURADA A LA 1:00 PM (${0:F2})", dailyRealizedPnL);
+                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LA 1:00 PM TRAS CIERRE (PnL ${0:F2})", dailyRealizedPnL);
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [ESCUDO DIARIO | VICTORIA TEMPRANA A LA 1:00 PM TRAS CIERRE] Trade cerrado después de las 01:00 PM EST ({1}).\n" +
-                                           "PnL Diario Realizado: ${2:F2} USD en Escalón 1. ¡APAGANDO OPERATIVA Y ASEGURANDO GANANCIA!\n" +
+                                           "{0} - [ESCUDO DIARIO | CORTE A LA 1:00 PM TRAS CIERRE DE TRADE] Trade cerrado después de las 01:00 PM EST ({1}).\n" +
+                                           "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
                                            "****************************************************************************************",
-                            Time[0], timeNow, dailyRealizedPnL));
+                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 1 ? "Escalón 1" : "Base"));
                     }
                 }
 
