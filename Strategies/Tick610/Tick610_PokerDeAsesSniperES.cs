@@ -25,10 +25,10 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 2.0 - Poker de Ases (PAS) [Z1 Filtro Zona 0 + Escudo Pisos Exactos & Strikes por Operación]
+// VERSIÓN: 2.1 - Poker de Ases (PAS) [Stops Físicos Intrabarra en DOM + Piso Diario Blindado SetStopLoss]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
-//   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0.
+//   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0 y SL tope.
 //                          (Fiel al SniperSurfer original con TEMA 9 y MinCrossTicks 2.3).
 //   2. As 2: [SOBB]      - SurferOutBigBanda: Cruce TEMA 9 + Disparo en Primera Vela Fuera (One-Shot Estricto)
 //                          con SL Escalonado Estructural (C1 Pequeña, C2 Midline, C3 Pequeña Opuesta).
@@ -136,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.0 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Escudo de Pisos Exactos y Strikes por Operación.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.1 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Stops Físicos Intrabarra en DOM y Piso Diario Blindado por SetStopLoss.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -157,7 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "2.0 - Poker de Ases (PAS) [Z1 Filtro Zona 0 + Escudo Pisos Exactos & Strikes por Operación]";
+                Version                                     = "2.1 - Poker de Ases (PAS) [Stops Físicos Intrabarra en DOM + Piso Diario Blindado SetStopLoss]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -914,12 +914,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             cascadaC2Achieved = false;
             cascadaChokeActive = false;
 
-            // Stop Loss inicial de desastre lejano (se envía una sola vez)
+            // Stop Loss inicial físico en el DOM
             double initialSlPrice = 0.0;
             if (pos == MarketPosition.Long)
             {
                 if (ace == AceType.As1_Zona1_100Bar)
-                    initialSlPrice = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
+                {
+                    // Z1-100Bar: SL en Línea Media, pero con TOPE MÁXIMO de seguridad de 14 ticks (R:R saludable 1:1 vs TP 12 ticks)
+                    double naturalSl = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
+                    double maxSafeSl = Close[0] - ((Zone1FixedTpTicks + 2) * TickSize);
+                    initialSlPrice = Math.Max(naturalSl, maxSafeSl);
+                }
                 else if (ace == AceType.As4_Cascada50)
                 {
                     // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN LARGOS:
@@ -950,6 +955,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                     initialSlPrice = keltnerSmall.Lower[0] - (1 * TickSize);
 
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(initialSlPrice, Close[0] - (MinSafetySlTicks * TickSize)));
+
+                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas, el piso manda absolutamente sobre el SL
+                if (UseDailyManagement && !isDailyLocked && dailyRealizedPnL > currentDailyFloor)
+                {
+                    double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
+                    double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
+                    double totalDollarPerTick = Contracts * tickDollarVal;
+                    if (totalDollarPerTick > 0)
+                    {
+                        int maxTicksAllowedByFloor = (int)Math.Floor(allowedLossDollars / totalDollarPerTick);
+                        double floorSlPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (maxTicksAllowedByFloor * TickSize));
+                        if (floorSlPrice > initialSlPrice)
+                        {
+                            initialSlPrice = floorSlPrice;
+                            Print(string.Format("{0} - [ESCUDO PISO ACTIVO] Piso de +${1:F2} USD limita pérdida a {2} ticks. SL Ceñido en {3:F2} colocado en DOM.",
+                                Time[0], currentDailyFloor, maxTicksAllowedByFloor, initialSlPrice));
+                        }
+                    }
+                }
+
                 SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
 
                 // Solo Zona 1 lleva TP fijo en bloque. Cascada, Ratchet y SOBB se escalonan dinámicamente en ManageDynamicExits
@@ -964,7 +989,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             else // Short
             {
                 if (ace == AceType.As1_Zona1_100Bar)
-                    initialSlPrice = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
+                {
+                    // Z1-100Bar: SL en Línea Media, pero con TOPE MÁXIMO de seguridad de 14 ticks (R:R saludable 1:1 vs TP 12 ticks)
+                    double naturalSl = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
+                    double maxSafeSl = Close[0] + ((Zone1FixedTpTicks + 2) * TickSize);
+                    initialSlPrice = Math.Min(naturalSl, maxSafeSl);
+                }
                 else if (ace == AceType.As4_Cascada50)
                 {
                     // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN CORTOS:
@@ -995,6 +1025,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                     initialSlPrice = keltnerSmall.Upper[0] + (1 * TickSize);
 
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(initialSlPrice, Close[0] + (MinSafetySlTicks * TickSize)));
+
+                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas, el piso manda absolutamente sobre el SL
+                if (UseDailyManagement && !isDailyLocked && dailyRealizedPnL > currentDailyFloor)
+                {
+                    double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
+                    double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
+                    double totalDollarPerTick = Contracts * tickDollarVal;
+                    if (totalDollarPerTick > 0)
+                    {
+                        int maxTicksAllowedByFloor = (int)Math.Floor(allowedLossDollars / totalDollarPerTick);
+                        double floorSlPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (maxTicksAllowedByFloor * TickSize));
+                        if (floorSlPrice < initialSlPrice)
+                        {
+                            initialSlPrice = floorSlPrice;
+                            Print(string.Format("{0} - [ESCUDO PISO ACTIVO] Piso de +${1:F2} USD limita pérdida a {2} ticks. SL Ceñido en {3:F2} colocado en DOM.",
+                                Time[0], currentDailyFloor, maxTicksAllowedByFloor, initialSlPrice));
+                        }
+                    }
+                }
+
                 SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
 
                 // Solo Zona 1 lleva TP fijo en bloque. Cascada, Ratchet y SOBB se escalonan dinámicamente en ManageDynamicExits
