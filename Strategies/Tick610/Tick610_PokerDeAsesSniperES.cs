@@ -136,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.1 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Stops Físicos Intrabarra en DOM y Piso Diario Blindado por SetStopLoss.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.2 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Stops Físicos Intrabarra en DOM y Evaluación Continua de Pisos Diarios Blindados.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -157,7 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "2.1 - Poker de Ases (PAS) [Stops Físicos Intrabarra en DOM + Piso Diario Blindado SetStopLoss]";
+                Version                                     = "2.2 - Poker de Ases (PAS) [Evaluación Continua de Pisos Diarios y Blindaje Inmediato a $500 USD]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
