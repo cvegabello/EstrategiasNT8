@@ -78,9 +78,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool z1LongArmed = false;          // Acumulación de 100 barras completada para Largo
         private bool z1ShortArmed = false;         // Acumulación de 100 barras completada para Corto
 
-        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 FASES) ===
+        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 CAPAS) ===
         private bool sobbArmedLong = false;        // Fase 1: TEMA 9 cruzó Upper 3.5 (Espera activa a que la vela salga)
         private bool sobbArmedShort = false;       // Fase 1: TEMA 9 cruzó Lower 3.5 (Espera activa a que la vela salga)
+        private bool sobbHasFloatedLong = false;   // Bandera de vela flotando afuera para Largos
+        private bool sobbHasFloatedShort = false;  // Bandera de vela flotando afuera para Cortos
         private bool sobbLevel1Achieved = false;   // Piso 1 alcanzado (Contrato 1 cerrado, BE armado)
         private bool sobbLevel2Achieved = false;   // Piso 2 alcanzado (Contrato 2 cerrado, Banda 3.5 anclada)
         private bool sobbLevel3ChokeActive = false;// Piso 3 activo (Modo Ahogo para Contrato 3 Runner)
@@ -161,7 +163,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "3.4 - Poker de Ases (PAS) [Corte Universal 1:00 PM & Salidas Dinámicas Purificadas]";
+                Version                                     = "3.5 - Poker de Ases (PAS) [SOBB Filtro 2 Capas EMA/Pendientes & Corte Universal 1:00 PM]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -743,7 +745,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
-        // AS 2: SOBB (SurferOutBigBanda - CRUCE TEMA 9 + PRIMERA VELA FUERA ONE-SHOT)
+        // AS 2: SOBB (SurferOutBigBanda - FILTRO DE 2 CAPAS: EMA ZONA 3 Y ESPERA DE PENDIENTES)
         // =========================================================================
         private void EvaluateAs2_SOBB()
         {
@@ -759,20 +761,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             double lowerSlope   = lowerBig - keltnerBig.Lower[2];
 
             // =========================================================================
-            // SOBB LARGO: Cruce de TEMA 9 de adentro hacia afuera + Primera Vela One-Shot
-            // 1. Armado: Ocurre cuando TEMA 9 cruza por primera vez por encima de Upper 3.5.
+            // SOBB LARGO: Cruce de TEMA 9 de adentro hacia afuera + Filtro 2 Capas
+            // 1. Armado: TEMA 9 cruza por primera vez hacia afuera de Upper 3.5.
             // 2. Desarmado por repliegue: Si TEMA 9 regresa adentro (<= Upper 3.5), se desactiva.
-            // 3. Disparo One-Shot: En la primera barra donde la vela esté 100% afuera (Low > Upper 3.5),
-            //    se evalúan inmediatamente las condiciones institucionales (EMA 200 en Zona 3 y pendientes).
-            //    - Si se cumplen: ¡PUM! Se ejecuta la entrada.
-            //    - Si NO se cumplen: Apague y vámonos (sobbArmedLong = false). Se descarta definitivamente
-            //      y no vuelve a operar aunque vengan mil velas más afuera, hasta un nuevo cruce de TEMA 9.
+            // 3. Evaluación de Capas cuando la vela esté 100% afuera (Low > Upper 3.5):
+            //    - CAPA 1 (EMA 200 en Zona 3 - Inmediato y Estricto):
+            //      En la primera vela afuera, si la EMA 200 NO está en Zona 3 (entre Midline y Lower 1.75),
+            //      se descarta inmediatamente (sobbArmedLong = false). ¡PAILAS! Se cancela el setup.
+            //    - CAPA 2 (Pendientes - Espera Paciente):
+            //      Si la EMA 200 SÍ está en Zona 3, pero las pendientes aún no giran:
+            //      NO se desarma. Se mantiene en espera en las siguientes barras mientras flote afuera.
+            //      En cuanto las pendientes se alineen estando afuera: ¡PUM! Entrada Long ejecutada.
+            //    - Desarmado si el precio regresa adentro (Low <= Upper 3.5) tras haber flotado afuera sin pendientes.
             // =========================================================================
             bool isTemaCruzoSalidaLargo = (tema9[1] <= keltnerBig.Upper[1] && tema9[0] > upperBig);
             if (isTemaCruzoSalidaLargo)
             {
                 sobbArmedLong = true;
-                Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó de adentro hacia afuera de Upper 3.5 ({2:F2}). Espera de la PRIMERA vela completa afuera.",
+                sobbHasFloatedLong = false;
+                Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Upper 3.5 ({2:F2}). Espera de vela completa afuera y confirmación de 2 capas.",
                     Time[0], tema9[0], upperBig));
             }
             else if (tema9[0] <= upperBig)
@@ -780,7 +787,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (sobbArmedLong)
                 {
                     sobbArmedLong = false;
-                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado vela completa. Espera cancelada.",
+                    sobbHasFloatedLong = false;
+                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
             }
@@ -790,42 +798,67 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isVelaFlotandoLargo = (Low[0] > upperBig);
                 if (isVelaFlotandoLargo)
                 {
-                    // ¡ENCONTRAMOS LA PRIMERA VELA AFUERA! Se apaga inmediatamente el armado (One-Shot estricto)
-                    sobbArmedLong = false;
+                    sobbHasFloatedLong = true;
 
                     bool isEmaZonaLargo    = (ema200[0] <= midline && ema200[0] >= lowerSmall);
                     bool isPendientesLargo = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
 
-                    if (isEmaZonaLargo && isPendientesLargo)
+                    // CAPA 1: EMA 200 en Zona 3 (Contexto Macro Estricto e Inmediato)
+                    if (!isEmaZonaLargo)
                     {
+                        sobbArmedLong = false;
+                        sobbHasFloatedLong = false;
+                        Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO (PAILAS)] Vela flotando en Zona 0 detectada pero EMA 200 ({1:F2}) fuera de Zona 3 ([{2:F2}, {3:F2}]). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
+                            Time[0], ema200[0], lowerSmall, midline));
+                    }
+                    // CAPA 2: Si EMA 200 está en Zona 3, evaluamos las pendientes
+                    else if (isPendientesLargo)
+                    {
+                        // ¡Ambas capas confirmadas con éxito!
+                        sobbArmedLong = false;
+                        sobbHasFloatedLong = false;
                         ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
-                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO CONFIRMADO! Primera vela completa en Zona 0 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
+                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO CONFIRMADO! Vela flotando en Zona 0 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
                             Time[0], Close[0]));
                         return;
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO DEFINITIVAMENTE] Primera vela afuera detectada, pero condiciones no cumplidas (EMA_Zona3={1}, Pendientes={2}). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
-                            Time[0], isEmaZonaLargo, isPendientesLargo));
+                        // EMA 200 en Zona 3 OK, pero pendientes aún no alineadas: mantenemos armado a la espera de la siguiente barra afuera
+                        Print(string.Format("{0} - [PAS - SOBB | LARGO EN ESPERA DE PENDIENTES] EMA 200 en Zona 3 OK. Pendientes no alineadas todavía (MidSlope={1:F4}, UpperSlope={2:F4}). Esperando mientras el precio siga afuera...",
+                            Time[0], midlineSlope, upperSlope));
                     }
+                }
+                else if (sobbHasFloatedLong && Low[0] <= upperBig)
+                {
+                    // La vela ya había flotado afuera pero regresó adentro antes de que las pendientes confirmaran
+                    sobbArmedLong = false;
+                    sobbHasFloatedLong = false;
+                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO POR REPLIEGUE] El precio regresó adentro de Upper 3.5 ({1:F2}) sin haber confirmado pendientes. Setup cancelado.",
+                        Time[0], upperBig));
                 }
             }
 
             // =========================================================================
-            // SOBB CORTO: Cruce de TEMA 9 de adentro hacia afuera + Primera Vela One-Shot
-            // 1. Armado: Ocurre cuando TEMA 9 cruza por primera vez por debajo de Lower 3.5.
+            // SOBB CORTO: Cruce de TEMA 9 de adentro hacia afuera + Filtro 2 Capas
+            // 1. Armado: TEMA 9 cruza por primera vez hacia afuera de Lower 3.5.
             // 2. Desarmado por repliegue: Si TEMA 9 regresa adentro (>= Lower 3.5), se desactiva.
-            // 3. Disparo One-Shot: En la primera barra donde la vela esté 100% afuera (High < Lower 3.5),
-            //    se evalúan inmediatamente las condiciones institucionales (EMA 200 en Zona 3 y pendientes).
-            //    - Si se cumplen: ¡PUM! Se ejecuta la entrada.
-            //    - Si NO se cumplen: Apague y vámonos (sobbArmedShort = false). Se descarta definitivamente
-            //      y no vuelve a operar aunque vengan mil velas más afuera, hasta un nuevo cruce de TEMA 9.
+            // 3. Evaluación de Capas cuando la vela esté 100% afuera (High < Lower 3.5):
+            //    - CAPA 1 (EMA 200 en Zona 3 - Inmediato y Estricto):
+            //      En la primera vela afuera, si la EMA 200 NO está en Zona 3 (entre Midline y Upper 1.75),
+            //      se descarta inmediatamente (sobbArmedShort = false). ¡PAILAS! Se cancela el setup.
+            //    - CAPA 2 (Pendientes - Espera Paciente):
+            //      Si la EMA 200 SÍ está en Zona 3, pero las pendientes aún no giran:
+            //      NO se desarma. Se mantiene en espera en las siguientes barras mientras flote afuera.
+            //      En cuanto las pendientes se alineen estando afuera: ¡PUM! Entrada Short ejecutada.
+            //    - Desarmado si el precio regresa adentro (High >= Lower 3.5) tras haber flotado afuera sin pendientes.
             // =========================================================================
             bool isTemaCruzoSalidaCorto = (tema9[1] >= keltnerBig.Lower[1] && tema9[0] < lowerBig);
             if (isTemaCruzoSalidaCorto)
             {
                 sobbArmedShort = true;
-                Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó de adentro hacia afuera de Lower 3.5 ({2:F2}). Espera de la PRIMERA vela completa afuera.",
+                sobbHasFloatedShort = false;
+                Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Lower 3.5 ({2:F2}). Espera de vela completa afuera y confirmación de 2 capas.",
                     Time[0], tema9[0], lowerBig));
             }
             else if (tema9[0] >= lowerBig)
@@ -833,7 +866,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (sobbArmedShort)
                 {
                     sobbArmedShort = false;
-                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado vela completa. Espera cancelada.",
+                    sobbHasFloatedShort = false;
+                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
             }
@@ -843,24 +877,44 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isVelaFlotandoCorto = (High[0] < lowerBig);
                 if (isVelaFlotandoCorto)
                 {
-                    // ¡ENCONTRAMOS LA PRIMERA VELA AFUERA! Se apaga inmediatamente el armado (One-Shot estricto)
-                    sobbArmedShort = false;
+                    sobbHasFloatedShort = true;
 
                     bool isEmaZonaCorto    = (ema200[0] >= midline && ema200[0] <= upperSmall);
                     bool isPendientesCorto = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
 
-                    if (isEmaZonaCorto && isPendientesCorto)
+                    // CAPA 1: EMA 200 en Zona 3 (Contexto Macro Estricto e Inmediato)
+                    if (!isEmaZonaCorto)
                     {
+                        sobbArmedShort = false;
+                        sobbHasFloatedShort = false;
+                        Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO (PAILAS)] Vela flotando en Zona 5 detectada pero EMA 200 ({1:F2}) fuera de Zona 3 ([{2:F2}, {3:F2}]). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
+                            Time[0], ema200[0], midline, upperSmall));
+                    }
+                    // CAPA 2: Si EMA 200 está en Zona 3, evaluamos las pendientes
+                    else if (isPendientesCorto)
+                    {
+                        // ¡Ambas capas confirmadas con éxito!
+                        sobbArmedShort = false;
+                        sobbHasFloatedShort = false;
                         ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
-                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO CONFIRMADO! Primera vela completa en Zona 5 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
+                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO CONFIRMADO! Vela flotando en Zona 5 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
                             Time[0], Close[0]));
                         return;
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO DEFINITIVAMENTE] Primera vela afuera detectada, pero condiciones no cumplidas (EMA_Zona3={1}, Pendientes={2}). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
-                            Time[0], isEmaZonaCorto, isPendientesCorto));
+                        // EMA 200 en Zona 3 OK, pero pendientes aún no alineadas: mantenemos armado a la espera de la siguiente barra afuera
+                        Print(string.Format("{0} - [PAS - SOBB | CORTO EN ESPERA DE PENDIENTES] EMA 200 en Zona 3 OK. Pendientes no alineadas todavía (MidSlope={1:F4}, LowerSlope={2:F4}). Esperando mientras el precio siga afuera...",
+                            Time[0], midlineSlope, lowerSlope));
                     }
+                }
+                else if (sobbHasFloatedShort && High[0] >= lowerBig)
+                {
+                    // La vela ya había flotado afuera pero regresó adentro antes de que las pendientes confirmaran
+                    sobbArmedShort = false;
+                    sobbHasFloatedShort = false;
+                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO POR REPLIEGUE] El precio regresó adentro de Lower 3.5 ({1:F2}) sin haber confirmado pendientes. Setup cancelado.",
+                        Time[0], lowerBig));
                 }
             }
         }
@@ -1898,6 +1952,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             z1ShortArmed = false;
             sobbArmedLong = false;
             sobbArmedShort = false;
+            sobbHasFloatedLong = false;
+            sobbHasFloatedShort = false;
             sobbLevel1Achieved = false;
             sobbLevel2Achieved = false;
             sobbLevel3ChokeActive = false;
