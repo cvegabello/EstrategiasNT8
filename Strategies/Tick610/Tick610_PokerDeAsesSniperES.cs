@@ -161,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "3.1 - Poker de Ases (PAS) [Z1-100B Estructural EMA Externa, Desescalado Dinámico & Blindaje Total]";
+                Version                                     = "3.2 - Poker de Ases (PAS) [Regla de Oro Escalón 1: 1 Contrato con Stop Holgado & Z1-100B Estructural]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -1040,15 +1040,42 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                 double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
 
-                // Buscamos cuántos contratos permiten un Stop saludable de al menos MinSafetySlTicks (8 ticks = 2 pts)
-                int minHealthyTicks = Math.Max(6, MinSafetySlTicks);
+                // REGLA DE ORO DE ESCALÓN 1: Si ya estamos en ganancias protegidas (Escalón 1: $400 - $599),
+                // se opera OBLIGATORIAMENTE con 1 solo contrato. Esto garantiza un Stop Loss amplísimo y holgado
+                // (16 a 24 ticks de respiro) para absorber el ruido del mercado y dejar correr los runners hasta el Escalón 2/3.
+                if (currentDailyTier == 1)
+                {
+                    int maxTicksFor1Contract = (int)Math.Floor(allowedLossDollars / tickDollarVal);
+
+                    if (maxTicksFor1Contract >= MinSafetySlTicks)
+                    {
+                        Print(string.Format("{0} - [PAS | REGLA DE ORO ESCALÓN 1: 1 SOLO CONTRATO] PnL actual: ${1:F2} USD (Piso +${2:F2}). Operando con 1 solo contrato con Stop holgado de {3} ticks para dejar correr la ganancia.",
+                            Time[0], dailyRealizedPnL, currentDailyFloor, maxTicksFor1Contract));
+                        return 1;
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS | PROTECCIÓN TOTAL DE PISO] Margen disponible (${1:F2}) insuficiente para Stop mínimo de {2} ticks en 1 contrato. Protegiendo Piso de +${3:F2} USD.",
+                            Time[0], allowedLossDollars, MinSafetySlTicks, currentDailyFloor));
+                        return 0;
+                    }
+                }
+
+                // Para Escalón 2 o superior: Exigimos al menos 14 ticks de respiro real por contrato para permitir 2 o más contratos
+                int minHealthyTicksPerContract = 14;
 
                 for (int qty = Contracts; qty >= 1; qty--)
                 {
                     double dollarsPerTick = qty * tickDollarVal;
                     int maxTicksForQty = (int)Math.Floor(allowedLossDollars / dollarsPerTick);
 
-                    if (maxTicksForQty >= minHealthyTicks)
+                    if (qty == 1 && maxTicksForQty >= MinSafetySlTicks)
+                    {
+                        Print(string.Format("{0} - [PAS | DESESCALADO DINÁMICO] Margen disponible: ${1:F2} USD. Posición ajustada a 1 contrato con {2} ticks de Stop holgado sin romper Piso (+${3:F2}).",
+                            Time[0], allowedLossDollars, maxTicksForQty, currentDailyFloor));
+                        return 1;
+                    }
+                    else if (qty > 1 && maxTicksForQty >= minHealthyTicksPerContract)
                     {
                         if (qty < Contracts)
                         {
@@ -1059,8 +1086,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Si ni siquiera con 1 contrato alcanzamos al menos 6 ticks de respiro, no arriesgamos el piso
-                Print(string.Format("{0} - [PAS | PROTECCIÓN TOTAL DE PISO] Margen disponible (${1:F2}) insuficiente para Stop mínimo de 6 ticks en 1 contrato. Protegiendo Piso de +${2:F2} USD.",
+                // Si ni siquiera con 1 contrato alcanzamos al menos MinSafetySlTicks de respiro, no arriesgamos el piso
+                Print(string.Format("{0} - [PAS | PROTECCIÓN TOTAL DE PISO] Margen disponible (${1:F2}) insuficiente para Stop mínimo en 1 contrato. Protegiendo Piso de +${2:F2} USD.",
                     Time[0], allowedLossDollars, currentDailyFloor));
                 return 0;
             }
