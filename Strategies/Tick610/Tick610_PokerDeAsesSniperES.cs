@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 2.1 - Poker de Ases (PAS) [Stops Físicos Intrabarra en DOM + Piso Diario Blindado SetStopLoss]
+// VERSIÓN: 2.2 - Poker de Ases (PAS) [Evaluación Continua de Pisos Diarios y Blindaje Inmediato a $500 USD]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0 y SL tope.
@@ -41,11 +41,11 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   - Cascada: C1 (+8 tks Límite BE), C2 (+16 tks Límite), C3 (Runner Ahogo 8 tks del Pico).
 //   - Z1-100Bar: Salida en bloque por TP Límite (12 ticks) o SL en Línea Media.
 //
-// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO):
+// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v2.2):
 //   - Cortacircuito Inicial: -$800 USD (ES) / -$80 USD (MES) -> Respaldo para 2.5 a 3 trades de 3 contratos.
-//   - Escalón 1 (+$450): Piso sube a +$300 USD.
-//   - Escalón 2 (+$750): Piso sube a +$550 USD.
-//   - Modo Dulce (+$1,000+): Trailing Infinito (Piso = Récord Ganado - Colchón $150). ¡No te para de ganar!
+//   - Escalón 1 (+$400): Piso protegido en +$250 USD.
+//   - Escalón 2 (+$600): Piso protegido CLAVADO en +$500 USD (inviolable, comprobación continua en cada barra).
+//   - Modo Dulce (+$900+): Trailing Infinito (Piso = Récord Ganado - Colchón $150). ¡No te para de ganar!
 //   - Botón de Pánico WPF en Gráfica y Atajo de Teclado (Ctrl + Espacio).
 // =========================================================================================================
 
@@ -296,9 +296,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 currentDailyFloor = -DailyLossLimit;
                 currentDailyTier = 0;
                 peakDailyClosedPnL = 0.0;
+                lastReportedTradeCount = (SystemPerformance != null && SystemPerformance.AllTrades != null) ? SystemPerformance.AllTrades.Count : 0;
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
             }
+
+            // 2.1 SINCRONIZACIÓN CONTINUA DE TRADES, PNL Y PISOS PROTEGIDOS EN CADA BARRA
+            SyncTradesAndStrikes();
+            UpdateDailyPnLAndFloors();
 
             // 3. HORARIO RTH ESTRICTO (09:50 AM - 04:00 PM EST)
             int timeNow = ToTime(Time[0]);
@@ -415,6 +420,19 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 7. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI BOTÓN ACTIVO, FLAT Y EN HORARIO VÁLIDO)
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
+                // FILTRO DE COLCHÓN MÍNIMO: Si ya hay piso ganador asegurado (Escalón 1 o superior),
+                // verificamos que tengamos al menos 4 ticks de amortiguación sobre el piso para arriesgar en una nueva entrada.
+                if (UseDailyManagement && currentDailyFloor > 0)
+                {
+                    double allowedLoss = dailyRealizedPnL - currentDailyFloor;
+                    double minRequiredCushion = Contracts * (4 * TickSize * Instrument.MasterInstrument.PointValue);
+                    if (allowedLoss < minRequiredCushion)
+                    {
+                        // No hay margen suficiente de seguridad para abrir otra operación sin violar el piso protegido
+                        return;
+                    }
+                }
+
                 // AS 1: Francotirador Zona 1 (100 Barras)
                 EvaluateAs1_Zona1();
 
@@ -901,6 +919,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             entryPriceGlobal = Close[0];
             highestPriceSinceEntry = High[0];
             lowestPriceSinceEntry  = Low[0];
+
+            // Sincronizamos pisos y PnL inmediatamente antes de calcular el SL
+            UpdateDailyPnLAndFloors();
 
             sobbLevel1Achieved = false;
             sobbLevel2Achieved = false;
@@ -1677,7 +1698,28 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Control de Cierre de Posición y Estadísticas Diarias
         protected override void OnPositionUpdate(Position position, double averagePrice, int quantity, MarketPosition marketPosition)
         {
-            if (marketPosition == MarketPosition.Flat && SystemPerformance.AllTrades.Count > lastReportedTradeCount)
+            if (marketPosition == MarketPosition.Flat)
+            {
+                // Sincronización inmediata de contratos cerrados, strikes y cálculo de pisos
+                SyncTradesAndStrikes();
+                UpdateDailyPnLAndFloors();
+
+                // Si se cerró Cascada, se resetea su contador para permitir re-entradas si la tendencia persiste
+                if (currentAce == AceType.As4_Cascada50)
+                {
+                    barsCascadaShortCount = 0;
+                    barsCascadaLongCount = 0;
+                    Print(string.Format("{0} - [PAS - Cascada] Posición cerrada. Contador reseteado a 0; re-entrará si la tendencia acumula {1} barras más.",
+                        Time[0], CascadaMinBars));
+                }
+
+                ResetAllTradeCounters();
+            }
+        }
+
+        private void SyncTradesAndStrikes()
+        {
+            if (Position.MarketPosition == MarketPosition.Flat && SystemPerformance != null && SystemPerformance.AllTrades != null && SystemPerformance.AllTrades.Count > lastReportedTradeCount)
             {
                 int newTradesCount = SystemPerformance.AllTrades.Count - lastReportedTradeCount;
                 double sessionTradesProfit = 0.0;
@@ -1686,7 +1728,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     Trade trade = SystemPerformance.AllTrades[i];
                     double netProfit = trade.ProfitCurrency;
-                    dailyRealizedPnL += netProfit;
                     sessionTradesProfit += netProfit;
 
                     Print(string.Format("{0} - [PAS | CONTRATO CERRADO] Salida: {1} | PnL Contrato: {2:C2} | PnL Diario Acumulado: {3:C2}",
@@ -1710,84 +1751,92 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Time[0], sessionTradesProfit));
                 }
 
-                // Si se cerró Cascada, se resetea su contador para permitir re-entradas si la tendencia persiste
-                if (currentAce == AceType.As4_Cascada50)
+                if (consecutiveLosses >= MaxConsecutiveLosses)
                 {
-                    barsCascadaShortCount = 0;
-                    barsCascadaLongCount = 0;
-                    Print(string.Format("{0} - [PAS - Cascada] Posición cerrada. Contador reseteado a 0; re-entrará si la tendencia acumula {1} barras más.",
-                        Time[0], CascadaMinBars));
+                    isDailyLocked = true;
+                    dailyLockReason = string.Format("{0} STRIKES CONSECUTIVOS", MaxConsecutiveLosses);
+                    Print(string.Format("****************************************************************************************\n" +
+                                       "{0} - [REGLA DE 3 STRIKES] {1} pérdidas consecutivas registradas. PnL Diario: ${2:F2}.\n" +
+                                       "Operativa bloqueada por el resto de la sesión para proteger capital.\n" +
+                                       "****************************************************************************************",
+                        Time[0], MaxConsecutiveLosses, dailyRealizedPnL));
                 }
+            }
+        }
 
-                ResetAllTradeCounters();
+        private void UpdateDailyPnLAndFloors()
+        {
+            if (!UseDailyManagement) return;
 
-                // EVALUACIÓN DE ESCALONES DIARIOS Y TRAILING INFINITO AL CERRAR OPERACIONES
-                if (UseDailyManagement && !isDailyLocked)
+            // 1. Sincronización continua de PnL Realizado de la sesión actual directamente de la colección oficial
+            double sessionClosedPnL = 0.0;
+            if (SystemPerformance != null && SystemPerformance.AllTrades != null && SystemPerformance.AllTrades.Count > 0)
+            {
+                for (int i = 0; i < SystemPerformance.AllTrades.Count; i++)
                 {
-                    // 1. MODO DULCE (TRAILING DIARIO INFINITO): Si cerró >= $900+ USD ($90 MES) -> ¡Sigue operando y sube el piso!
-                    if (dailyRealizedPnL >= DailyGoal_Piso3)
+                    Trade t = SystemPerformance.AllTrades[i];
+                    if (t.Exit != null && t.Exit.Time.Date == Time[0].Date)
                     {
-                        currentDailyTier = 3;
-                        peakDailyClosedPnL = Math.Max(peakDailyClosedPnL, dailyRealizedPnL);
-                        double dynamicFloor = peakDailyClosedPnL - DailyTrailingGiveback;
-                        if (dynamicFloor > currentDailyFloor)
-                        {
-                            currentDailyFloor = dynamicFloor;
-                        }
+                        sessionClosedPnL += t.ProfitCurrency;
+                    }
+                }
+                dailyRealizedPnL = sessionClosedPnL;
+            }
 
+            // 2. Trailing y Escalones de Piso Protegido (Ratcheting Up: solo sube, NUNCA baja)
+            if (!isDailyLocked)
+            {
+                // Escalón 3 / Modo Dulce: >= $900 USD ($90 MES) -> ¡Sigue operando y sube el piso con Trailing!
+                if (dailyRealizedPnL >= DailyGoal_Piso3)
+                {
+                    currentDailyTier = 3;
+                    peakDailyClosedPnL = Math.Max(peakDailyClosedPnL, dailyRealizedPnL);
+                    double dynamicFloor = peakDailyClosedPnL - DailyTrailingGiveback;
+                    if (dynamicFloor > currentDailyFloor)
+                    {
+                        currentDailyFloor = dynamicFloor;
                         Print(string.Format("****************************************************************************************\n" +
                                            "{0} - [¡MODO DULCE ACTIVO! TRAILING DIARIO INFINITO] PnL Diario Realizado: ${1:F2} (Pico: ${2:F2}).\n" +
-                                           "¡SEGUIMOS OPERANDO SIN TECHO ARTIFICIAL! Nuevo Piso Protegido clavado en: +${3:F2} USD (Colchón Giveback: -${4:F2}).\n" +
+                                           "¡SEGUIMOS OPERANDO SIN TECHO ARTIFICIAL! Nuevo Piso Protegido clavado en: +${3:F2} USD (Giveback: -${4:F2}).\n" +
                                            "****************************************************************************************",
                             Time[0], dailyRealizedPnL, peakDailyClosedPnL, currentDailyFloor, DailyTrailingGiveback));
                     }
-                    // 2. ESCALÓN 2: Si cerró entre $600 y $899 -> Piso protegido en +$500 USD (+ $50 MES)
-                    else if (dailyRealizedPnL >= DailyGoal_Piso2)
+                }
+                // Escalón 2: >= $600 USD ($60 MES) -> Piso Protegido de +$500 USD (+ $50 MES)
+                else if (dailyRealizedPnL >= DailyGoal_Piso2)
+                {
+                    if (currentDailyFloor < DailyFloor_Piso2)
                     {
-                        if (currentDailyTier < 2)
-                        {
-                            currentDailyTier = 2;
-                            currentDailyFloor = DailyFloor_Piso2;
-                            Print(string.Format("========================================================================================\n" +
-                                               "{0} - [ESCUDO DIARIO | ESCALÓN 2 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta 2: ${2:F2}).\n" +
-                                               "Nuevo Piso Protegido clavado en +${3:F2} USD. ¡Pase lo que pase, hoy salimos ganando en grande!\n" +
-                                               "========================================================================================",
-                                Time[0], dailyRealizedPnL, DailyGoal_Piso2, currentDailyFloor));
-                        }
+                        currentDailyTier = 2;
+                        currentDailyFloor = DailyFloor_Piso2;
+                        Print(string.Format("========================================================================================\n" +
+                                           "{0} - [ESCUDO DIARIO | ESCALÓN 2 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta 2: ${2:F2}).\n" +
+                                           "Nuevo Piso Protegido CLAVADO en +${3:F2} USD. ¡Pase lo que pase, los $500 están garantizados!\n" +
+                                           "========================================================================================",
+                            Time[0], dailyRealizedPnL, DailyGoal_Piso2, currentDailyFloor));
                     }
-                    // 3. ESCALÓN 1: Si cerró entre $400 y $599 -> Piso protegido en +$250 USD (+ $25 MES)
-                    else if (dailyRealizedPnL >= DailyGoal_Piso1)
+                }
+                // Escalón 1: >= $400 USD ($40 MES) -> Piso Protegido de +$250 USD (+ $25 MES)
+                else if (dailyRealizedPnL >= DailyGoal_Piso1)
+                {
+                    if (currentDailyFloor < DailyFloor_Piso1)
                     {
-                        if (currentDailyTier < 1)
-                        {
-                            currentDailyTier = 1;
-                            currentDailyFloor = DailyFloor_Piso1;
-                            Print(string.Format("========================================================================================\n" +
-                                               "{0} - [ESCUDO DIARIO | ESCALÓN 1 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta Base: ${2:F2}).\n" +
-                                               "Nuevo Piso Protegido clavado en +${3:F2} USD. Jugamos con la plata de la casa buscando el Escalón 2.\n" +
-                                               "========================================================================================",
-                                Time[0], dailyRealizedPnL, DailyGoal_Piso1, currentDailyFloor));
-                        }
+                        currentDailyTier = 1;
+                        currentDailyFloor = DailyFloor_Piso1;
+                        Print(string.Format("========================================================================================\n" +
+                                           "{0} - [ESCUDO DIARIO | ESCALÓN 1 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta Base: ${2:F2}).\n" +
+                                           "Nuevo Piso Protegido CLAVADO en +${3:F2} USD. Jugamos con la plata de la casa buscando el Escalón 2.\n" +
+                                           "========================================================================================",
+                            Time[0], dailyRealizedPnL, DailyGoal_Piso1, currentDailyFloor));
                     }
-                    // 4. Si el trade cerrado cayó por debajo del piso protegido
-                    else if (dailyRealizedPnL <= currentDailyFloor)
-                    {
-                        isDailyLocked = true;
-                        dailyLockReason = string.Format("PISO DE PROTECCIÓN (${0:F2}) ALCANZADO", currentDailyFloor);
-                        Print(string.Format("{0} - [ESCUDO DIARIO | CIERRE POR PISO] PnL Diario Realizado cayó a ${1:F2} (Piso protegido: ${2:F2}). Operativa bloqueada por el resto del día.",
-                            Time[0], dailyRealizedPnL, currentDailyFloor));
-                    }
-                    // 5. Regla de 3 Strikes consecutivos
-                    else if (consecutiveLosses >= MaxConsecutiveLosses)
-                    {
-                        isDailyLocked = true;
-                        dailyLockReason = string.Format("{0} STRIKES CONSECUTIVOS", MaxConsecutiveLosses);
-                        Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [REGLA DE 3 STRIKES] {1} pérdidas consecutivas registradas. PnL Diario: ${2:F2}.\n" +
-                                           "Operativa bloqueada por el resto de la sesión para proteger capital.\n" +
-                                           "****************************************************************************************",
-                            Time[0], MaxConsecutiveLosses, dailyRealizedPnL));
-                    }
+                }
+                // Si el PnL cerrado cayó por debajo del piso protegido ya establecido
+                else if (currentDailyFloor > -DailyLossLimit && dailyRealizedPnL <= currentDailyFloor)
+                {
+                    isDailyLocked = true;
+                    dailyLockReason = string.Format("PISO DE PROTECCIÓN (${0:F2}) ALCANZADO", currentDailyFloor);
+                    Print(string.Format("{0} - [ESCUDO DIARIO | CIERRE POR PISO] PnL Diario Realizado cayó a ${1:F2} (Piso protegido: ${2:F2}). Operativa bloqueada por el resto del día.",
+                        Time[0], dailyRealizedPnL, currentDailyFloor));
                 }
             }
         }
