@@ -161,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "3.2 - Poker de Ases (PAS) [Regla de Oro Escalón 1: 1 Contrato con Stop Holgado & Z1-100B Estructural]";
+                Version                                     = "3.3 - Poker de Ases (PAS) [SOBB Escalas Totales $180-$220-$280 & Regla Oro Escalón 1]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -1296,9 +1296,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (Position.MarketPosition == MarketPosition.Long)
             {
                 double currentGainTicks = (High[0] - entryPrice) / TickSize;
-                double currentGainDollars = currentGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                double currentGainDollars = currentGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
                 double peakGainTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
-                double peakGainDollars = peakGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                double peakGainDollars = peakGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
 
                 // --- AS 2: SOBB (SURFER OUT BIG BANDA - SL ESCALONADO 3 TIERS & PISOS $180, $220, $280) ---
                 if (currentAce == AceType.As2_SOBB)
@@ -1589,9 +1589,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             else if (Position.MarketPosition == MarketPosition.Short)
             {
                 double currentGainTicks = (entryPrice - Low[0]) / TickSize;
-                double currentGainDollars = currentGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                double currentGainDollars = currentGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
                 double peakGainTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
-                double peakGainDollars = peakGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                double peakGainDollars = peakGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
 
                 // --- AS 2: SOBB (SURFER OUT BIG BANDA - SL ESCALONADO 3 TIERS & PISOS $180, $220, $280) ---
                 if (currentAce == AceType.As2_SOBB)
