@@ -67,14 +67,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
         private AceType currentAce = AceType.None;
 
-        // === VARIABLES DEL AS 1: ZONA 1 (100 BARRAS) ===
+        // === VARIABLES DEL AS 1: ZONA 1 (100 BARRAS ESTRUCTURAL EMA EXTERNA) ===
         private int lastTemaSide = 0;              // 1 = Arriba de EMA200, -1 = Debajo de EMA200
         private bool crossUpConsumed = false;
         private bool crossDownConsumed = false;
-        private int barsBelowEmaWithoutCross = 0;  // Acumulación continua para Long
-        private int barsAboveEmaWithoutCross = 0;  // Acumulación continua para Short
-        private int priorBarsBelowEma = 0;         // Barras acumuladas antes del cruce alcista (Fiel a SniperSurfer)
-        private int priorBarsAboveEma = 0;         // Barras acumuladas antes del cruce bajista (Fiel a SniperSurfer)
+        private int barsBelowEmaWithoutCross = 0;  // Acumulación continua con EMA200 sobre Upper 1.75
+        private int barsAboveEmaWithoutCross = 0;  // Acumulación continua con EMA200 bajo Lower 1.75
+        private int priorBarsBelowEma = 0;         // Barras acumuladas antes del cruce alcista
+        private int priorBarsAboveEma = 0;         // Barras acumuladas antes del cruce bajista
+        private bool z1LongArmed = false;          // Acumulación de 100 barras completada para Largo
+        private bool z1ShortArmed = false;         // Acumulación de 100 barras completada para Corto
 
         // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 FASES) ===
         private bool sobbArmedLong = false;        // Fase 1: TEMA 9 cruzó Upper 3.5 (Espera activa a que la vela salga)
@@ -159,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "3.0 - Poker de Ases (PAS) [Filtro Zonas 0/1 Cascada, Desescalado Dinámico & Victoria 1:00 PM]";
+                Version                                     = "3.1 - Poker de Ases (PAS) [Z1-100B Estructural EMA Externa, Desescalado Dinámico & Blindaje Total]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -307,6 +309,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 barsAboveEmaWithoutCross = 0;
                 priorBarsBelowEma = 0;
                 priorBarsAboveEma = 0;
+                z1LongArmed = false;
+                z1ShortArmed = false;
                 crossUpConsumed = false;
                 crossDownConsumed = false;
                 lastTemaSide = 0;
@@ -493,67 +497,93 @@ namespace NinjaTrader.NinjaScript.Strategies
                 lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
             }
 
-            // === CONTADOR AS 1: ZONA 1 (Acumulación continua fiel a SniperSurfer) ===
-            // Guardamos cuántas barras acumuladas traíamos ANTES de evaluar la barra actual
+            // === CONTADOR AS 1: ZONA 1 (Acumulación con EMA 200 FUERA del Canal Central) ===
+            // Condición Estricta:
+            // 1. Para LARGOS: La EMA 200 debe estar por FUERA del canal arriba (EMA200 >= Upper 1.75) y TEMA 9 abajo.
+            // 2. Para CORTOS: La EMA 200 debe estar por FUERA del canal abajo (EMA200 <= Lower 1.75) y TEMA 9 arriba.
+            // Si la EMA 200 está dentro del canal (entre Lower 1.75 y Upper 1.75), NO cuenta barras para Z1-100B.
+
             priorBarsBelowEma = barsBelowEmaWithoutCross;
             priorBarsAboveEma = barsAboveEmaWithoutCross;
 
             double currentUpTicks   = (tema9[0] - ema200[0]) / TickSize;
             double currentDownTicks = (ema200[0] - tema9[0]) / TickSize;
 
-            // --- Monitoreo de Acumulación para Largos (Bajo EMA 200) ---
-            if (currentUpTicks < MinCrossTicks)
+            double upperSmall = keltnerSmall.Upper[0];
+            double lowerSmall = keltnerSmall.Lower[0];
+            double midline    = keltnerBig.Midline[0];
+
+            // --- Monitoreo de Acumulación para Largos: EMA 200 afuera por ARRIBA (>= Upper 1.75) y TEMA abajo ---
+            bool emaFueraArriba = ema200[0] >= upperSmall;
+            bool temaBajoEma    = currentUpTicks < MinCrossTicks;
+
+            if (emaFueraArriba && temaBajoEma)
             {
                 barsBelowEmaWithoutCross++;
+                if (barsBelowEmaWithoutCross >= MinBarsZona1)
+                {
+                    z1LongArmed = true;
+                }
                 if (timeNow >= StartTime && timeNow <= ForceCloseTime)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO] Z1_100B_Barra {1}/{2} | TEMA9 ({3:F2}) bajo EMA200 ({4:F2}) | Close: {5:F2}",
-                        Time[0], barsBelowEmaWithoutCross, MinBarsZona1, tema9[0], ema200[0], Close[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO] Z1_100B_Barra {1}/{2} | EMA200 ({3:F2}) >= UpperSmall ({4:F2}) | TEMA9: {5:F2} | Armed: {6}",
+                        Time[0], barsBelowEmaWithoutCross, MinBarsZona1, ema200[0], upperSmall, tema9[0], z1LongArmed));
                 }
             }
-            else if (Close[0] > ema200[0])
+            else if (Close[0] > ema200[0] || (z1LongArmed && ema200[0] < midline))
             {
                 if (barsBelowEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO RESET] Acumulación bajo EMA reseteada tras {1} barras. Close ({2:F2}) > EMA200 ({3:F2}). Z1_100B_Barra 0.",
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO RESET] Acumulación bajo EMA reseteada tras {1} barras. Close ({2:F2}) > EMA200 ({3:F2}) o EMA cruzó Línea Media.",
                         Time[0], barsBelowEmaWithoutCross, Close[0], ema200[0]));
                 }
                 barsBelowEmaWithoutCross = 0;
+                z1LongArmed = false;
             }
-            else
+            else if (!emaFueraArriba && !z1LongArmed)
             {
-                if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                // Si la EMA 200 está dentro del canal y aún no se alcanzaron las 100 barras, no cuenta
+                if (barsBelowEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO PAUSA] currentUpTicks ({1:F2}tk) >= MinCross ({2}tk) pero Close ({3:F2}) <= EMA ({4:F2}). Contador en {5}/{6}.",
-                        Time[0], currentUpTicks, MinCrossTicks, Close[0], ema200[0], barsBelowEmaWithoutCross, MinBarsZona1));
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO PAUSA] EMA200 ({1:F2}) dentro del canal (< UpperSmall {2:F2}). Conteo no acumula ({3}/{4}).",
+                        Time[0], ema200[0], upperSmall, barsBelowEmaWithoutCross, MinBarsZona1));
                 }
             }
 
-            // --- Monitoreo de Acumulación para Cortos (Sobre EMA 200) ---
-            if (currentDownTicks < MinCrossTicks)
+            // --- Monitoreo de Acumulación para Cortos: EMA 200 afuera por ABAJO (<= Lower 1.75) y TEMA arriba ---
+            bool emaFueraAbajo = ema200[0] <= lowerSmall;
+            bool temaSobreEma  = currentDownTicks < MinCrossTicks;
+
+            if (emaFueraAbajo && temaSobreEma)
             {
                 barsAboveEmaWithoutCross++;
+                if (barsAboveEmaWithoutCross >= MinBarsZona1)
+                {
+                    z1ShortArmed = true;
+                }
                 if (timeNow >= StartTime && timeNow <= ForceCloseTime)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO] Z1_100B_Barra {1}/{2} | TEMA9 ({3:F2}) sobre EMA200 ({4:F2}) | Close: {5:F2}",
-                        Time[0], barsAboveEmaWithoutCross, MinBarsZona1, tema9[0], ema200[0], Close[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO] Z1_100B_Barra {1}/{2} | EMA200 ({3:F2}) <= LowerSmall ({4:F2}) | TEMA9: {5:F2} | Armed: {6}",
+                        Time[0], barsAboveEmaWithoutCross, MinBarsZona1, ema200[0], lowerSmall, tema9[0], z1ShortArmed));
                 }
             }
-            else if (Close[0] < ema200[0])
+            else if (Close[0] < ema200[0] || (z1ShortArmed && ema200[0] > midline))
             {
                 if (barsAboveEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO RESET] Acumulación sobre EMA reseteada tras {1} barras. Close ({2:F2}) < EMA200 ({3:F2}). Z1_100B_Barra 0.",
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO RESET] Acumulación sobre EMA reseteada tras {1} barras. Close ({2:F2}) < EMA200 ({3:F2}) o EMA cruzó Línea Media.",
                         Time[0], barsAboveEmaWithoutCross, Close[0], ema200[0]));
                 }
                 barsAboveEmaWithoutCross = 0;
+                z1ShortArmed = false;
             }
-            else
+            else if (!emaFueraAbajo && !z1ShortArmed)
             {
-                if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                // Si la EMA 200 está dentro del canal y aún no se alcanzaron las 100 barras, no cuenta
+                if (barsAboveEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO PAUSA] currentDownTicks ({1:F2}tk) >= MinCross ({2}tk) pero Close ({3:F2}) >= EMA ({4:F2}). Contador en {5}/{6}.",
-                        Time[0], currentDownTicks, MinCrossTicks, Close[0], ema200[0], barsAboveEmaWithoutCross, MinBarsZona1));
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO PAUSA] EMA200 ({1:F2}) dentro del canal (> LowerSmall {2:F2}). Conteo no acumula ({3}/{4}).",
+                        Time[0], ema200[0], lowerSmall, barsAboveEmaWithoutCross, MinBarsZona1));
                 }
             }
 
@@ -647,14 +677,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                     crossUpConsumed = true;
                     lastTemaSide = 1;
 
-                    // Filtro Anti-Zona 0: El cruce solo es válido si el precio permanece DENTRO de las bandas (Close <= Upper 3.5)
+                    // Filtro Anti-Zona 0: El cruce solo es válido si el precio permanece en Zona 1 (TEMA9 >= UpperSmall y Close <= UpperBig)
                     if (tema9[0] >= upperSmall && Close[0] <= upperBig)
                     {
-                        if (priorBarsBelowEma >= MinBarsZona1)
+                        if (z1LongArmed || priorBarsBelowEma >= MinBarsZona1)
                         {
                             ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
-                            Print(string.Format("{0} - [PAS - Z1-100Bar] ¡DISPARO LARGO! Ruptura ejecutada tras acumular {1} barras bajo EMA 200. Entrada @ ~{2:F2} | Contratos: {3}",
-                                Time[0], priorBarsBelowEma, Close[0], Contracts));
+                            Print(string.Format("{0} - [PAS - Z1-100Bar] ¡DISPARO LARGO! Ruptura en ZONA 1 ejecutada tras acumular {1} barras con EMA fuera del canal. Entrada @ ~{2:F2} | Contratos: {3}",
+                                Time[0], Math.Max(priorBarsBelowEma, barsBelowEmaWithoutCross), Close[0], Contracts));
+                            z1LongArmed = false;
+                            barsBelowEmaWithoutCross = 0;
                             return;
                         }
                         else
@@ -665,13 +697,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO ZONA 0] Cruce EMA200 detectado pero TEMA9 ({1:F2}) < UpperSmall ({2:F2}) o precio en Zona 0 (Close {3:F2} > UpperBig {4:F2}). Trade descartado.",
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO FUERA DE ZONA 1] Cruce EMA200 detectado pero TEMA9 ({1:F2}) < UpperSmall ({2:F2}) o precio en Zona 0 (Close {3:F2} > UpperBig {4:F2}). Trade descartado.",
                             Time[0], tema9[0], upperSmall, Close[0], upperBig));
                     }
                 }
             }
 
-            // CASO CORTO: Cruce bajista tras >= 100 barras sobre la EMA 200
+            // CASO CORTO: Cruce bajista tras >= 100 barras con EMA 200 fuera del canal abajo
             if (lastTemaSide == 1 && !crossDownConsumed && tema9[0] < ema200[0])
             {
                 double crossDistanceTicks = (ema200[0] - tema9[0]) / TickSize;
@@ -682,14 +714,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                     crossDownConsumed = true;
                     lastTemaSide = -1;
 
-                    // Filtro Anti-Zona 5: El cruce solo es válido si el precio permanece DENTRO de las bandas (Close >= Lower 3.5)
+                    // Filtro Anti-Zona 5: El cruce solo es válido si el precio permanece en Zona 4 (TEMA9 <= LowerSmall y Close >= LowerBig)
                     if (tema9[0] <= lowerSmall && Close[0] >= lowerBig)
                     {
-                        if (priorBarsAboveEma >= MinBarsZona1)
+                        if (z1ShortArmed || priorBarsAboveEma >= MinBarsZona1)
                         {
                             ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Short, "Z1-100Bar_Short");
-                            Print(string.Format("{0} - [PAS - Z1-100Bar] ¡DISPARO CORTO! Ruptura ejecutada tras acumular {1} barras sobre EMA 200. Entrada @ ~{2:F2} | Contratos: {3}",
-                                Time[0], priorBarsAboveEma, Close[0], Contracts));
+                            Print(string.Format("{0} - [PAS - Z1-100Bar] ¡DISPARO CORTO! Ruptura en ZONA 4 ejecutada tras acumular {1} barras con EMA fuera del canal. Entrada @ ~{2:F2} | Contratos: {3}",
+                                Time[0], Math.Max(priorBarsAboveEma, barsAboveEmaWithoutCross), Close[0], Contracts));
+                            z1ShortArmed = false;
+                            barsAboveEmaWithoutCross = 0;
                             return;
                         }
                         else
@@ -700,7 +734,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO ZONA 5] Cruce EMA200 detectado pero TEMA9 ({1:F2}) > LowerSmall ({2:F2}) o precio en Zona 5 (Close {3:F2} < LowerBig {4:F2}). Trade descartado.",
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO FUERA DE ZONA 4] Cruce EMA200 detectado pero TEMA9 ({1:F2}) > LowerSmall ({2:F2}) o precio en Zona 5 (Close {3:F2} < LowerBig {4:F2}). Trade descartado.",
                             Time[0], tema9[0], lowerSmall, Close[0], lowerBig));
                     }
                 }
@@ -1828,6 +1862,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ResetAllTradeCounters()
         {
             currentAce = AceType.None;
+            z1LongArmed = false;
+            z1ShortArmed = false;
             sobbArmedLong = false;
             sobbArmedShort = false;
             sobbLevel1Achieved = false;
