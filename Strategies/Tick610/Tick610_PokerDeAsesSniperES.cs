@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 2.3 - Poker de Ases (PAS) [Desescalado Dinámico de Contratos & Blindaje Inviolable de Pisos]
+// VERSIÓN: 2.4 - Poker de Ases (PAS) [Victoria Temprana a la 1:00 PM en Escalón 1 & Desescalado Dinámico]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0 y SL tope.
@@ -35,13 +35,15 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
 //   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): SL por 6 Zonas Keltner, Targets Límite pasivos (C1 +8, C2 +16) y C3 Runner.
 //
-// GESTIÓN DE RIESGO INTELIGENTE (DESESCALADO DINÁMICO DE CONTRATOS):
-//   - Si el PnL está cerca del piso protegido, la estrategia reduce automáticamente el tamaño de posición (de 3 a 2 o 1 contrato)
-//     para garantizar un Stop Loss saludable de al menos 8 ticks sin romper el piso garantizado ($500 USD).
+// GESTIÓN DE RIESGO INTELIGENTE (DESESCALADO DINÁMICO & CORTE HORARIO A LA 1:00 PM):
+//   - Desescalado Dinámico: Si el PnL está cerca del piso protegido, reduce la posición (a 2 o 1 contrato) para garantizar
+//     un Stop Loss saludable de al menos 8 ticks sin romper el piso garantizado ($500 USD).
+//   - Victoria Temprana a la 1:00 PM: Si a las 01:00 PM EST estamos en Escalón 1 ($400 - $599 USD), apaga nuevas entradas y
+//     asegura la ganancia del día para evitar amagues de bajo volumen en la sesión de la tarde.
 //
-// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v2.3):
+// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v2.4):
 //   - Cortacircuito Inicial: -$800 USD (ES) / -$80 USD (MES) -> Respaldo para 2.5 a 3 trades de 3 contratos.
-//   - Escalón 1 (+$400): Piso protegido en +$250 USD.
+//   - Escalón 1 (+$400): Piso protegido en +$250 USD (Corte automático a la 1:00 PM para asegurar victoria).
 //   - Escalón 2 (+$600): Piso protegido CLAVADO en +$500 USD (inviolable, comprobación continua en cada barra).
 //   - Modo Dulce (+$900+): Trailing Infinito (Piso = Récord Ganado - Colchón $150). ¡No te para de ganar!
 //   - Botón de Pánico WPF en Gráfica y Atajo de Teclado (Ctrl + Espacio).
@@ -135,7 +137,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.3 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Desescalado Dinámico de Contratos por Margen del Piso y Evaluación Continua de Pisos Diarios Blindados.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.4 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Desescalado Dinámico de Contratos, Evaluación Continua de Pisos Diarios y Victoria Temprana a la 1:00 PM en Escalón 1.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -156,7 +158,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "2.3 - Poker de Ases (PAS) [Desescalado Dinámico de Contratos & Blindaje Inviolable de Pisos]";
+                Version                                     = "2.4 - Poker de Ases (PAS) [Victoria Temprana a la 1:00 PM en Escalón 1 & Desescalado Dinámico]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -212,6 +214,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 DailyGoal_Piso3                             = 900.0;  // Umbral Modo Dulce: +$900 ES / +$90 MES (Activa Trailing Infinito)
                 DailyTrailingGiveback                       = 150.0;  // Colchón de retroceso permitido del pico ganado ($150 ES / $15 MES)
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
+                UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a la 1:00 PM EST
+                Tier1CutoffTime                             = 130000; // 01:00 PM EST (Hora de corte para Escalón 1)
             }
             else if (State == State.DataLoaded)
             {
@@ -318,6 +322,27 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 ResetAllTradeCounters();
                 return;
+            }
+
+            // 3.1 CORTACIRCUITO DE VICTORIA TEMPRANA A LA 1:00 PM (ESCALÓN 1)
+            if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && timeNow >= Tier1CutoffTime)
+            {
+                // Si estamos en Escalón 1 ($400 - $599 USD / $40 - $59 MES)
+                if (currentDailyTier == 1)
+                {
+                    if (Position.MarketPosition == MarketPosition.Flat)
+                    {
+                        isDailyLocked = true;
+                        dailyLockReason = string.Format("VICTORIA TEMPRANA ESCALÓN 1 ASEGURADA A LA 1:00 PM (${0:F2})", dailyRealizedPnL);
+                        Print(string.Format("****************************************************************************************\n" +
+                                           "{0} - [ESCUDO DIARIO | VICTORIA TEMPRANA A LA 1:00 PM] Hora actual ({1}) alcanzó las 01:00 PM EST.\n" +
+                                           "PnL Diario Realizado: ${2:F2} USD en Escalón 1. ¡APAGANDO OPERATIVA Y ASEGURANDO GANANCIA!\n" +
+                                           "Se evitan amagues de bajo volumen en la tarde. ¡Día completado en victoria!\n" +
+                                           "****************************************************************************************",
+                            Time[0], timeNow, dailyRealizedPnL));
+                        return;
+                    }
+                }
             }
 
             // 4. ACTUALIZACIÓN DE MFE / MAE CONTINUO
@@ -1768,6 +1793,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SyncTradesAndStrikes();
                 UpdateDailyPnLAndFloors();
 
+                // Verificación de Victoria Temprana a la 1:00 PM si el trade que acaba de cerrar ocurrió después de la 1:00 PM
+                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier == 1)
+                {
+                    int timeNow = ToTime(Time[0]);
+                    if (timeNow >= Tier1CutoffTime)
+                    {
+                        isDailyLocked = true;
+                        dailyLockReason = string.Format("VICTORIA TEMPRANA ESCALÓN 1 ASEGURADA A LA 1:00 PM (${0:F2})", dailyRealizedPnL);
+                        Print(string.Format("****************************************************************************************\n" +
+                                           "{0} - [ESCUDO DIARIO | VICTORIA TEMPRANA A LA 1:00 PM TRAS CIERRE] Trade cerrado después de las 01:00 PM EST ({1}).\n" +
+                                           "PnL Diario Realizado: ${2:F2} USD en Escalón 1. ¡APAGANDO OPERATIVA Y ASEGURANDO GANANCIA!\n" +
+                                           "****************************************************************************************",
+                            Time[0], timeNow, dailyRealizedPnL));
+                    }
+                }
+
                 // Si se cerró Cascada, se resetea su contador para permitir re-entradas si la tendencia persiste
                 if (currentAce == AceType.As4_Cascada50)
                 {
@@ -2057,6 +2098,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, 10)]
         [Display(Name = "Máximo Strikes Seguidos", Description = "Número de pérdidas seguidas para apagar por el día", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 9)]
         public int MaxConsecutiveLosses { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Activar Victoria Temprana Escalón 1", Description = "Si a la 1:00 PM EST estamos en Escalón 1 ($400-$599), apaga nuevas entradas y asegura la ganancia", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 10)]
+        public bool UseTier1LunchCutoff { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(100000, 160000)]
+        [Display(Name = "Hora Límite Escalón 1 (HHmmss)", Description = "Hora límite para apagar en Escalón 1 (130000 = 01:00 PM EST)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 11)]
+        public int Tier1CutoffTime { get; set; }
 
         [NinjaScriptProperty]
         [Range(10.0, 1000.0)]
