@@ -301,6 +301,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 currentDailyTier = 0;
                 peakDailyClosedPnL = 0.0;
                 lastReportedTradeCount = (SystemPerformance != null && SystemPerformance.AllTrades != null) ? SystemPerformance.AllTrades.Count : 0;
+                
+                // Reseteo estricto de memoria acumulativa para evitar arrastres de días previos o pre-mercado
+                barsBelowEmaWithoutCross = 0;
+                barsAboveEmaWithoutCross = 0;
+                priorBarsBelowEma = 0;
+                priorBarsAboveEma = 0;
+                crossUpConsumed = false;
+                crossDownConsumed = false;
+                lastTemaSide = 0;
+                barsCascadaLongCount = 0;
+                barsCascadaShortCount = 0;
+
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
             }
