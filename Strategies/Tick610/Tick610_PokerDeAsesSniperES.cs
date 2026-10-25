@@ -485,6 +485,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Actualización de Contadores de Mercado
         private void UpdateMarketCounters()
         {
+            int timeNow = ToTime(Time[0]);
+
             // Inicialización de seguridad para lastTemaSide en la primera barra válida
             if (lastTemaSide == 0)
             {
@@ -499,18 +501,63 @@ namespace NinjaTrader.NinjaScript.Strategies
             double currentUpTicks   = (tema9[0] - ema200[0]) / TickSize;
             double currentDownTicks = (ema200[0] - tema9[0]) / TickSize;
 
+            // --- Monitoreo de Acumulación para Largos (Bajo EMA 200) ---
             if (currentUpTicks < MinCrossTicks)
+            {
                 barsBelowEmaWithoutCross++;
+                if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                {
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO] Z1_100B_Barra {1}/{2} | TEMA9 ({3:F2}) bajo EMA200 ({4:F2}) | Close: {5:F2}",
+                        Time[0], barsBelowEmaWithoutCross, MinBarsZona1, tema9[0], ema200[0], Close[0]));
+                }
+            }
             else if (Close[0] > ema200[0])
+            {
+                if (barsBelowEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
+                {
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO RESET] Acumulación bajo EMA reseteada tras {1} barras. Close ({2:F2}) > EMA200 ({3:F2}). Z1_100B_Barra 0.",
+                        Time[0], barsBelowEmaWithoutCross, Close[0], ema200[0]));
+                }
                 barsBelowEmaWithoutCross = 0;
+            }
+            else
+            {
+                if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                {
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO PAUSA] currentUpTicks ({1:F2}tk) >= MinCross ({2}tk) pero Close ({3:F2}) <= EMA ({4:F2}). Contador en {5}/{6}.",
+                        Time[0], currentUpTicks, MinCrossTicks, Close[0], ema200[0], barsBelowEmaWithoutCross, MinBarsZona1));
+                }
+            }
 
+            // --- Monitoreo de Acumulación para Cortos (Sobre EMA 200) ---
             if (currentDownTicks < MinCrossTicks)
+            {
                 barsAboveEmaWithoutCross++;
+                if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                {
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO] Z1_100B_Barra {1}/{2} | TEMA9 ({3:F2}) sobre EMA200 ({4:F2}) | Close: {5:F2}",
+                        Time[0], barsAboveEmaWithoutCross, MinBarsZona1, tema9[0], ema200[0], Close[0]));
+                }
+            }
             else if (Close[0] < ema200[0])
+            {
+                if (barsAboveEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
+                {
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO RESET] Acumulación sobre EMA reseteada tras {1} barras. Close ({2:F2}) < EMA200 ({3:F2}). Z1_100B_Barra 0.",
+                        Time[0], barsAboveEmaWithoutCross, Close[0], ema200[0]));
+                }
                 barsAboveEmaWithoutCross = 0;
+            }
+            else
+            {
+                if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                {
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO PAUSA] currentDownTicks ({1:F2}tk) >= MinCross ({2}tk) pero Close ({3:F2}) >= EMA ({4:F2}). Contador en {5}/{6}.",
+                        Time[0], currentDownTicks, MinCrossTicks, Close[0], ema200[0], barsAboveEmaWithoutCross, MinBarsZona1));
+                }
+            }
 
             // Rastrear estado de cruces de TEMA respecto a EMA200 (Fiel a SniperSurfer)
-            int timeNow = ToTime(Time[0]);
             if (timeNow < StartTime)
             {
                 if (tema9[0] > ema200[0]) lastTemaSide = 1;
