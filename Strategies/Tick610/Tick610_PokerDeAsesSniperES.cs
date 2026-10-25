@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 2.4 - Poker de Ases (PAS) [Victoria Temprana a la 1:00 PM en Escalón 1 & Desescalado Dinámico]
+// VERSIÓN: 3.0 - Poker de Ases (PAS) [Filtro Zonas 0/1 en Cascada, Desescalado Dinámico & Victoria 1:00 PM]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con filtro anti-Zona 0 y SL tope.
@@ -33,7 +33,8 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   2. As 2: [SOBB]      - SurferOutBigBanda: Cruce TEMA 9 + Disparo en Primera Vela Fuera (One-Shot Estricto)
 //                          con SL Escalonado Estructural (C1 Pequeña, C2 Midline, C3 Pequeña Opuesta).
 //   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
-//   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): SL por 6 Zonas Keltner, Targets Límite pasivos (C1 +8, C2 +16) y C3 Runner.
+//   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): FILTRO ESTRUCTURAL ESTRICTO DE ZONAS 0/1 (Largos)
+//                          y ZONAS 4/5 (Cortos). Prohibido comprar en Zona 2 (agotamiento de tendencia).
 //
 // GESTIÓN DE RIESGO INTELIGENTE (DESESCALADO DINÁMICO & CORTE HORARIO A LA 1:00 PM):
 //   - Desescalado Dinámico: Si el PnL está cerca del piso protegido, reduce la posición (a 2 o 1 contrato) para garantizar
@@ -41,7 +42,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   - Victoria Temprana a la 1:00 PM: Si a las 01:00 PM EST estamos en Escalón 1 ($400 - $599 USD), apaga nuevas entradas y
 //     asegura la ganancia del día para evitar amagues de bajo volumen en la sesión de la tarde.
 //
-// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v2.4):
+// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 3 VIDAS - TRAILING INFINITO - BLINDAJE v3.0):
 //   - Cortacircuito Inicial: -$800 USD (ES) / -$80 USD (MES) -> Respaldo para 2.5 a 3 trades de 3 contratos.
 //   - Escalón 1 (+$400): Piso protegido en +$250 USD (Corte automático a la 1:00 PM para asegurar victoria).
 //   - Escalón 2 (+$600): Piso protegido CLAVADO en +$500 USD (inviolable, comprobación continua en cada barra).
@@ -137,7 +138,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v2.4 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 con Targets Límite, Desescalado Dinámico de Contratos, Evaluación Continua de Pisos Diarios y Victoria Temprana a la 1:00 PM en Escalón 1.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v3.0 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Primera Vela One-Shot & SL Escalonado Canales), Ratchet, Cascada 25 (Filtro Estructural Zonas 0/1 y 4/5), Desescalado Dinámico de Contratos, Evaluación Continua de Pisos Diarios y Victoria Temprana a la 1:00 PM.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -158,7 +159,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "2.4 - Poker de Ases (PAS) [Victoria Temprana a la 1:00 PM en Escalón 1 & Desescalado Dinámico]";
+                Version                                     = "3.0 - Poker de Ases (PAS) [Filtro Zonas 0/1 Cascada, Desescalado Dinámico & Victoria 1:00 PM]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -889,39 +890,45 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
-        // AS 4: CASCADA 50 BARRAS (EL TREN BALA DESBOCADO)
+        // AS 4: CASCADA 25 BARRAS (EL TREN BALA DESBOCADO - FILTRO ZONAS EXPANSIVAS 0/1 Y 4/5)
         // =========================================================================
         private void EvaluateAs4_Cascada50()
         {
-            double midline = keltnerBig.Midline[0];
-            double minSlope = CascadaMinSlopeTicks * TickSize;
+            double midline    = keltnerBig.Midline[0];
+            double upperSmall = keltnerSmall.Upper[0];
+            double lowerSmall = keltnerSmall.Lower[0];
+            double minSlope   = CascadaMinSlopeTicks * TickSize;
 
-            // DISPARO CORTO: EMA 200 > Upper 3.5 + 4 ticks por >= 50 barras, precio bajo Midline y pendiente bajista
+            // DISPARO CORTO: EMA 200 > Upper 3.5 + 4 ticks por >= 25 barras.
+            // FILTRO ESTRUCTURAL: El precio DEBE estar en Zona 5 o Zona 4 (Close <= Lower 1.75).
+            // Si el precio subió a Zona 3 o superior, el tren perdió velocidad y NO se opera.
             if (barsCascadaShortCount >= CascadaMinBars)
             {
-                bool precioBajoMedia = Close[0] < midline;
-                bool pendienteBajista = (ema200[5] - ema200[0]) >= minSlope;
+                bool precioEnZonaExpansion = Close[0] <= lowerSmall;
+                bool pendienteBajista      = (ema200[5] - ema200[0]) >= minSlope;
 
-                if (precioBajoMedia && pendienteBajista)
+                if (precioEnZonaExpansion && pendienteBajista)
                 {
                     ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                    Print(string.Format("{0} - [PAS - Cascada50] ¡DISPARO CORTO! Tren bala desbocado ({1} barras con EMA > Upper 3.5). Entrada @ ~{2:F2} | SL ceñido en Midline +2tk: {3:F2}",
-                        Time[0], barsCascadaShortCount, Close[0], midline + (2 * TickSize)));
+                    Print(string.Format("{0} - [PAS - Cascada50] ¡DISPARO CORTO CONFIRMADO! Tren bala en ZONA 5/4 (Close {1:F2} <= Lower 1.75 {2:F2}) con EMA > Upper 3.5 por {3} barras | Entrada @ ~{4:F2}",
+                        Time[0], Close[0], lowerSmall, barsCascadaShortCount, Close[0]));
                     return;
                 }
             }
 
-            // DISPARO LARGO: EMA 200 < Lower 3.5 - 4 ticks por >= 50 barras, precio sobre Midline y pendiente alcista
+            // DISPARO LARGO: EMA 200 < Lower 3.5 - 4 ticks por >= 25 barras.
+            // FILTRO ESTRUCTURAL: El precio DEBE estar en Zona 0 o Zona 1 (Close >= Upper 1.75).
+            // Si el precio cayó a Zona 2 o inferior, el tren perdió velocidad y NO se opera.
             if (barsCascadaLongCount >= CascadaMinBars)
             {
-                bool precioSobreMedia = Close[0] > midline;
-                bool pendienteAlcista = (ema200[0] - ema200[5]) >= minSlope;
+                bool precioEnZonaExpansion = Close[0] >= upperSmall;
+                bool pendienteAlcista      = (ema200[0] - ema200[5]) >= minSlope;
 
-                if (precioSobreMedia && pendienteAlcista)
+                if (precioEnZonaExpansion && pendienteAlcista)
                 {
                     ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                    Print(string.Format("{0} - [PAS - Cascada50] ¡DISPARO LARGO! Tren bala desbocado ({1} barras con EMA < Lower 3.5). Entrada @ ~{2:F2} | SL ceñido en Midline -2tk: {3:F2}",
-                        Time[0], barsCascadaLongCount, Close[0], midline - (2 * TickSize)));
+                    Print(string.Format("{0} - [PAS - Cascada50] ¡DISPARO LARGO CONFIRMADO! Tren bala en ZONA 0/1 (Close {1:F2} >= Upper 1.75 {2:F2}) con EMA < Lower 3.5 por {3} barras | Entrada @ ~{4:F2}",
+                        Time[0], Close[0], upperSmall, barsCascadaLongCount, Close[0]));
                     return;
                 }
             }
