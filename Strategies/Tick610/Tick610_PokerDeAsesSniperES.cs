@@ -73,6 +73,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool crossDownConsumed = false;
         private int barsBelowEmaWithoutCross = 0;  // Acumulación continua con EMA200 sobre Upper 1.75
         private int barsAboveEmaWithoutCross = 0;  // Acumulación continua con EMA200 bajo Lower 1.75
+        private int barsEmaInsideChannelLong = 0;  // Barras transcurridas de EMA200 dentro del canal tras armarse Largo (TTL máx 25)
+        private int barsEmaInsideChannelShort = 0; // Barras transcurridas de EMA200 dentro del canal tras armarse Corto (TTL máx 25)
         private int priorBarsBelowEma = 0;         // Barras acumuladas antes del cruce alcista
         private int priorBarsAboveEma = 0;         // Barras acumuladas antes del cruce bajista
         private bool z1LongArmed = false;          // Acumulación de 100 barras completada para Largo
@@ -142,7 +144,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v3.6 en 610 Ticks para ES/MES. Combina Z1-100Bar (Filtro Zona 0), SOBB (Filtro 2 Capas, Fin de la Asimetría con Riesgo Controlado -$450 y Salidas con Oxígeno), Ratchet, Cascada 25 (Filtro Estructural Zonas 0/1 y 4/5), Desescalado Dinámico de Contratos, Evaluación Continua de Pisos Diarios y Victoria Temprana a la 1:00 PM.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v3.7 en 610 Ticks para ES/MES. Combina Z1-100Bar (Caducidad 25 Barras en Canal & Filtro Zona 0), SOBB (Filtro 2 Capas, Fin de la Asimetría con Riesgo Controlado -$450 y Salidas con Oxígeno), Ratchet, Cascada 25, Desescalado Dinámico de Contratos, Evaluación Continua de Pisos Diarios y Victoria Temprana a la 1:00 PM.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -163,7 +165,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "3.6 - Poker de Ases (PAS) [Fin de la Asimetría SOBB: Riesgo Controlado -$450 & Salidas con Oxígeno]";
+                Version                                     = "3.7 - Poker de Ases (PAS) [Z1-100B Caducidad 25 Barras en Canal & Fin Asimetría SOBB]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -183,6 +185,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Parámetros del As 1: Z1-100Bar
                 MinCrossTicks                               = 2.3;    // Penetración mínima de cruce real
                 MinBarsZona1                                = 100;    // 100 barras obligatorias de compresión previa
+                Z1MaxBarsInsideChannel                      = 25;     // Ventana máxima permitida dentro del canal (25 barras) antes de caducar
                 Zone1FixedTpTicks                           = 12;     // Target Fijo de Francotirador (12 ticks = $150 ES / $15 MES)
                 SlOffsetTicks                               = 2;      // Offset de respiro en ticks para el Stop Loss
                 MinSafetySlTicks                            = 8;      // Colchón mínimo de seguridad inicial
@@ -520,6 +523,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (emaFueraArriba && temaBajoEma)
             {
                 barsBelowEmaWithoutCross++;
+                barsEmaInsideChannelLong = 0; // Si está afuera, el contador dentro del canal se resetea a 0
                 if (barsBelowEmaWithoutCross >= MinBarsZona1)
                 {
                     z1LongArmed = true;
@@ -538,15 +542,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Time[0], barsBelowEmaWithoutCross, Close[0], ema200[0]));
                 }
                 barsBelowEmaWithoutCross = 0;
+                barsEmaInsideChannelLong = 0;
                 z1LongArmed = false;
             }
-            else if (!emaFueraArriba && !z1LongArmed)
+            else if (!emaFueraArriba)
             {
-                // Si la EMA 200 está dentro del canal y aún no se alcanzaron las 100 barras, no cuenta
-                if (barsBelowEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
+                if (z1LongArmed)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO PAUSA] EMA200 ({1:F2}) dentro del canal (< UpperSmall {2:F2}). Conteo no acumula ({3}/{4}).",
-                        Time[0], ema200[0], upperSmall, barsBelowEmaWithoutCross, MinBarsZona1));
+                    // CADUCIDAD (TTL): La EMA 200 ya acumuló las 100 barras afuera pero ahora está dentro del canal
+                    barsEmaInsideChannelLong++;
+                    if (barsEmaInsideChannelLong > Z1MaxBarsInsideChannel)
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | LARGO CADUCADO] EMA 200 pasó {1} barras dentro del canal (Máx permitido: {2}) sin cruce. ¡Olla a presión enfriada! Setup abortado.",
+                            Time[0], barsEmaInsideChannelLong, Z1MaxBarsInsideChannel));
+                        barsBelowEmaWithoutCross = 0;
+                        barsEmaInsideChannelLong = 0;
+                        z1LongArmed = false;
+                    }
+                    else if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | LARGO VENTANA EN CANAL] EMA 200 en canal ({1}/{2} barras TTL) a la espera de cruce TEMA 9.",
+                            Time[0], barsEmaInsideChannelLong, Z1MaxBarsInsideChannel));
+                    }
+                }
+                else
+                {
+                    // Si la EMA 200 está dentro del canal y aún no se alcanzaron las 100 barras, no cuenta
+                    if (barsBelowEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | LARGO PAUSA] EMA200 ({1:F2}) dentro del canal (< UpperSmall {2:F2}). Conteo no acumula ({3}/{4}).",
+                            Time[0], ema200[0], upperSmall, barsBelowEmaWithoutCross, MinBarsZona1));
+                    }
                 }
             }
 
@@ -557,6 +583,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (emaFueraAbajo && temaSobreEma)
             {
                 barsAboveEmaWithoutCross++;
+                barsEmaInsideChannelShort = 0; // Si está afuera, el contador dentro del canal se resetea a 0
                 if (barsAboveEmaWithoutCross >= MinBarsZona1)
                 {
                     z1ShortArmed = true;
@@ -575,15 +602,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Time[0], barsAboveEmaWithoutCross, Close[0], ema200[0]));
                 }
                 barsAboveEmaWithoutCross = 0;
+                barsEmaInsideChannelShort = 0;
                 z1ShortArmed = false;
             }
-            else if (!emaFueraAbajo && !z1ShortArmed)
+            else if (!emaFueraAbajo)
             {
-                // Si la EMA 200 está dentro del canal y aún no se alcanzaron las 100 barras, no cuenta
-                if (barsAboveEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
+                if (z1ShortArmed)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO PAUSA] EMA200 ({1:F2}) dentro del canal (> LowerSmall {2:F2}). Conteo no acumula ({3}/{4}).",
-                        Time[0], ema200[0], lowerSmall, barsAboveEmaWithoutCross, MinBarsZona1));
+                    // CADUCIDAD (TTL): La EMA 200 ya acumuló las 100 barras afuera pero ahora está dentro del canal
+                    barsEmaInsideChannelShort++;
+                    if (barsEmaInsideChannelShort > Z1MaxBarsInsideChannel)
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | CORTO CADUCADO] EMA 200 pasó {1} barras dentro del canal (Máx permitido: {2}) sin cruce. ¡Olla a presión enfriada! Setup abortado.",
+                            Time[0], barsEmaInsideChannelShort, Z1MaxBarsInsideChannel));
+                        barsAboveEmaWithoutCross = 0;
+                        barsEmaInsideChannelShort = 0;
+                        z1ShortArmed = false;
+                    }
+                    else if (timeNow >= StartTime && timeNow <= ForceCloseTime)
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | CORTO VENTANA EN CANAL] EMA 200 en canal ({1}/{2} barras TTL) a la espera de cruce TEMA 9.",
+                            Time[0], barsEmaInsideChannelShort, Z1MaxBarsInsideChannel));
+                    }
+                }
+                else
+                {
+                    // Si la EMA 200 está dentro del canal y aún no se alcanzaron las 100 barras, no cuenta
+                    if (barsAboveEmaWithoutCross > 0 && timeNow >= StartTime && timeNow <= ForceCloseTime)
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | CORTO PAUSA] EMA200 ({1:F2}) dentro del canal (> LowerSmall {2:F2}). Conteo no acumula ({3}/{4}).",
+                            Time[0], ema200[0], lowerSmall, barsAboveEmaWithoutCross, MinBarsZona1));
+                    }
                 }
             }
 
@@ -687,6 +736,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], Math.Max(priorBarsBelowEma, barsBelowEmaWithoutCross), Close[0], Contracts));
                             z1LongArmed = false;
                             barsBelowEmaWithoutCross = 0;
+                            barsEmaInsideChannelLong = 0;
                             return;
                         }
                         else
@@ -724,6 +774,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], Math.Max(priorBarsAboveEma, barsAboveEmaWithoutCross), Close[0], Contracts));
                             z1ShortArmed = false;
                             barsAboveEmaWithoutCross = 0;
+                            barsEmaInsideChannelShort = 0;
                             return;
                         }
                         else
@@ -1963,6 +2014,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             currentAce = AceType.None;
             z1LongArmed = false;
             z1ShortArmed = false;
+            barsEmaInsideChannelLong = 0;
+            barsEmaInsideChannelShort = 0;
             sobbArmedLong = false;
             sobbArmedShort = false;
             sobbHasFloatedLong = false;
@@ -2337,8 +2390,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int MinBarsZona1 { get; set; }
 
         [NinjaScriptProperty]
+        [Range(5, 100)]
+        [Display(Name = "Z1 Máx Barras en Canal (TTL)", Description = "Máximo de barras de EMA 200 dentro del canal antes de abortar el setup (25 barras por defecto)", GroupName = "6. As 1: Zona 1", Order = 2)]
+        public int Z1MaxBarsInsideChannel { get; set; }
+
+        [NinjaScriptProperty]
         [Range(4, 50)]
-        [Display(Name = "Z1 TP Fijo (Ticks)", Description = "Target de salida de Zona 1 (12 ticks = $150 ES / $15 MES)", GroupName = "6. As 1: Zona 1", Order = 2)]
+        [Display(Name = "Z1 TP Fijo (Ticks)", Description = "Target de salida de Zona 1 (12 ticks = $150 ES / $15 MES)", GroupName = "6. As 1: Zona 1", Order = 3)]
         public int Zone1FixedTpTicks { get; set; }
 
         [NinjaScriptProperty]
