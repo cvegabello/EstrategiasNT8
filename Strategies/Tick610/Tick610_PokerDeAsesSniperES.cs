@@ -523,12 +523,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             // =========================================================================
             // A) MONITOREO DE ACUMULACIÓN Y CRONÓMETRO 40 BARRAS PARA LARGOS
             // =========================================================================
-            // 1. Acumulación de 100 barras: TEMA 9 y precio por debajo de la EMA 200 sin cruzar
-            // No importa si la EMA 200 está dentro o fuera del canal; lo vital es que el precio no toque la EMA 200.
-            bool temaBajoEma = currentUpTicks < MinCrossTicks;
-            bool precioBajoEma = (High[0] < ema200[0]) || (Close[0] < ema200[0]);
+            // 1. Acumulación de 100 barras: La línea azul (TEMA 9) por debajo de la línea roja (EMA 200) sin cruzar
+            // La referencia pura es la TEMA 9 contra la EMA 200 (sin asfixia por mechas o ruido del precio).
+            bool temaBajoEma = tema9[0] < ema200[0];
 
-            if (temaBajoEma && precioBajoEma && !z1WaitingForMidlineLong)
+            if (temaBajoEma && !z1WaitingForMidlineLong)
             {
                 barsBelowEmaWithoutCross++;
                 if (barsBelowEmaWithoutCross >= MinBarsZona1)
@@ -537,7 +536,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsBelowEmaWithoutCross % 25 == 0)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ACUMULANDO] {1}/{2} barras sin cruce | Armed: {3}",
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ACUMULANDO] TEMA9 < EMA200 por {1}/{2} barras | Armed: {3}",
                         Time[0], barsBelowEmaWithoutCross, MinBarsZona1, z1LongArmed));
                 }
             }
@@ -574,24 +573,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(string.Format("{0} - [PAS - Z1-100B | LARGO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
                         Time[0], Z1MaxBarsToMidline));
                 }
-                // B) Si el precio perfora hacia abajo la EMA 200 durante la espera: se aborta
-                else if (Close[0] < ema200[0])
+                // B) Si la TEMA 9 hace gancho y se devuelve por debajo de la EMA 200: se aborta el cronómetro
+                else if (tema9[0] <= ema200[0])
                 {
                     z1WaitingForMidlineLong = false;
                     z1MidlineCountdownLong = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ABORTADO] Precio perforó hacia abajo la EMA 200 ({1:F2} < {2:F2}) durante la espera. Setup cancelado.",
-                        Time[0], Close[0], ema200[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ABORTADO] Gancho falso: TEMA 9 ({1:F2}) regresó por debajo de EMA 200 ({2:F2}) durante la espera. Cronómetro cancelado.",
+                        Time[0], tema9[0], ema200[0]));
                 }
             }
 
             // =========================================================================
             // B) MONITOREO DE ACUMULACIÓN Y CRONÓMETRO 40 BARRAS PARA CORTOS
             // =========================================================================
-            // 1. Acumulación de 100 barras: TEMA 9 y precio por encima de la EMA 200 sin cruzar
-            bool temaSobreEma = currentDownTicks < MinCrossTicks;
-            bool precioSobreEma = (Low[0] > ema200[0]) || (Close[0] > ema200[0]);
+            // 1. Acumulación de 100 barras: La línea azul (TEMA 9) por encima de la línea roja (EMA 200) sin cruzar
+            bool temaSobreEma = tema9[0] > ema200[0];
 
-            if (temaSobreEma && precioSobreEma && !z1WaitingForMidlineShort)
+            if (temaSobreEma && !z1WaitingForMidlineShort)
             {
                 barsAboveEmaWithoutCross++;
                 if (barsAboveEmaWithoutCross >= MinBarsZona1)
@@ -600,7 +598,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsAboveEmaWithoutCross % 25 == 0)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ACUMULANDO] {1}/{2} barras sin cruce | Armed: {3}",
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ACUMULANDO] TEMA9 > EMA200 por {1}/{2} barras | Armed: {3}",
                         Time[0], barsAboveEmaWithoutCross, MinBarsZona1, z1ShortArmed));
                 }
             }
@@ -635,12 +633,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(string.Format("{0} - [PAS - Z1-100B | CORTO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
                         Time[0], Z1MaxBarsToMidline));
                 }
-                else if (Close[0] > ema200[0])
+                else if (tema9[0] >= ema200[0])
                 {
                     z1WaitingForMidlineShort = false;
                     z1MidlineCountdownShort = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ABORTADO] Precio perforó hacia arriba la EMA 200 ({1:F2} > {2:F2}) durante la espera. Setup cancelado.",
-                        Time[0], Close[0], ema200[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ABORTADO] Gancho falso: TEMA 9 ({1:F2}) regresó por encima de EMA 200 ({2:F2}) durante la espera. Cronómetro cancelado.",
+                        Time[0], tema9[0], ema200[0]));
                 }
             }
 
@@ -732,14 +730,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 3. Ubicación del precio: Zona 1 o Zona 0 moderada (no más de 10 ticks sobre Upper 3.5)
                 bool precioEnZona = (Close[0] >= upperSmall) && (Close[0] <= upperBig + (Z1MaxZone0Ticks * TickSize));
 
-                // 4. TEMA 9 y precio por encima de la EMA 200
-                bool confirmacionAlcista = (Close[0] > ema200[0]) && (tema9[0] > ema200[0]);
+                // 4. Confirmación de TEMA 9 (azul) firme por encima de EMA 200 (roja)
+                bool confirmacionAlcista = tema9[0] > ema200[0];
 
                 if (emaTocoMidline && pendienteMidlineAlcista && precioEnZona && confirmacionAlcista)
                 {
                     ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
-                    Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: +{4:F4} | Precio ({5:F2}) en Zona 1/0 | Entrada @ ~{6:F2}",
-                        Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, Close[0], Close[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: +{4:F4} | TEMA9 ({5:F2}) > EMA200 ({6:F2}) | Precio ({7:F2}) en Zona 1/0 | Entrada @ ~{8:F2}",
+                        Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, tema9[0], ema200[0], Close[0], Close[0]));
                     
                     z1WaitingForMidlineLong = false;
                     z1MidlineCountdownLong = 0;
@@ -762,8 +760,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 3. Ubicación del precio: Zona 4 o Zona 5 moderada (no más de 10 ticks bajo Lower 3.5)
                 bool precioEnZona = (Close[0] <= lowerSmall) && (Close[0] >= lowerBig - (Z1MaxZone0Ticks * TickSize));
 
-                // 4. TEMA 9 y precio por debajo de la EMA 200
-                bool confirmacionBajista = (Close[0] < ema200[0]) && (tema9[0] < ema200[0]);
+                // 4. Confirmación de TEMA 9 (azul) firme por debajo de EMA 200 (roja)
+                bool confirmacionBajista = tema9[0] < ema200[0];
 
                 if (emaTocoMidline && pendienteMidlineBajista && precioEnZona && confirmacionBajista)
                 {
