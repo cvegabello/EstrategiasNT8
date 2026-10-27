@@ -25,14 +25,16 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 5.0 - Poker de Ases (PAS) [SOBB Monocontrato con Oxígeno, Cortacircuito -$650 USD & Desescalado tras Pérdida]
+// VERSIÓN: 6.0 - Poker de Ases (PAS) [Ratchet Sniper Vertical con EMA200 Fuera de Canal 3.5 & Pendiente Midline, SL Tope 12tk, SOBB Monocontrato & Cortacircuito -$650]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con Canal Grande 3.5 y TTL 25 barras.
 //   2. As 2: [SOBB]      - SurferOutBigBanda: MONOCONTRATO QUIRÚRGICO (1 contrato fijo) con Stop Estructural holgado
 //                          anclado a la Banda Pequeña 1.75 (Tope máx 24 ticks = -$300 USD). Cero asfixia, salida en expansión (+20 ticks)
 //                          o por repliegue de TEMA 9 (Ciclo Terminado) tras alcanzar Break-Even (+10 ticks).
-//   3. As 3: [Ratchet]   - Súper-tendencia sostenida con filtro de 20 barras, gatillo en Midline y Chicle Parabólico.
+//   3. As 3: [Ratchet]   - Súper-tendencia vertical institucional real: Requiere OBLIGATORIAMENTE que EMA 200 esté
+//                          FUERA del Canal Grande 3.5 y que la Línea Media tenga pendiente a favor. Stop inicial con
+//                          TOPE DE SEGURIDAD de 12 ticks (máx -$450 USD en 3 contratos) y Chicle Parabólico.
 //   4. As 4: [Cascada]   - El Tren Bala Desbocado (25 barras): FILTRO ESTRUCTURAL ESTRICTO DE ZONAS 0/1 (Largos)
 //                          y ZONAS 4/5 (Cortos). Prohibido comprar en Zona 2 (agotamiento de tendencia).
 //
@@ -44,7 +46,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   - Victoria Temprana a la 1:00 PM: Si a las 01:00 PM EST estamos en Escalón 1 ($400 - $599 USD), apaga nuevas entradas y
 //     asegura la ganancia del día para evitar amagues de bajo volumen en la sesión de la tarde.
 //
-// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 2.5 - 3 VIDAS - TRAILING INFINITO - BLINDAJE v5.0):
+// ESCUDO DE CUENTA (CALIBRACIÓN INSTITUCIONAL 2.5 - 3 VIDAS - TRAILING INFINITO - BLINDAJE v6.0):
 //   - Cortacircuito Inicial: -$650 USD (ES) / -$65 USD (MES) -> Respaldo para 2.5 a 3 oportunidades saludables.
 //   - Escalón 1 (+$400): Piso protegido en +$250 USD (Corte automático a la 1:00 PM para asegurar victoria).
 //   - Escalón 2 (+$600): Piso protegido CLAVADO en +$500 USD (inviolable, comprobación continua en cada barra).
@@ -146,7 +148,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v5.0 en 610 Ticks para ES/MES. Combina Z1-100Bar (Canal Grande 3.5 con TTL 25 Barras & Filtro Zona 0), SOBB (Monocontrato Quirúrgico con Oxígeno Estructural), Ratchet, Cascada 25, Cortacircuito -$650 USD, Desescalado Automático tras Pérdida y Victoria Temprana a la 1:00 PM.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v6.0 en 610 Ticks para ES/MES. Combina Z1-100Bar (Canal Grande 3.5 con TTL 25 Barras & Filtro Zona 0), SOBB (Monocontrato Quirúrgico con Oxígeno Estructural), Ratchet (Vertical Institucional con EMA 200 Externa 3.5, Pendiente Midline & SL Tope 12tk), Cascada 25, Cortacircuito -$650 USD, Desescalado tras Pérdida y Victoria Temprana a la 1:00 PM.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -167,7 +169,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "5.0 - Poker de Ases (PAS) [SOBB Monocontrato con Oxígeno, Cortacircuito -$650 USD & Desescalado tras Pérdida]";
+                Version                                     = "6.0 - Poker de Ases (PAS) [Ratchet Sniper Vertical (EMA200 Fuera 3.5 & Midline Slope), SL Tope 12tk, SOBB Monocontrato, Cortacircuito -$650]";
 
                 // Horario RTH estricto (Nueva York EST)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -199,13 +201,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SobbChokeThresholdTicks                     = 30;     // Escalón 3: +30 ticks ($375 ES / $37.50 MES) - Activa Modo Ahogo
                 SobbChokeTicks                              = 8;      // Distancia ceñida pegada al High/Low para el trailing del Runner
 
-                // Parámetros del As 3: Ratchet (El Chicle Parabólico Original)
+                // Parámetros del As 3: Ratchet (El Chicle Parabólico Original - Vertical Institucional)
                 RatchetLookbackBars                         = 20;     // Barras sin tocar EMA 200
                 RatchetCountdownBars                        = 10;     // Ventana de conteo buscando cruce de Línea Media
                 RatchetTemaTolTicks                         = 2;      // Tolerancia en ticks para gancho de TEMA 9
                 RatchetBreakEvenTicks                       = 22;     // BreakEven dinámico para Contrato 1
                 RatchetChokeThresholdTicks                  = 72;     // Fase 3 Choke a los 72 ticks ($900 ES / $90 MES)
                 RatchetChicleTicks                          = 7;      // Trailing ceñido del Chicle Parabólico (7 ticks)
+                RatchetMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)
 
                 // Parámetros del As 4: Cascada 25 Barras (Escalonamiento 3 Fases + 6 Zonas Keltner)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (calibración óptima)
@@ -991,7 +994,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
-        // AS 3: RATCHET (EL CHICLE PARABÓLICO ORIGINAL - CRUCE DE LÍNEA MEDIA)
+        // AS 3: RATCHET (EL CHICLE PARABÓLICO ORIGINAL - TENDENCIA VERTICAL INSTITUCIONAL)
         // =========================================================================
         private void EvaluateAs3_Ratchet()
         {
@@ -1004,7 +1007,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (Low[i]  <= ema200[i]) emaLongValid  = false; // Todo encima para largos
             }
 
-            // B) Detección de Toque o Penetración en Banda Keltner 3.5 en barras 1 a 3
+            // B) REGLA DE ORO INSTITUCIONAL v6.0: EMA 200 ESTRICTAMENTE FUERA DEL CANAL GRANDE 3.5 & PENDIENTE MIDLINE
+            // Ratchet está diseñado EXCLUSIVAMENTE para tendencias verticales desbocadas.
+            // Para Cortos: EMA 200 debe estar rezagada por ENCIMA de la Banda Superior 3.5 (keltnerBig.Upper) y Midline cayendo.
+            // Para Largos: EMA 200 debe estar rezagada por DEBAJO de la Banda Inferior 3.5 (keltnerBig.Lower) y Midline subiendo.
+            double midlineSlope = keltnerBig.Midline[0] - keltnerBig.Midline[2];
+            bool emaOutsideBigBandShort = ema200[0] >= keltnerBig.Upper[0];
+            bool emaOutsideBigBandLong  = ema200[0] <= keltnerBig.Lower[0];
+            bool midlineFallingShort    = midlineSlope < -(0.5 * TickSize);
+            bool midlineRisingLong      = midlineSlope > (0.5 * TickSize);
+
+            // C) Detección de Toque o Penetración en Banda Keltner 3.5 en barras 1 a 3
             bool touchedUpperExtreme = false;
             bool touchedLowerExtreme = false;
             for (int i = 1; i <= 3; i++)
@@ -1028,9 +1041,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if ((isPeakShort && touchedUpperExtreme) || isCrossBackShort)
             {
-                if (!emaShortValid)
+                if (!emaShortValid || !emaOutsideBigBandShort || !midlineFallingShort)
                 {
-                    // Filtro macro: precio tocó la EMA 200 recientemente
+                    // Descartado si no hay tendencia macro vertical o si EMA 200 está dentro del canal
                 }
                 else
                 {
@@ -1040,8 +1053,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Ratchet] ALERTA CORTO: Gancho TEMA en Banda Superior. Iniciando reloj de {1} barras buscando cruce de Línea Media.",
-                            Time[0], RatchetCountdownBars));
+                        Print(string.Format("{0} - [PAS - Ratchet] ALERTA CORTO VERTICAL: Gancho TEMA en Banda Superior con EMA200 ({1:F2} >= {2:F2}) y Midline cayendo. Reloj de {3} barras armado buscando cruce de Línea Media.",
+                            Time[0], ema200[0], keltnerBig.Upper[0], RatchetCountdownBars));
                     }
                     ratchetSetup = RatchetSetup.Short;
                     ratchetSetupBarCounter = 0;
@@ -1054,9 +1067,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if ((isTroughLong && touchedLowerExtreme) || isCrossBackLong)
             {
-                if (!emaLongValid)
+                if (!emaLongValid || !emaOutsideBigBandLong || !midlineRisingLong)
                 {
-                    // Filtro macro: precio tocó la EMA 200 recientemente
+                    // Descartado si no hay tendencia macro vertical o si EMA 200 está dentro del canal
                 }
                 else
                 {
@@ -1066,15 +1079,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Ratchet] ALERTA LARGO: Gancho TEMA en Banda Inferior. Iniciando reloj de {1} barras buscando cruce de Línea Media.",
-                            Time[0], RatchetCountdownBars));
+                        Print(string.Format("{0} - [PAS - Ratchet] ALERTA LARGO VERTICAL: Gancho TEMA en Banda Inferior con EMA200 ({1:F2} <= {2:F2}) y Midline subiendo. Reloj de {3} barras armado buscando cruce de Línea Media.",
+                            Time[0], ema200[0], keltnerBig.Lower[0], RatchetCountdownBars));
                     }
                     ratchetSetup = RatchetSetup.Long;
                     ratchetSetupBarCounter = 0;
                 }
             }
 
-            // C) Conteo del Reloj y GATILLO CIRUJANO: Cruce de la Línea Media (Midline)
+            // D) Conteo del Reloj y GATILLO CIRUJANO: Cruce de la Línea Media (Midline)
             if (ratchetSetup != RatchetSetup.None)
             {
                 ratchetSetupBarCounter++;
@@ -1086,23 +1099,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else
                 {
-                    // DISPARO LARGO: Cruce alcista de Línea Media
+                    // DISPARO LARGO: Cruce alcista de Línea Media (Revalidando EMA 200 fuera y pendiente a favor)
                     if (ratchetSetup == RatchetSetup.Long && CrossAbove(tema9, keltnerBig.Midline, 1))
                     {
-                        ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Long, "Ratchet_Long");
-                        ratchetSetup = RatchetSetup.None;
-                        Print(string.Format("{0} - [PAS - Ratchet] ¡DISPARO LARGO EN LÍNEA MEDIA! TEMA 9 cruzó Midline ({1:F2}) en barra {2}/{3}. Entrada @ ~{4:F2} | Escalonamiento de 3 Fases armado.",
-                            Time[0], keltnerBig.Midline[0], ratchetSetupBarCounter, RatchetCountdownBars, Close[0]));
-                        return;
+                        if (ema200[0] <= keltnerBig.Lower[0] && (keltnerBig.Midline[0] - keltnerBig.Midline[2]) > 0)
+                        {
+                            ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Long, "Ratchet_Long");
+                            ratchetSetup = RatchetSetup.None;
+                            Print(string.Format("{0} - [PAS - Ratchet] ¡DISPARO LARGO EN LÍNEA MEDIA! TEMA 9 cruzó Midline ({1:F2}) con EMA200 ({2:F2} <= Lower 3.5 {3:F2}). Entrada @ ~{4:F2} | SL Tope 12tk armado.",
+                                Time[0], keltnerBig.Midline[0], ema200[0], keltnerBig.Lower[0], Close[0]));
+                            return;
+                        }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - Ratchet | DISPARO LARGO ANULADO] Cruce en Midline detectado pero EMA 200 ({1:F2}) ingresó al canal o Midline frenó subida. Setup cancelado para evitar trampas.",
+                                Time[0], ema200[0]));
+                            ratchetSetup = RatchetSetup.None;
+                        }
                     }
-                    // DISPARO CORTO: Cruce bajista de Línea Media
+                    // DISPARO CORTO: Cruce bajista de Línea Media (Revalidando EMA 200 fuera y pendiente a favor)
                     else if (ratchetSetup == RatchetSetup.Short && CrossBelow(tema9, keltnerBig.Midline, 1))
                     {
-                        ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Short, "Ratchet_Short");
-                        ratchetSetup = RatchetSetup.None;
-                        Print(string.Format("{0} - [PAS - Ratchet] ¡DISPARO CORTO EN LÍNEA MEDIA! TEMA 9 cruzó Midline ({1:F2}) en barra {2}/{3}. Entrada @ ~{4:F2} | Escalonamiento de 3 Fases armado.",
-                            Time[0], keltnerBig.Midline[0], ratchetSetupBarCounter, RatchetCountdownBars, Close[0]));
-                        return;
+                        if (ema200[0] >= keltnerBig.Upper[0] && (keltnerBig.Midline[0] - keltnerBig.Midline[2]) < 0)
+                        {
+                            ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Short, "Ratchet_Short");
+                            ratchetSetup = RatchetSetup.None;
+                            Print(string.Format("{0} - [PAS - Ratchet] ¡DISPARO CORTO EN LÍNEA MEDIA! TEMA 9 cruzó Midline ({1:F2}) con EMA200 ({2:F2} >= Upper 3.5 {3:F2}). Entrada @ ~{4:F2} | SL Tope 12tk armado.",
+                                Time[0], keltnerBig.Midline[0], ema200[0], keltnerBig.Upper[0], Close[0]));
+                            return;
+                        }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - Ratchet | DISPARO CORTO ANULADO] Cruce en Midline detectado pero EMA 200 ({1:F2}) ingresó al canal o Midline frenó bajada. Setup cancelado para evitar trampas.",
+                                Time[0], ema200[0]));
+                            ratchetSetup = RatchetSetup.None;
+                        }
                     }
                 }
             }
@@ -1321,7 +1352,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Time[0], CascadaTp1Ticks, tp1Price, activeTradeContracts));
                 }
                 else if (ace == AceType.As3_Ratchet)
-                    initialSlPrice = keltnerBig.Lower[0] - (SlOffsetTicks * TickSize); // Banda opuesta en Ratchet
+                {
+                    // Ratchet Long: Banda opuesta, pero con TOPE MÁXIMO de seguridad (12 ticks = $450 ES máx en 3 ctos)
+                    double naturalSl = keltnerBig.Lower[0] - (SlOffsetTicks * TickSize);
+                    double maxSafeSl = Close[0] - (RatchetMaxSlTicks * TickSize);
+                    initialSlPrice = Math.Max(naturalSl, maxSafeSl);
+                    Print(string.Format("{0} - [PAS - Ratchet | SL INICIAL CON TOPE] Entrada Long @ {1:F2} | SL en {2:F2} (Tope máx {3} ticks = -${4:F2} USD en {5} ctos).",
+                        Time[0], Close[0], initialSlPrice, RatchetMaxSlTicks, (RatchetMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts), activeTradeContracts));
+                }
                 else
                     initialSlPrice = keltnerSmall.Lower[0] - (1 * TickSize);
 
@@ -1409,7 +1447,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Time[0], CascadaTp1Ticks, tp1Price, activeTradeContracts));
                 }
                 else if (ace == AceType.As3_Ratchet)
-                    initialSlPrice = keltnerBig.Upper[0] + (SlOffsetTicks * TickSize); // Banda opuesta en Ratchet
+                {
+                    // Ratchet Short: Banda opuesta, pero con TOPE MÁXIMO de seguridad (12 ticks = $450 ES máx en 3 ctos)
+                    double naturalSl = keltnerBig.Upper[0] + (SlOffsetTicks * TickSize);
+                    double maxSafeSl = Close[0] + (RatchetMaxSlTicks * TickSize);
+                    initialSlPrice = Math.Min(naturalSl, maxSafeSl);
+                    Print(string.Format("{0} - [PAS - Ratchet | SL INICIAL CON TOPE] Entrada Short @ {1:F2} | SL en {2:F2} (Tope máx {3} ticks = -${4:F2} USD en {5} ctos).",
+                        Time[0], Close[0], initialSlPrice, RatchetMaxSlTicks, (RatchetMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts), activeTradeContracts));
+                }
                 else
                     initialSlPrice = keltnerSmall.Upper[0] + (1 * TickSize);
 
@@ -2430,6 +2475,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(2, 20)]
         [Display(Name = "Ratchet Chicle Trailing (Ticks)", Description = "Distancia ceñida del Chicle Parabólico para C3 Runner", GroupName = "9. As 3: Ratchet", Order = 6)]
         public int RatchetChicleTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(6, 30)]
+        [Display(Name = "Ratchet SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida inicial para Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)", GroupName = "9. As 3: Ratchet", Order = 7)]
+        public int RatchetMaxSlTicks { get; set; }
         #endregion
     }
 }
