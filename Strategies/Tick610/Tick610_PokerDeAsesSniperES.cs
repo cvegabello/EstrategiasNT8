@@ -71,18 +71,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
         private AceType currentAce = AceType.None;
 
-        // === VARIABLES DEL AS 1: ZONA 1 (100 BARRAS ESTRUCTURAL EMA EXTERNA) ===
+        // === VARIABLES DEL AS 1: ZONA 1 (100 BARRAS - GOLAZO A LÍNEA MEDIA EN 40 BARRAS) ===
         private int lastTemaSide = 0;              // 1 = Arriba de EMA200, -1 = Debajo de EMA200
         private bool crossUpConsumed = false;
         private bool crossDownConsumed = false;
-        private int barsBelowEmaWithoutCross = 0;  // Acumulación continua con EMA200 sobre Upper 1.75
-        private int barsAboveEmaWithoutCross = 0;  // Acumulación continua con EMA200 bajo Lower 1.75
-        private int barsEmaInsideChannelLong = 0;  // Barras transcurridas de EMA200 dentro del canal tras armarse Largo (TTL máx 25)
-        private int barsEmaInsideChannelShort = 0; // Barras transcurridas de EMA200 dentro del canal tras armarse Corto (TTL máx 25)
-        private int priorBarsBelowEma = 0;         // Barras acumuladas antes del cruce alcista
-        private int priorBarsAboveEma = 0;         // Barras acumuladas antes del cruce bajista
+        private int barsBelowEmaWithoutCross = 0;  // Acumulación continua con TEMA/Precio bajo EMA200
+        private int barsAboveEmaWithoutCross = 0;  // Acumulación continua con TEMA/Precio sobre EMA200
         private bool z1LongArmed = false;          // Acumulación de 100 barras completada para Largo
         private bool z1ShortArmed = false;         // Acumulación de 100 barras completada para Corto
+        private bool z1WaitingForMidlineLong = false; // Cronómetro activo tras cruce TEMA buscando toque de Línea Media (máx 40 barras)
+        private int z1MidlineCountdownLong = 0;      // Contador de barras transcurridas tras el cruce para Largo
+        private bool z1WaitingForMidlineShort = false;// Cronómetro activo tras cruce TEMA buscando toque de Línea Media (máx 40 barras)
+        private int z1MidlineCountdownShort = 0;     // Contador de barras transcurridas tras el cruce para Corto
 
         // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 CAPAS) ===
         private bool sobbArmedLong = false;        // Fase 1: TEMA 9 cruzó Upper 3.5 (Espera activa a que la vela salga)
@@ -169,10 +169,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "6.0 - Poker de Ases (PAS) [Ratchet Sniper Vertical (EMA200 Fuera 3.5 & Midline Slope), SL Tope 12tk, SOBB Monocontrato, Cortacircuito -$650]";
+                Version                                     = "7.0 - Poker de Ases (PAS) [Z1-100B Sincronizado EMA200 a Línea Media en 40 Barras, Cascada SL 12tk, RTH 09:35 AM]";
 
-                // Horario RTH estricto (Nueva York EST)
-                StartTime                                   = 95000;  // 09:50 AM EST
+                // Horario RTH estricto (Nueva York EST - Oficial 09:35 AM)
+                StartTime                                   = 93500;  // 09:35 AM EST
                 StopEntriesTime                             = 154500; // 03:45 PM EST (Bloqueo de nuevas entradas)
                 ForceCloseTime                              = 160000; // 04:00 PM EST (Liquidación obligatoria)
 
@@ -186,10 +186,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 KeltnerBigMult                              = 3.5;
                 KeltnerSmallMult                            = 1.75;
 
-                // Parámetros del As 1: Z1-100Bar
+                // Parámetros del As 1: Z1-100Bar (Golazo Sincronizado EMA200 a Línea Media en 40 Barras)
                 MinCrossTicks                               = 2.3;    // Penetración mínima de cruce real
                 MinBarsZona1                                = 100;    // 100 barras obligatorias de compresión previa
-                Z1MaxBarsInsideChannel                      = 25;     // Ventana máxima permitida dentro del canal (25 barras) antes de caducar
+                Z1MaxBarsToMidline                          = 40;     // Ventana máxima de 40 barras para que EMA 200 toque la Línea Media tras el cruce
+                Z1MaxZone0Ticks                             = 10;     // Límite máximo de ticks en Zona 0 (no más de 10 ticks sobre/bajo Banda 3.5)
                 Zone1FixedTpTicks                           = 12;     // Target Fijo de Francotirador (12 ticks = $150 ES / $15 MES)
                 SlOffsetTicks                               = 2;      // Offset de respiro en ticks para el Stop Loss
                 MinSafetySlTicks                            = 8;      // Colchón mínimo de seguridad inicial
@@ -217,6 +218,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTp1Ticks                             = 8;      // C1 TP (8 ticks = $100 ES / $10 MES) -> Pasa a BE +1tk
                 CascadaTp2Ticks                             = 16;     // C2 TP (16 ticks = $200 ES / $20 MES) -> Meta clásica
                 CascadaChokeTicks                           = 8;      // C3 Runner Ahogo a 8 ticks del High/Low
+                CascadaMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Cascada (12 ticks = $450 ES / $45 MES en 3 contratos)
 
                 // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Ceñida -$650 USD para 2.5 - 3 Vidas)
                 UseDailyManagement                          = true;   // Activar Cortacircuito y Trailing Diario
@@ -315,10 +317,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Reseteo estricto de memoria acumulativa para evitar arrastres de días previos o pre-mercado
                 barsBelowEmaWithoutCross = 0;
                 barsAboveEmaWithoutCross = 0;
-                priorBarsBelowEma = 0;
-                priorBarsAboveEma = 0;
                 z1LongArmed = false;
                 z1ShortArmed = false;
+                z1WaitingForMidlineLong = false;
+                z1MidlineCountdownLong = 0;
+                z1WaitingForMidlineShort = false;
+                z1MidlineCountdownShort = 0;
                 crossUpConsumed = false;
                 crossDownConsumed = false;
                 lastTemaSide = 0;
@@ -392,9 +396,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double totalDailyFloatingPnL = dailyRealizedPnL + unrealizedPnL;
 
                 // CORTACIRCUITO DE PISO EXACTO EN TIEMPO REAL:
-                // Si el piso protegido está activo y el PnL cerrado lo supera, calculamos el precio
+                // Si el piso protegido está activo (Escalón 1 o 2: currentDailyFloor > 0) y el PnL cerrado lo supera, calculamos el precio
                 // exacto en ticks donde el retroceso alcanzaría el piso, para liquidar sin esperar slippage de barra.
-                if (!isDailyLocked && Position.MarketPosition != MarketPosition.Flat && dailyRealizedPnL > currentDailyFloor)
+                if (!isDailyLocked && Position.MarketPosition != MarketPosition.Flat && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickValue = TickSize * Instrument.MasterInstrument.PointValue;
@@ -506,19 +510,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
             }
 
-            // === CONTADOR AS 1: ZONA 1 (Acumulación con EMA 200 FUERA del Canal Grande 3.5) ===
-            // Regla Institucional v4.0:
-            // 1. Canal de Referencia: Canal Grande (Keltner 3.5 - UpperBig y LowerBig).
-            //    - Largos: EMA 200 acumula mientras esté por fuera del Canal Grande arriba (EMA200 >= Upper 3.5).
-            //      Al ingresar al Canal Grande 3.5, arranca el contador TTL (máx 25 barras).
-            //    - Cortos: EMA 200 acumula mientras esté por fuera del Canal Grande abajo (EMA200 <= Lower 3.5).
-            //      Al ingresar al Canal Grande 3.5, arranca el contador TTL (máx 25 barras).
-            // 2. Condición: 100 barras totales acumuladas sin cruzar EMA 200, y máximo 25 barras adentro del Canal Grande.
-            //    Si pasa más de 25 barras adentro, el setup CADUCA Y SE ABORTA DEFINITIVAMENTE.
-
-            priorBarsBelowEma = barsBelowEmaWithoutCross;
-            priorBarsAboveEma = barsAboveEmaWithoutCross;
-
+            // === CONTADOR AS 1: ZONA 1 (GOLAZO SINCRONIZADO: ACUMULACIÓN 100 BARRAS + CRONÓMETRO 40 BARRAS) ===
             double currentUpTicks   = (tema9[0] - ema200[0]) / TickSize;
             double currentDownTicks = (ema200[0] - tema9[0]) / TickSize;
 
@@ -529,137 +521,127 @@ namespace NinjaTrader.NinjaScript.Strategies
             double midline    = keltnerBig.Midline[0];
 
             // =========================================================================
-            // A) MONITOREO DE ACUMULACIÓN PARA LARGOS (EMA 200 por arriba de Upper 3.5)
+            // A) MONITOREO DE ACUMULACIÓN Y CRONÓMETRO 40 BARRAS PARA LARGOS
             // =========================================================================
-            bool emaFueraArriba = ema200[0] >= upperBig;
-            bool temaBajoEma    = currentUpTicks < MinCrossTicks;
+            // 1. Acumulación de 100 barras: TEMA 9 y precio por debajo de la EMA 200 sin cruzar
+            // No importa si la EMA 200 está dentro o fuera del canal; lo vital es que el precio no toque la EMA 200.
+            bool temaBajoEma = currentUpTicks < MinCrossTicks;
+            bool precioBajoEma = (High[0] < ema200[0]) || (Close[0] < ema200[0]);
 
-            if (temaBajoEma)
+            if (temaBajoEma && precioBajoEma && !z1WaitingForMidlineLong)
             {
                 barsBelowEmaWithoutCross++;
-
-                if (emaFueraArriba)
-                {
-                    barsEmaInsideChannelLong = 0; // Fuera del Canal Grande 3.5: contador en 0
-                }
-                else
-                {
-                    // La EMA 200 está dentro del Canal Grande 3.5
-                    barsEmaInsideChannelLong++;
-                }
-
-                // Verificamos si supera la caducidad (TTL) de 25 barras en el Canal Grande
-                if (barsEmaInsideChannelLong > Z1MaxBarsInsideChannel)
-                {
-                    if (z1LongArmed || barsBelowEmaWithoutCross >= MinBarsZona1)
-                    {
-                        Print(string.Format("{0} - [PAS - Z1-100B | LARGO CADUCADO] EMA 200 superó {1} barras dentro del Canal Grande 3.5 (Máx permitido: {2}) sin cruce. ¡Olla a presión enfriada! Setup abortado.",
-                            Time[0], barsEmaInsideChannelLong, Z1MaxBarsInsideChannel));
-                    }
-                    barsBelowEmaWithoutCross = 0;
-                    barsEmaInsideChannelLong = 0;
-                    z1LongArmed = false;
-                }
-                else if (barsBelowEmaWithoutCross >= MinBarsZona1 && barsEmaInsideChannelLong <= Z1MaxBarsInsideChannel)
+                if (barsBelowEmaWithoutCross >= MinBarsZona1)
                 {
                     z1LongArmed = true;
-                    if (timeNow >= StartTime && timeNow <= ForceCloseTime)
-                    {
-                        Print(string.Format("{0} - [PAS - Z1-100B | LARGO ARMADO] Acumuladas {1}/{2} barras sin cruce | EMA200 ({3:F2}) en Canal Grande ({4}/{5} barras TTL) | Armed: True",
-                            Time[0], barsBelowEmaWithoutCross, MinBarsZona1, ema200[0], barsEmaInsideChannelLong, Z1MaxBarsInsideChannel));
-                    }
                 }
-                else if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsBelowEmaWithoutCross % 25 == 0)
+                if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsBelowEmaWithoutCross % 25 == 0)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ACUMULANDO] {1}/{2} barras sin cruce | EMA200 ({3:F2}) | FueraCanal3.5: {4}",
-                        Time[0], barsBelowEmaWithoutCross, MinBarsZona1, ema200[0], emaFueraArriba));
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ACUMULANDO] {1}/{2} barras sin cruce | Armed: {3}",
+                        Time[0], barsBelowEmaWithoutCross, MinBarsZona1, z1LongArmed));
                 }
             }
-            else
+            else if (!z1WaitingForMidlineLong)
             {
-                // Si aún no estaba armado y hubo cruce alcista prematuro, se resetea
                 if (!z1LongArmed)
                 {
                     barsBelowEmaWithoutCross = 0;
-                    barsEmaInsideChannelLong = 0;
                 }
             }
 
-            // Reseteo si EMA 200 cruza Línea Media al territorio opuesto
-            if (ema200[0] < midline && z1LongArmed)
+            // 2. Activación del Cronómetro de 40 Barras:
+            // Al darse el cruce alcista (TEMA 9 cruza hacia arriba de EMA 200) tras haber acumulado >= 100 barras
+            if (z1LongArmed && !z1WaitingForMidlineLong && tema9[0] > ema200[0])
             {
-                Print(string.Format("{0} - [PAS - Z1-100B | LARGO RESET] EMA 200 ({1:F2}) cruzó Línea Media ({2:F2}). Setup cancelado.",
-                    Time[0], ema200[0], midline));
-                barsBelowEmaWithoutCross = 0;
-                barsEmaInsideChannelLong = 0;
+                z1WaitingForMidlineLong = true;
+                z1MidlineCountdownLong = 0;
                 z1LongArmed = false;
+                barsBelowEmaWithoutCross = 0;
+                Print(string.Format("{0} - [PAS - Z1-100B | CRUCE ALCISTA DETECTADO] TEMA 9 ({1:F2}) cruzó hacia arriba de EMA 200 ({2:F2}) tras acumular 100 barras. ¡CRONÓMETRO DE 40 BARRAS ACTIVADO buscando toque de Línea Media!",
+                    Time[0], tema9[0], ema200[0]));
+            }
+
+            // 3. Monitoreo durante las 40 Barras de Largo:
+            if (z1WaitingForMidlineLong)
+            {
+                z1MidlineCountdownLong++;
+
+                // A) Si supera la ventana máxima de 40 barras: expira
+                if (z1MidlineCountdownLong > Z1MaxBarsToMidline)
+                {
+                    z1WaitingForMidlineLong = false;
+                    z1MidlineCountdownLong = 0;
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
+                        Time[0], Z1MaxBarsToMidline));
+                }
+                // B) Si el precio perfora hacia abajo la EMA 200 durante la espera: se aborta
+                else if (Close[0] < ema200[0])
+                {
+                    z1WaitingForMidlineLong = false;
+                    z1MidlineCountdownLong = 0;
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ABORTADO] Precio perforó hacia abajo la EMA 200 ({1:F2} < {2:F2}) durante la espera. Setup cancelado.",
+                        Time[0], Close[0], ema200[0]));
+                }
             }
 
             // =========================================================================
-            // B) MONITOREO DE ACUMULACIÓN PARA CORTOS (EMA 200 por abajo de Lower 3.5)
+            // B) MONITOREO DE ACUMULACIÓN Y CRONÓMETRO 40 BARRAS PARA CORTOS
             // =========================================================================
-            bool emaFueraAbajo = ema200[0] <= lowerBig;
-            bool temaSobreEma  = currentDownTicks < MinCrossTicks;
+            // 1. Acumulación de 100 barras: TEMA 9 y precio por encima de la EMA 200 sin cruzar
+            bool temaSobreEma = currentDownTicks < MinCrossTicks;
+            bool precioSobreEma = (Low[0] > ema200[0]) || (Close[0] > ema200[0]);
 
-            if (temaSobreEma)
+            if (temaSobreEma && precioSobreEma && !z1WaitingForMidlineShort)
             {
                 barsAboveEmaWithoutCross++;
-
-                if (emaFueraAbajo)
-                {
-                    barsEmaInsideChannelShort = 0; // Fuera del Canal Grande 3.5: contador en 0
-                }
-                else
-                {
-                    // La EMA 200 está dentro del Canal Grande 3.5
-                    barsEmaInsideChannelShort++;
-                }
-
-                // Verificamos si supera la caducidad (TTL) de 25 barras en el Canal Grande
-                if (barsEmaInsideChannelShort > Z1MaxBarsInsideChannel)
-                {
-                    if (z1ShortArmed || barsAboveEmaWithoutCross >= MinBarsZona1)
-                    {
-                        Print(string.Format("{0} - [PAS - Z1-100B | CORTO CADUCADO] EMA 200 superó {1} barras dentro del Canal Grande 3.5 (Máx permitido: {2}) sin cruce. ¡Olla a presión enfriada! Setup abortado.",
-                            Time[0], barsEmaInsideChannelShort, Z1MaxBarsInsideChannel));
-                    }
-                    barsAboveEmaWithoutCross = 0;
-                    barsEmaInsideChannelShort = 0;
-                    z1ShortArmed = false;
-                }
-                else if (barsAboveEmaWithoutCross >= MinBarsZona1 && barsEmaInsideChannelShort <= Z1MaxBarsInsideChannel)
+                if (barsAboveEmaWithoutCross >= MinBarsZona1)
                 {
                     z1ShortArmed = true;
-                    if (timeNow >= StartTime && timeNow <= ForceCloseTime)
-                    {
-                        Print(string.Format("{0} - [PAS - Z1-100B | CORTO ARMADO] Acumuladas {1}/{2} barras sin cruce | EMA200 ({3:F2}) en Canal Grande ({4}/{5} barras TTL) | Armed: True",
-                            Time[0], barsAboveEmaWithoutCross, MinBarsZona1, ema200[0], barsEmaInsideChannelShort, Z1MaxBarsInsideChannel));
-                    }
                 }
-                else if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsAboveEmaWithoutCross % 25 == 0)
+                if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsAboveEmaWithoutCross % 25 == 0)
                 {
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ACUMULANDO] {1}/{2} barras sin cruce | EMA200 ({3:F2}) | FueraCanal3.5: {4}",
-                        Time[0], barsAboveEmaWithoutCross, MinBarsZona1, ema200[0], emaFueraAbajo));
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ACUMULANDO] {1}/{2} barras sin cruce | Armed: {3}",
+                        Time[0], barsAboveEmaWithoutCross, MinBarsZona1, z1ShortArmed));
                 }
             }
-            else
+            else if (!z1WaitingForMidlineShort)
             {
-                // Si aún no estaba armado y hubo cruce bajista prematuro, se resetea
                 if (!z1ShortArmed)
                 {
                     barsAboveEmaWithoutCross = 0;
-                    barsEmaInsideChannelShort = 0;
                 }
             }
 
-            // Reseteo si EMA 200 cruza Línea Media al territorio opuesto
-            if (ema200[0] > midline && z1ShortArmed)
+            // 2. Activación del Cronómetro de 40 Barras para Cortos:
+            if (z1ShortArmed && !z1WaitingForMidlineShort && tema9[0] < ema200[0])
             {
-                Print(string.Format("{0} - [PAS - Z1-100B | CORTO RESET] EMA 200 ({1:F2}) cruzó Línea Media ({2:F2}). Setup cancelado.",
-                    Time[0], ema200[0], midline));
-                barsAboveEmaWithoutCross = 0;
-                barsEmaInsideChannelShort = 0;
+                z1WaitingForMidlineShort = true;
+                z1MidlineCountdownShort = 0;
                 z1ShortArmed = false;
+                barsAboveEmaWithoutCross = 0;
+                Print(string.Format("{0} - [PAS - Z1-100B | CRUCE BAJISTA DETECTADO] TEMA 9 ({1:F2}) cruzó hacia abajo de EMA 200 ({2:F2}) tras acumular 100 barras. ¡CRONÓMETRO DE 40 BARRAS ACTIVADO buscando toque de Línea Media!",
+                    Time[0], tema9[0], ema200[0]));
+            }
+
+            // 3. Monitoreo durante las 40 Barras de Corto:
+            if (z1WaitingForMidlineShort)
+            {
+                z1MidlineCountdownShort++;
+
+                if (z1MidlineCountdownShort > Z1MaxBarsToMidline)
+                {
+                    z1WaitingForMidlineShort = false;
+                    z1MidlineCountdownShort = 0;
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
+                        Time[0], Z1MaxBarsToMidline));
+                }
+                else if (Close[0] > ema200[0])
+                {
+                    z1WaitingForMidlineShort = false;
+                    z1MidlineCountdownShort = 0;
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ABORTADO] Precio perforó hacia arriba la EMA 200 ({1:F2} > {2:F2}) durante la espera. Setup cancelado.",
+                        Time[0], Close[0], ema200[0]));
+                }
             }
 
             // Rastrear estado de cruces de TEMA respecto a EMA200 (Fiel a SniperSurfer)
@@ -724,96 +706,74 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Módulos de Entrada de los 4 Ases
 
         // =========================================================================
-        // AS 1: FRANCOTIRADOR ZONA 1 (RUPTURA TRAS >= 100 BARRAS COMPRIMIDAS)
+        // AS 1: FRANCOTIRADOR ZONA 1 (GOLAZO SINCRONIZADO: EMA200 A LÍNEA MEDIA EN 40 BARRAS)
         // =========================================================================
         private void EvaluateAs1_Zona1()
         {
-            double upperSmall = keltnerSmall.Upper[0];
-            double lowerSmall = keltnerSmall.Lower[0];
-            double upperBig   = keltnerBig.Upper[0];
-            double lowerBig   = keltnerBig.Lower[0];
-            double midline    = keltnerBig.Midline[0];
-            double slOffset   = SlOffsetTicks * TickSize;
+            double upperSmall   = keltnerSmall.Upper[0];
+            double lowerSmall   = keltnerSmall.Lower[0];
+            double upperBig     = keltnerBig.Upper[0];
+            double lowerBig     = keltnerBig.Lower[0];
+            double midline      = keltnerBig.Midline[0];
+            double midlineSlope = midline - keltnerBig.Midline[2];
 
-            // Inicialización de seguridad para lastTemaSide
-            if (lastTemaSide == 0)
+            // =========================================================================
+            // AS 1 - GOLAZO LARGO: Toque de Línea Media durante ventana de 40 barras
+            // =========================================================================
+            if (z1WaitingForMidlineLong)
             {
-                lastTemaSide = (tema9[1] <= ema200[1]) ? -1 : 1;
-            }
+                // 1. Toque o cruce de EMA 200 a la Línea Media:
+                // La EMA 200 venía descendiendo y ahora toca o cruza la Línea Media
+                bool emaTocoMidline = (ema200[0] <= midline) || (Math.Abs(ema200[0] - midline) <= (1.0 * TickSize));
 
-            // CASO LARGO: Cruce alcista tras >= 100 barras bajo la EMA 200
-            if (lastTemaSide == -1 && !crossUpConsumed && tema9[0] > ema200[0])
-            {
-                double crossDistanceTicks = (tema9[0] - ema200[0]) / TickSize;
-                double slopeTicks = (tema9[0] - tema9[1]) / TickSize;
+                // 2. Pendiente positiva de la Línea Media (blanca)
+                bool pendienteMidlineAlcista = midlineSlope > 0;
 
-                if (crossDistanceTicks >= MinCrossTicks && Close[0] > ema200[0] && slopeTicks > 0)
+                // 3. Ubicación del precio: Zona 1 o Zona 0 moderada (no más de 10 ticks sobre Upper 3.5)
+                bool precioEnZona = (Close[0] >= upperSmall) && (Close[0] <= upperBig + (Z1MaxZone0Ticks * TickSize));
+
+                // 4. TEMA 9 y precio por encima de la EMA 200
+                bool confirmacionAlcista = (Close[0] > ema200[0]) && (tema9[0] > ema200[0]);
+
+                if (emaTocoMidline && pendienteMidlineAlcista && precioEnZona && confirmacionAlcista)
                 {
-                    crossUpConsumed = true;
-                    lastTemaSide = 1;
-
-                    // Filtro Anti-Zona 0: El cruce solo es válido si el precio permanece en Zona 1 (TEMA9 >= UpperSmall y Close <= UpperBig)
-                    if (tema9[0] >= upperSmall && Close[0] <= upperBig)
-                    {
-                        if (z1LongArmed)
-                        {
-                            ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
-                            Print(string.Format("{0} - [PAS - Z1-100Bar] ¡DISPARO LARGO! Ruptura en ZONA 1 ejecutada tras acumular {1} barras con EMA fuera de Canal Grande 3.5. Entrada @ ~{2:F2} | Contratos: {3}",
-                                Time[0], barsBelowEmaWithoutCross, Close[0], Contracts));
-                            z1LongArmed = false;
-                            barsBelowEmaWithoutCross = 0;
-                            barsEmaInsideChannelLong = 0;
-                            return;
-                        }
-                        else
-                        {
-                            Print(string.Format("{0} - [PAS - Z1-100Bar | IGNORADO] Cruce válido pero setup Z1 no armado o caducado por superar 25 barras en canal ({1}/{2} barras acumuladas).",
-                                Time[0], barsBelowEmaWithoutCross, MinBarsZona1));
-                        }
-                    }
-                    else
-                    {
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO FUERA DE ZONA 1] Cruce EMA200 detectado pero TEMA9 ({1:F2}) < UpperSmall ({2:F2}) o precio en Zona 0 (Close {3:F2} > UpperBig {4:F2}). Trade descartado.",
-                            Time[0], tema9[0], upperSmall, Close[0], upperBig));
-                    }
+                    ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
+                    Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: +{4:F4} | Precio ({5:F2}) en Zona 1/0 | Entrada @ ~{6:F2}",
+                        Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, Close[0], Close[0]));
+                    
+                    z1WaitingForMidlineLong = false;
+                    z1MidlineCountdownLong = 0;
+                    return;
                 }
             }
 
-            // CASO CORTO: Cruce bajista tras >= 100 barras con EMA 200 fuera del canal abajo
-            if (lastTemaSide == 1 && !crossDownConsumed && tema9[0] < ema200[0])
+            // =========================================================================
+            // AS 1 - GOLAZO CORTO: Toque de Línea Media durante ventana de 40 barras
+            // =========================================================================
+            if (z1WaitingForMidlineShort)
             {
-                double crossDistanceTicks = (ema200[0] - tema9[0]) / TickSize;
-                double slopeTicks = (tema9[1] - tema9[0]) / TickSize;
+                // 1. Toque o cruce de EMA 200 a la Línea Media:
+                // La EMA 200 venía ascendiendo y ahora toca o cruza la Línea Media
+                bool emaTocoMidline = (ema200[0] >= midline) || (Math.Abs(ema200[0] - midline) <= (1.0 * TickSize));
 
-                if (crossDistanceTicks >= MinCrossTicks && Close[0] < ema200[0] && slopeTicks > 0)
+                // 2. Pendiente negativa de la Línea Media (blanca)
+                bool pendienteMidlineBajista = midlineSlope < 0;
+
+                // 3. Ubicación del precio: Zona 4 o Zona 5 moderada (no más de 10 ticks bajo Lower 3.5)
+                bool precioEnZona = (Close[0] <= lowerSmall) && (Close[0] >= lowerBig - (Z1MaxZone0Ticks * TickSize));
+
+                // 4. TEMA 9 y precio por debajo de la EMA 200
+                bool confirmacionBajista = (Close[0] < ema200[0]) && (tema9[0] < ema200[0]);
+
+                if (emaTocoMidline && pendienteMidlineBajista && precioEnZona && confirmacionBajista)
                 {
-                    crossDownConsumed = true;
-                    lastTemaSide = -1;
-
-                    // Filtro Anti-Zona 5: El cruce solo es válido si el precio permanece en Zona 4 (TEMA9 <= LowerSmall y Close >= LowerBig)
-                    if (tema9[0] <= lowerSmall && Close[0] >= lowerBig)
-                    {
-                        if (z1ShortArmed)
-                        {
-                            ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Short, "Z1-100Bar_Short");
-                            Print(string.Format("{0} - [PAS - Z1-100Bar] ¡DISPARO CORTO! Ruptura en ZONA 4 ejecutada tras acumular {1} barras con EMA fuera de Canal Grande 3.5. Entrada @ ~{2:F2} | Contratos: {3}",
-                                Time[0], barsAboveEmaWithoutCross, Close[0], Contracts));
-                            z1ShortArmed = false;
-                            barsAboveEmaWithoutCross = 0;
-                            barsEmaInsideChannelShort = 0;
-                            return;
-                        }
-                        else
-                        {
-                            Print(string.Format("{0} - [PAS - Z1-100Bar | IGNORADO] Cruce válido pero setup Z1 no armado o caducado por superar 25 barras en canal ({1}/{2} barras acumuladas).",
-                                Time[0], barsAboveEmaWithoutCross, MinBarsZona1));
-                        }
-                    }
-                    else
-                    {
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | DESCARTADO FUERA DE ZONA 4] Cruce EMA200 detectado pero TEMA9 ({1:F2}) > LowerSmall ({2:F2}) o precio en Zona 5 (Close {3:F2} < LowerBig {4:F2}). Trade descartado.",
-                            Time[0], tema9[0], lowerSmall, Close[0], lowerBig));
-                    }
+                    ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Short, "Z1-100Bar_Short");
+                    Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO CORTO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: {4:F4} | Precio ({5:F2}) en Zona 4/5 | Entrada @ ~{6:F2}",
+                        Time[0], ema200[0], midline, z1MidlineCountdownShort, midlineSlope, Close[0], Close[0]));
+                    
+                    z1WaitingForMidlineShort = false;
+                    z1MidlineCountdownShort = 0;
+                    return;
                 }
             }
         }
@@ -1322,19 +1282,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN LARGOS:
+                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN LARGOS CON TOPE DE SEGURIDAD (CascadaMaxSlTicks = 12 ticks):
                     // Zona 0 y Zona 1 (Close >= Upper 1.75): SL en Línea Media (Midline - 2 ticks)
                     // Zona 2 (Close < Upper 1.75): SL en Banda Inferior Pequeña (Lower 1.75 - 2 ticks) para evitar amagues
-                    if (Close[0] >= keltnerSmall.Upper[0])
-                    {
-                        initialSlPrice = keltnerBig.Midline[0] - (2 * TickSize);
-                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 0/1 (Expansión Alta). SL en Línea Media: {1:F2}", Time[0], initialSlPrice));
-                    }
-                    else
-                    {
-                        initialSlPrice = keltnerSmall.Lower[0] - (2 * TickSize);
-                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 2 (Media Alta). SL en Lower 1.75 -2tk: {1:F2} (Anti-amague)", Time[0], initialSlPrice));
-                    }
+                    double naturalSl = (Close[0] >= keltnerSmall.Upper[0]) 
+                        ? (keltnerBig.Midline[0] - (2 * TickSize)) 
+                        : (keltnerSmall.Lower[0] - (2 * TickSize));
+                    double maxSafeSl = Close[0] - (CascadaMaxSlTicks * TickSize);
+                    initialSlPrice = Math.Max(naturalSl, maxSafeSl);
+                    Print(string.Format("{0} - [PAS - Cascada | SL CON TOPE QUIRÚRGICO] Entrada Long @ {1:F2} | SL: {2:F2} (Tope máx {3} ticks = -${4:F2} USD en {5} ctos).",
+                        Time[0], Close[0], initialSlPrice, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts), activeTradeContracts));
 
                     // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
                     double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaTp1Ticks * TickSize));
@@ -1365,8 +1322,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(initialSlPrice, Close[0] - (MinSafetySlTicks * TickSize)));
 
-                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas, el piso manda absolutamente sobre el SL
-                if (UseDailyManagement && !isDailyLocked && dailyRealizedPnL > currentDailyFloor)
+                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas (currentDailyFloor > 0), el piso manda absolutamente sobre el SL
+                if (UseDailyManagement && !isDailyLocked && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
@@ -1417,19 +1374,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN CORTOS:
+                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN CORTOS CON TOPE DE SEGURIDAD (CascadaMaxSlTicks = 12 ticks):
                     // Zona 5 y Zona 4 (Close <= Lower 1.75): SL en Línea Media (Midline + 2 ticks)
                     // Zona 3 (Close > Lower 1.75): SL en Banda Superior Pequeña (Upper 1.75 + 2 ticks) para evitar amagues
-                    if (Close[0] <= keltnerSmall.Lower[0])
-                    {
-                        initialSlPrice = keltnerBig.Midline[0] + (2 * TickSize);
-                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 5/4 (Expansión Baja). SL en Línea Media: {1:F2}", Time[0], initialSlPrice));
-                    }
-                    else
-                    {
-                        initialSlPrice = keltnerSmall.Upper[0] + (2 * TickSize);
-                        Print(string.Format("{0} - [PAS - Cascada | SL 6 ZONAS] Entrada en ZONA 3 (Media Baja). SL en Upper 1.75 +2tk: {1:F2} (Anti-amague)", Time[0], initialSlPrice));
-                    }
+                    double naturalSl = (Close[0] <= keltnerSmall.Lower[0]) 
+                        ? (keltnerBig.Midline[0] + (2 * TickSize)) 
+                        : (keltnerSmall.Upper[0] + (2 * TickSize));
+                    double maxSafeSl = Close[0] + (CascadaMaxSlTicks * TickSize);
+                    initialSlPrice = Math.Min(naturalSl, maxSafeSl);
+                    Print(string.Format("{0} - [PAS - Cascada | SL CON TOPE QUIRÚRGICO] Entrada Short @ {1:F2} | SL: {2:F2} (Tope máx {3} ticks = -${4:F2} USD en {5} ctos).",
+                        Time[0], Close[0], initialSlPrice, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts), activeTradeContracts));
 
                     // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
                     double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaTp1Ticks * TickSize));
@@ -1460,8 +1414,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(initialSlPrice, Close[0] + (MinSafetySlTicks * TickSize)));
 
-                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas, el piso manda absolutamente sobre el SL
-                if (UseDailyManagement && !isDailyLocked && dailyRealizedPnL > currentDailyFloor)
+                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas (currentDailyFloor > 0), el piso manda absolutamente sobre el SL
+                if (UseDailyManagement && !isDailyLocked && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
@@ -1672,65 +1626,96 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
 
-                    // CONTRATO 1: Target Límite pasivo a +8 ticks (CascadaTp1Ticks) ejecutado o detectado
-                    if (!cascadaC1Achieved && (currentQty <= 2 || maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
+                    // Si estamos operando con 1 solo contrato (por desescalado tras pérdida):
+                    if (activeTradeContracts == 1)
                     {
-                        cascadaC1Achieved = true;
-                        if (currentQty >= 3)
+                        // Target pasivo de +8 ticks
+                        if (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks)
                         {
-                            ExitLong(1, "Cascada_C1_Tp8", "Cascada50_Long");
+                            ExitLong("Cascada_Mono_Tp", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO TP COBRADO] +{1} ticks (+${2:F2}). ¡Ganancia asegurada!",
+                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue));
+                            return;
                         }
-                        Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN +1tk ({3:F2}). ¡Riesgo CERO!",
-                            Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice + (1 * TickSize)));
-                    }
 
-                    // CONTRATO 2: Target Límite pasivo a +16 ticks (CascadaTp2Ticks) ejecutado o detectado
-                    if (cascadaC1Achieved && !cascadaC2Achieved && (currentQty <= 1 || maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
-                    {
-                        cascadaC2Achieved = true;
-                        cascadaChokeActive = true;
-                        if (currentQty >= 2)
-                        {
-                            ExitLong(1, "Cascada_C2_Tp16", "Cascada50_Long");
-                        }
-                        Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del High.",
-                            Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
-                    }
-
-                    // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico (CascadaChokeTicks)
-                    if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
-                    {
-                        double chokeSl = highestPriceSinceEntry - (CascadaChokeTicks * TickSize);
-                        if (Close[0] <= chokeSl || Low[0] <= chokeSl)
-                        {
-                            ExitLong("Cascada_C3_RunnerAhogo", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN LA CIMA] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
-                                Time[0], Close[0], highestPriceSinceEntry));
-                        }
-                    }
-                    // Stop de Resguardo tras cobrar C1: BreakEven + 1 tick
-                    else if (cascadaC1Achieved)
-                    {
-                        double bePrice = entryPrice + (1 * TickSize);
-                        if (Close[0] <= bePrice || Low[0] <= bePrice)
-                        {
-                            ExitLong("Cascada_Stop_BE", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
-                                Time[0], bePrice));
-                        }
-                    }
-                    // Stop Inicial antes de C1 (según las 6 Zonas de Keltner):
-                    else
-                    {
-                        double initialSl = (entryPrice >= keltnerSmall.Upper[0]) 
+                        // Stop Loss con TOPE DE SEGURIDAD de Cascada (CascadaMaxSlTicks = 12 ticks):
+                        double naturalSl = (entryPrice >= keltnerSmall.Upper[0]) 
                             ? (keltnerBig.Midline[0] - (2 * TickSize)) 
                             : (keltnerSmall.Lower[0] - (2 * TickSize));
+                        double slPrice = Math.Max(naturalSl, entryPrice - (CascadaMaxSlTicks * TickSize));
 
-                        if (Close[0] <= initialSl || Low[0] <= initialSl)
+                        if (Close[0] <= slPrice || Low[0] <= slPrice)
                         {
-                            ExitLong("SL_Zona_Cascada", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], initialSl, Close[0]));
+                            ExitLong("Cascada_Mono_SL", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO SL EJECUTADO] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], slPrice, Close[0]));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // MULTICONTRATO (2 o 3 contratos)
+                        // CONTRATO 1: Target Límite pasivo a +8 ticks (CascadaTp1Ticks) ejecutado o detectado
+                        if (!cascadaC1Achieved && (currentQty < activeTradeContracts || maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
+                        {
+                            cascadaC1Achieved = true;
+                            if (currentQty >= 3)
+                            {
+                                ExitLong(1, "Cascada_C1_Tp8", "Cascada50_Long");
+                            }
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN +1tk ({3:F2}). ¡Riesgo CERO!",
+                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice + (1 * TickSize)));
+                        }
+
+                        // CONTRATO 2: Target Límite pasivo a +16 ticks (CascadaTp2Ticks) ejecutado o detectado
+                        if (cascadaC1Achieved && !cascadaC2Achieved && (currentQty <= 1 || maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
+                        {
+                            cascadaC2Achieved = true;
+                            cascadaChokeActive = true;
+                            if (currentQty >= 2)
+                            {
+                                ExitLong(1, "Cascada_C2_Tp16", "Cascada50_Long");
+                            }
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del High.",
+                                Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
+                        }
+
+                        // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico (CascadaChokeTicks)
+                        if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
+                        {
+                            double chokeSl = highestPriceSinceEntry - (CascadaChokeTicks * TickSize);
+                            if (Close[0] <= chokeSl || Low[0] <= chokeSl)
+                            {
+                                ExitLong("Cascada_C3_RunnerAhogo", "Cascada50_Long");
+                                Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN LA CIMA] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
+                                    Time[0], Close[0], highestPriceSinceEntry));
+                            }
+                        }
+                        // Stop de Resguardo tras cobrar C1: BreakEven + 1 tick
+                        else if (cascadaC1Achieved)
+                        {
+                            double bePrice = entryPrice + (1 * TickSize);
+                            if (Close[0] <= bePrice || Low[0] <= bePrice)
+                            {
+                                ExitLong("Cascada_Stop_BE", "Cascada50_Long");
+                                Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
+                                    Time[0], bePrice));
+                            }
+                        }
+                        // Stop Inicial antes de C1 (según las 6 Zonas de Keltner con TOPE DE 12 TICKS):
+                        else
+                        {
+                            double naturalSl = (entryPrice >= keltnerSmall.Upper[0]) 
+                                ? (keltnerBig.Midline[0] - (2 * TickSize)) 
+                                : (keltnerSmall.Lower[0] - (2 * TickSize));
+                            double initialSl = Math.Max(naturalSl, entryPrice - (CascadaMaxSlTicks * TickSize));
+
+                            if (Close[0] <= initialSl || Low[0] <= initialSl)
+                            {
+                                ExitLong("SL_Zona_Cascada", "Cascada50_Long");
+                                Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2} (Tope {3}tk)",
+                                    Time[0], initialSl, Close[0], CascadaMaxSlTicks));
+                            }
                         }
                     }
                 }
@@ -1908,65 +1893,96 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
 
-                    // CONTRATO 1: Target Límite pasivo a +8 ticks (CascadaTp1Ticks) ejecutado o detectado
-                    if (!cascadaC1Achieved && (currentQty <= 2 || maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
+                    // Si estamos operando con 1 solo contrato (por desescalado tras pérdida):
+                    if (activeTradeContracts == 1)
                     {
-                        cascadaC1Achieved = true;
-                        if (currentQty >= 3)
+                        // Target pasivo de +8 ticks
+                        if (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks)
                         {
-                            ExitShort(1, "Cascada_C1_Tp8", "Cascada50_Short");
+                            ExitShort("Cascada_Mono_Tp", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO TP COBRADO] +{1} ticks (+${2:F2}). ¡Ganancia asegurada!",
+                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue));
+                            return;
                         }
-                        Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN -1tk ({3:F2}). ¡Riesgo CERO!",
-                            Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice - (1 * TickSize)));
-                    }
 
-                    // CONTRATO 2: Target Límite pasivo a +16 ticks (CascadaTp2Ticks) ejecutado o detectado
-                    if (cascadaC1Achieved && !cascadaC2Achieved && (currentQty <= 1 || maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
-                    {
-                        cascadaC2Achieved = true;
-                        cascadaChokeActive = true;
-                        if (currentQty >= 2)
-                        {
-                            ExitShort(1, "Cascada_C2_Tp16", "Cascada50_Short");
-                        }
-                        Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del Low.",
-                            Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
-                    }
-
-                    // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico bajista (CascadaChokeTicks)
-                    if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
-                    {
-                        double chokeSl = lowestPriceSinceEntry + (CascadaChokeTicks * TickSize);
-                        if (Close[0] >= chokeSl || High[0] >= chokeSl)
-                        {
-                            ExitShort("Cascada_C3_RunnerAhogo", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN EL FONDO] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
-                                Time[0], Close[0], lowestPriceSinceEntry));
-                        }
-                    }
-                    // Stop de Resguardo tras cobrar C1: BreakEven - 1 tick
-                    else if (cascadaC1Achieved)
-                    {
-                        double bePrice = entryPrice - (1 * TickSize);
-                        if (Close[0] >= bePrice || High[0] >= bePrice)
-                        {
-                            ExitShort("Cascada_Stop_BE", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
-                                Time[0], bePrice));
-                        }
-                    }
-                    // Stop Inicial antes de C1 (según las 6 Zonas de Keltner):
-                    else
-                    {
-                        double initialSl = (entryPrice <= keltnerSmall.Lower[0]) 
+                        // Stop Loss con TOPE DE SEGURIDAD de Cascada (CascadaMaxSlTicks = 12 ticks):
+                        double naturalSl = (entryPrice <= keltnerSmall.Lower[0]) 
                             ? (keltnerBig.Midline[0] + (2 * TickSize)) 
                             : (keltnerSmall.Upper[0] + (2 * TickSize));
+                        double slPrice = Math.Min(naturalSl, entryPrice + (CascadaMaxSlTicks * TickSize));
 
-                        if (Close[0] >= initialSl || High[0] >= initialSl)
+                        if (Close[0] >= slPrice || High[0] >= slPrice)
                         {
-                            ExitShort("SL_Zona_Cascada", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], initialSl, Close[0]));
+                            ExitShort("Cascada_Mono_SL", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO SL EJECUTADO] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], slPrice, Close[0]));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // MULTICONTRATO (2 o 3 contratos)
+                        // CONTRATO 1: Target Límite pasivo a +8 ticks (CascadaTp1Ticks) ejecutado o detectado
+                        if (!cascadaC1Achieved && (currentQty < activeTradeContracts || maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
+                        {
+                            cascadaC1Achieved = true;
+                            if (currentQty >= 3)
+                            {
+                                ExitShort(1, "Cascada_C1_Tp8", "Cascada50_Short");
+                            }
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN -1tk ({3:F2}). ¡Riesgo CERO!",
+                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice - (1 * TickSize)));
+                        }
+
+                        // CONTRATO 2: Target Límite pasivo a +16 ticks (CascadaTp2Ticks) ejecutado o detectado
+                        if (cascadaC1Achieved && !cascadaC2Achieved && (currentQty <= 1 || maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
+                        {
+                            cascadaC2Achieved = true;
+                            cascadaChokeActive = true;
+                            if (currentQty >= 2)
+                            {
+                                ExitShort(1, "Cascada_C2_Tp16", "Cascada50_Short");
+                            }
+                            Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del Low.",
+                                Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
+                        }
+
+                        // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico bajista (CascadaChokeTicks)
+                        if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
+                        {
+                            double chokeSl = lowestPriceSinceEntry + (CascadaChokeTicks * TickSize);
+                            if (Close[0] >= chokeSl || High[0] >= chokeSl)
+                            {
+                                ExitShort("Cascada_C3_RunnerAhogo", "Cascada50_Short");
+                                Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN EL FONDO] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
+                                    Time[0], Close[0], lowestPriceSinceEntry));
+                            }
+                        }
+                        // Stop de Resguardo tras cobrar C1: BreakEven - 1 tick
+                        else if (cascadaC1Achieved)
+                        {
+                            double bePrice = entryPrice - (1 * TickSize);
+                            if (Close[0] >= bePrice || High[0] >= bePrice)
+                            {
+                                ExitShort("Cascada_Stop_BE", "Cascada50_Short");
+                                Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
+                                    Time[0], bePrice));
+                            }
+                        }
+                        // Stop Inicial antes de C1 (según las 6 Zonas de Keltner con TOPE DE 12 TICKS):
+                        else
+                        {
+                            double naturalSl = (entryPrice <= keltnerSmall.Lower[0]) 
+                                ? (keltnerBig.Midline[0] + (2 * TickSize)) 
+                                : (keltnerSmall.Upper[0] + (2 * TickSize));
+                            double initialSl = Math.Min(naturalSl, entryPrice + (CascadaMaxSlTicks * TickSize));
+
+                            if (Close[0] >= initialSl || High[0] >= initialSl)
+                            {
+                                ExitShort("SL_Zona_Cascada", "Cascada50_Short");
+                                Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2} (Tope {3}tk)",
+                                    Time[0], initialSl, Close[0], CascadaMaxSlTicks));
+                            }
                         }
                     }
                 }
@@ -1986,8 +2002,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             currentAce = AceType.None;
             z1LongArmed = false;
             z1ShortArmed = false;
-            barsEmaInsideChannelLong = 0;
-            barsEmaInsideChannelShort = 0;
+            z1WaitingForMidlineLong = false;
+            z1MidlineCountdownLong = 0;
+            z1WaitingForMidlineShort = false;
+            z1MidlineCountdownShort = 0;
             sobbArmedLong = false;
             sobbArmedShort = false;
             sobbHasFloatedLong = false;
@@ -2367,13 +2385,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int MinBarsZona1 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(5, 100)]
-        [Display(Name = "Z1 Máx Barras en Canal (TTL)", Description = "Máximo de barras de EMA 200 dentro del canal antes de abortar el setup (25 barras por defecto)", GroupName = "6. As 1: Zona 1", Order = 2)]
-        public int Z1MaxBarsInsideChannel { get; set; }
+        [Range(10, 100)]
+        [Display(Name = "Z1 Ventana Máx a Línea Media (Barras)", Description = "Ventana máxima de barras tras cruce TEMA para que EMA 200 toque la Línea Media (40 barras por defecto)", GroupName = "6. As 1: Zona 1", Order = 2)]
+        public int Z1MaxBarsToMidline { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 30)]
+        [Display(Name = "Z1 Máx Ticks en Zona 0", Description = "Tolerancia máxima de ticks por encima/debajo de Banda 3.5 en Zona 0 (10 ticks por defecto)", GroupName = "6. As 1: Zona 1", Order = 3)]
+        public int Z1MaxZone0Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(4, 50)]
-        [Display(Name = "Z1 TP Fijo (Ticks)", Description = "Target de salida de Zona 1 (12 ticks = $150 ES / $15 MES)", GroupName = "6. As 1: Zona 1", Order = 3)]
+        [Display(Name = "Z1 TP Fijo (Ticks)", Description = "Target de salida de Zona 1 (12 ticks = $150 ES / $15 MES)", GroupName = "6. As 1: Zona 1", Order = 4)]
         public int Zone1FixedTpTicks { get; set; }
 
         [NinjaScriptProperty]
@@ -2405,6 +2428,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(1, 10)]
         [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "7. As 4: Cascada 25", Order = 6)]
         public int CascadaMinSlopeTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(6, 30)]
+        [Display(Name = "Cascada SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida inicial para Cascada (12 ticks = $450 ES / $45 MES en 3 contratos)", GroupName = "7. As 4: Cascada 25", Order = 7)]
+        public int CascadaMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 50)]
