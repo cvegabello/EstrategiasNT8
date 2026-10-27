@@ -169,7 +169,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.0 - Poker de Ases (PAS) [Z1-100B Sincronizado EMA200 a Línea Media en 40 Barras, Cascada SL 12tk, RTH 09:35 AM]";
+                Version                                     = "7.1 - Poker de Ases (PAS) [Z1-100B TEMA9 Puro, Corte 1:00 PM Tiers 0-2, Cascada SL 12tk, RTH 09:35 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:35 AM)
                 StartTime                                   = 93500;  // 09:35 AM EST
@@ -353,12 +353,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 3.1 CORTACIRCUITO UNIVERSAL A LA 1:00 PM (ZONA BASE Y ESCALÓN 1)
-            // Si son las 01:00 PM EST y el mercado no despegó a Escalón 2 (estamos en Base o Escalón 1),
-            // se apaga la operativa para evitar operar en la tarde de bajo volumen y arriesgar pérdidas innecesarias.
+            // 3.1 CORTACIRCUITO UNIVERSAL A LA 1:00 PM (SOLO ESCALÓN 3 / MODO DULCE PUEDE CONTINUAR HASTA LAS 4:00 PM)
+            // Si son las 01:00 PM EST y no estamos en el último escalón (Modo Dulce Trailing Infinito >= $900),
+            // se apaga la operativa para evitar operar en la tarde picada o eventos de alta volatilidad (FED/FOMC) y blindar las ganancias.
             if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && timeNow >= Tier1CutoffTime)
             {
-                if (currentDailyTier <= 1)
+                if (currentDailyTier < 3)
                 {
                     if (Position.MarketPosition == MarketPosition.Flat)
                     {
@@ -367,9 +367,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print(string.Format("****************************************************************************************\n" +
                                            "{0} - [ESCUDO DIARIO | CORTE A LA 1:00 PM EST] Hora actual ({1}) alcanzó las 01:00 PM.\n" +
                                            "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
-                                           "No se regala dinero en la tarde sin volumen. ¡Día cerrado con disciplina!\n" +
+                                           "No se regala dinero en la tarde sin volumen ni en trampas de la FED. ¡Día cerrado con disciplina!\n" +
                                            "****************************************************************************************",
-                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 1 ? "Escalón 1" : "Base"));
+                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base")));
                         return;
                     }
                 }
@@ -2037,8 +2037,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SyncTradesAndStrikes();
                 UpdateDailyPnLAndFloors();
 
-                // Verificación de corte a la 1:00 PM si el trade que acaba de cerrar ocurrió después de la 1:00 PM
-                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier <= 1)
+                // Verificación de corte a la 1:00 PM si el trade que acaba de cerrar ocurrió después de la 1:00 PM (Solo Escalón 3 sigue activo)
+                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier < 3)
                 {
                     int timeNow = ToTime(Time[0]);
                     if (timeNow >= Tier1CutoffTime)
@@ -2049,7 +2049,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                            "{0} - [ESCUDO DIARIO | CORTE A LA 1:00 PM TRAS CIERRE DE TRADE] Trade cerrado después de las 01:00 PM EST ({1}).\n" +
                                            "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
                                            "****************************************************************************************",
-                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 1 ? "Escalón 1" : "Base"));
+                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base")));
                     }
                 }
 
