@@ -174,7 +174,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.4 - Poker de Ases (PAS) [RTH Oficial 09:50 AM, Cascada Pisar Suave hasta 1er Win, Z1-100B Runner, Desbloqueo Piso]";
+                Version                                     = "7.5 - Poker de Ases (PAS) [Z1-100B Anti-Entrada Tardía Reset Inmediato en Cruce, RTH 09:50 AM, Cascada Pisar Suave Win]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -735,21 +735,31 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // La EMA 200 venía descendiendo y ahora toca o cruza la Línea Media
                 bool emaTocoMidline = (ema200[0] <= midline) || (Math.Abs(ema200[0] - midline) <= (1.0 * TickSize));
 
-                // 2. Pendiente positiva de la Línea Media (blanca)
-                bool pendienteMidlineAlcista = midlineSlope > 0;
-
-                // 3. Ubicación del precio: Zona 1 o Zona 0 moderada (no más de 10 ticks sobre Upper 3.5)
-                bool precioEnZona = (Close[0] >= upperSmall) && (Close[0] <= upperBig + (Z1MaxZone0Ticks * TickSize));
-
-                // 4. Confirmación de TEMA 9 (azul) sin gancho falso bajo EMA 200 (tolerancia 1 tick)
-                bool confirmacionAlcista = (ema200[0] - tema9[0]) < (1.0 * TickSize);
-
-                if (emaTocoMidline && pendienteMidlineAlcista && precioEnZona && confirmacionAlcista)
+                if (emaTocoMidline)
                 {
-                    ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
-                    Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: +{4:F4} | TEMA9 ({5:F2}) > EMA200 ({6:F2}) | Precio ({7:F2}) en Zona 1/0 | Entrada @ ~{8:F2}",
-                        Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, tema9[0], ema200[0], Close[0], Close[0]));
-                    
+                    // 2. Pendiente positiva de la Línea Media (blanca)
+                    bool pendienteMidlineAlcista = midlineSlope > 0;
+
+                    // 3. Ubicación del precio: Zona 1 o Zona 0 moderada (no más de 10 ticks sobre Upper 3.5)
+                    bool precioEnZona = (Close[0] >= upperSmall) && (Close[0] <= upperBig + (Z1MaxZone0Ticks * TickSize));
+
+                    // 4. Confirmación de TEMA 9 (azul) sin gancho falso bajo EMA 200 (tolerancia 1 tick)
+                    bool confirmacionAlcista = (ema200[0] - tema9[0]) < (1.0 * TickSize);
+
+                    if (pendienteMidlineAlcista && precioEnZona && confirmacionAlcista)
+                    {
+                        ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: +{4:F4} | TEMA9 ({5:F2}) > EMA200 ({6:F2}) | Precio ({7:F2}) en Zona 1/0 | Entrada @ ~{8:F2}",
+                            Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, tema9[0], ema200[0], Close[0], Close[0]));
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | CRUCE MIDLINE DESCARTADO] EMA200 ({1:F2}) tocó/cruzó Línea Media ({2:F2}) en barra {3}/40 pero condiciones no se cumplieron en el cruce (Pendiente: {4:F4}, PrecioEnZona: {5}, Confirmación: {6}). ¡Setup cancelado inmediatamente para evitar entradas tardías a destiempo!",
+                            Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, precioEnZona, confirmacionAlcista));
+                    }
+
+                    // REGLA DE ORO DE PRECISIÓN: El cruce ya ocurrió. Se resetea inmediatamente el cronómetro
+                    // tanto si disparó como si se descartó, eliminando cualquier posibilidad de entradas tardías.
                     z1WaitingForMidlineLong = false;
                     z1MidlineCountdownLong = 0;
                     return;
@@ -765,21 +775,31 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // La EMA 200 venía ascendiendo y ahora toca o cruza la Línea Media
                 bool emaTocoMidline = (ema200[0] >= midline) || (Math.Abs(ema200[0] - midline) <= (1.0 * TickSize));
 
-                // 2. Pendiente negativa de la Línea Media (blanca)
-                bool pendienteMidlineBajista = midlineSlope < 0;
-
-                // 3. Ubicación del precio: Zona 4 o Zona 5 moderada (no más de 10 ticks bajo Lower 3.5)
-                bool precioEnZona = (Close[0] <= lowerSmall) && (Close[0] >= lowerBig - (Z1MaxZone0Ticks * TickSize));
-
-                // 4. Confirmación de TEMA 9 (azul) sin gancho falso sobre EMA 200 (tolerancia 1 tick)
-                bool confirmacionBajista = (tema9[0] - ema200[0]) < (1.0 * TickSize);
-
-                if (emaTocoMidline && pendienteMidlineBajista && precioEnZona && confirmacionBajista)
+                if (emaTocoMidline)
                 {
-                    ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Short, "Z1-100Bar_Short");
-                    Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO CORTO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: {4:F4} | Precio ({5:F2}) en Zona 4/5 | Entrada @ ~{6:F2}",
-                        Time[0], ema200[0], midline, z1MidlineCountdownShort, midlineSlope, Close[0], Close[0]));
-                    
+                    // 2. Pendiente negativa de la Línea Media (blanca)
+                    bool pendienteMidlineBajista = midlineSlope < 0;
+
+                    // 3. Ubicación del precio: Zona 4 o Zona 5 moderada (no más de 10 ticks bajo Lower 3.5)
+                    bool precioEnZona = (Close[0] <= lowerSmall) && (Close[0] >= lowerBig - (Z1MaxZone0Ticks * TickSize));
+
+                    // 4. Confirmación de TEMA 9 (azul) sin gancho falso sobre EMA 200 (tolerancia 1 tick)
+                    bool confirmacionBajista = (tema9[0] - ema200[0]) < (1.0 * TickSize);
+
+                    if (pendienteMidlineBajista && precioEnZona && confirmacionBajista)
+                    {
+                        ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Short, "Z1-100Bar_Short");
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO CORTO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: {4:F4} | Precio ({5:F2}) en Zona 4/5 | Entrada @ ~{6:F2}",
+                            Time[0], ema200[0], midline, z1MidlineCountdownShort, midlineSlope, Close[0], Close[0]));
+                    }
+                    else
+                    {
+                        Print(string.Format("{0} - [PAS - Z1-100B | CRUCE MIDLINE DESCARTADO] EMA200 ({1:F2}) tocó/cruzó Línea Media ({2:F2}) en barra {3}/40 pero condiciones no se cumplieron en el cruce (Pendiente: {4:F4}, PrecioEnZona: {5}, Confirmación: {6}). ¡Setup cancelado inmediatamente para evitar entradas tardías a destiempo!",
+                            Time[0], ema200[0], midline, z1MidlineCountdownShort, midlineSlope, precioEnZona, confirmacionBajista));
+                    }
+
+                    // REGLA DE ORO DE PRECISIÓN: El cruce ya ocurrió. Se resetea inmediatamente el cronómetro
+                    // tanto si disparó como si se descartó, eliminando cualquier posibilidad de entradas tardías.
                     z1WaitingForMidlineShort = false;
                     z1MidlineCountdownShort = 0;
                     return;
