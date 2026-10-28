@@ -110,6 +110,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool cascadaC1Achieved    = false; // Contrato 1 cerrado a +8 ticks (BE armado)
         private bool cascadaC2Achieved    = false; // Contrato 2 cerrado a +16 ticks
         private bool cascadaChokeActive   = false; // Contrato 3 Runner en Modo Ahogo (8 ticks)
+        private int  cascadaTradesToday   = 0;     // Contador de disparos de Cascada en la sesión diaria actual (Pisar Suave)
 
         // Tracking de MFE/MAE de la posición activa
         private double entryPriceGlobal = 0.0;
@@ -172,7 +173,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.2 - Poker de Ases (PAS) [Z1-100B Escalonado con Runner Ahogo, Desbloqueo Preventivo de Piso, RTH 09:35 AM]";
+                Version                                     = "7.3 - Poker de Ases (PAS) [Cascada Pisar Suave 1er Disparo, Z1-100B Escalonado Runner, Desbloqueo Piso, RTH 09:35 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:35 AM)
                 StartTime                                   = 93500;  // 09:35 AM EST
@@ -217,6 +218,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)
 
                 // Parámetros del As 4: Cascada 25 Barras (Escalonamiento 3 Fases + 6 Zonas Keltner)
+                CascadaFirstEntryContracts                  = 1;      // Pisar Suave: 1er disparo de Cascada del día en modo exploratorio (1 contrato)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (calibración óptima)
                 CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
@@ -333,6 +335,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 lastTemaSide = 0;
                 barsCascadaLongCount = 0;
                 barsCascadaShortCount = 0;
+                cascadaTradesToday = 0;
 
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
@@ -1238,6 +1241,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (ace == AceType.As2_SOBB)
             {
                 entryContracts = 1;
+            }
+
+            // REGLA DE ORO CASCADA - "PISAR SUAVE" EN PRIMERA ENTRADA (MODO EXPLORATORIO):
+            // El primer disparo de Cascada del día entra con contratos reducidos (1 contrato por defecto)
+            // para evitar comprar la cresta de la primera ola con riesgo máximo (3 contratos).
+            if (ace == AceType.As4_Cascada50 && cascadaTradesToday == 0)
+            {
+                entryContracts = Math.Min(entryContracts, CascadaFirstEntryContracts);
+                Print(string.Format("{0} - [PAS - Cascada | PISAR SUAVE] Primera entrada de Cascada del día en modo exploratorio con {1} contrato(s) para proteger la cuenta contra retrocesos de cresta.",
+                    Time[0], entryContracts));
+            }
+
+            if (ace == AceType.As4_Cascada50)
+            {
+                cascadaTradesToday++;
             }
 
             activeTradeContracts = entryContracts;
@@ -2583,6 +2601,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(2, 20)]
         [Display(Name = "Z1 C3 Ahogo (Ticks)", Description = "Distancia ceñida para el trailing del C3 Runner (8 ticks)", GroupName = "6. As 1: Zona 1", Order = 6)]
         public int Zone1ChokeTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 3)]
+        [Display(Name = "Cascada Contratos 1er Disparo", Description = "Contratos para la primera entrada de Cascada del día (Pisar Suave: 1 contrato por defecto)", GroupName = "7. As 4: Cascada 25", Order = 0)]
+        public int CascadaFirstEntryContracts { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 200)]
