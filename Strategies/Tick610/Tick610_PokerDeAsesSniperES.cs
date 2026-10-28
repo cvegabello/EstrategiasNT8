@@ -169,7 +169,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.1 - Poker de Ases (PAS) [Z1-100B TEMA9 Puro, Corte 1:00 PM Tiers 0-2, Cascada SL 12tk, RTH 09:35 AM]";
+                Version                                     = "7.1 - Poker de Ases (PAS) [Z1-100B TEMA9 Tolerancia 1tk, Corte 1:00 PM Tiers 0-2, Cascada SL 12tk, RTH 09:35 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:35 AM)
                 StartTime                                   = 93500;  // 09:35 AM EST
@@ -573,13 +573,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(string.Format("{0} - [PAS - Z1-100B | LARGO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
                         Time[0], Z1MaxBarsToMidline));
                 }
-                // B) Si la TEMA 9 hace gancho y se devuelve por debajo de la EMA 200: se aborta el cronómetro
-                else if (tema9[0] <= ema200[0])
+                // B) Si la TEMA 9 hace un gancho falso real y penetra por debajo de la EMA 200 por >= 1 tick (0.25 pts):
+                else if ((ema200[0] - tema9[0]) >= (1.0 * TickSize))
                 {
                     z1WaitingForMidlineLong = false;
                     z1MidlineCountdownLong = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ABORTADO] Gancho falso: TEMA 9 ({1:F2}) regresó por debajo de EMA 200 ({2:F2}) durante la espera. Cronómetro cancelado.",
-                        Time[0], tema9[0], ema200[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ABORTADO] Gancho falso real: TEMA 9 ({1:F2}) penetró {2:F2} ticks por debajo de EMA 200 ({3:F2}) durante la espera. Cronómetro cancelado.",
+                        Time[0], tema9[0], (ema200[0] - tema9[0]) / TickSize, ema200[0]));
                 }
             }
 
@@ -633,12 +633,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(string.Format("{0} - [PAS - Z1-100B | CORTO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
                         Time[0], Z1MaxBarsToMidline));
                 }
-                else if (tema9[0] >= ema200[0])
+                // B) Si la TEMA 9 hace un gancho falso real y penetra por encima de la EMA 200 por >= 1 tick (0.25 pts):
+                else if ((tema9[0] - ema200[0]) >= (1.0 * TickSize))
                 {
                     z1WaitingForMidlineShort = false;
                     z1MidlineCountdownShort = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ABORTADO] Gancho falso: TEMA 9 ({1:F2}) regresó por encima de EMA 200 ({2:F2}) durante la espera. Cronómetro cancelado.",
-                        Time[0], tema9[0], ema200[0]));
+                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ABORTADO] Gancho falso real: TEMA 9 ({1:F2}) penetró {2:F2} ticks por encima de EMA 200 ({3:F2}) durante la espera. Cronómetro cancelado.",
+                        Time[0], tema9[0], (tema9[0] - ema200[0]) / TickSize, ema200[0]));
                 }
             }
 
@@ -730,8 +731,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 3. Ubicación del precio: Zona 1 o Zona 0 moderada (no más de 10 ticks sobre Upper 3.5)
                 bool precioEnZona = (Close[0] >= upperSmall) && (Close[0] <= upperBig + (Z1MaxZone0Ticks * TickSize));
 
-                // 4. Confirmación de TEMA 9 (azul) firme por encima de EMA 200 (roja)
-                bool confirmacionAlcista = tema9[0] > ema200[0];
+                // 4. Confirmación de TEMA 9 (azul) sin gancho falso bajo EMA 200 (tolerancia 1 tick)
+                bool confirmacionAlcista = (ema200[0] - tema9[0]) < (1.0 * TickSize);
 
                 if (emaTocoMidline && pendienteMidlineAlcista && precioEnZona && confirmacionAlcista)
                 {
@@ -760,8 +761,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 3. Ubicación del precio: Zona 4 o Zona 5 moderada (no más de 10 ticks bajo Lower 3.5)
                 bool precioEnZona = (Close[0] <= lowerSmall) && (Close[0] >= lowerBig - (Z1MaxZone0Ticks * TickSize));
 
-                // 4. Confirmación de TEMA 9 (azul) firme por debajo de EMA 200 (roja)
-                bool confirmacionBajista = tema9[0] < ema200[0];
+                // 4. Confirmación de TEMA 9 (azul) sin gancho falso sobre EMA 200 (tolerancia 1 tick)
+                bool confirmacionBajista = (tema9[0] - ema200[0]) < (1.0 * TickSize);
 
                 if (emaTocoMidline && pendienteMidlineBajista && precioEnZona && confirmacionBajista)
                 {
