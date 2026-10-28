@@ -110,7 +110,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool cascadaC1Achieved    = false; // Contrato 1 cerrado a +8 ticks (BE armado)
         private bool cascadaC2Achieved    = false; // Contrato 2 cerrado a +16 ticks
         private bool cascadaChokeActive   = false; // Contrato 3 Runner en Modo Ahogo (8 ticks)
-        private int  cascadaTradesToday   = 0;     // Contador de disparos de Cascada en la sesión diaria actual (Pisar Suave)
+        private int  cascadaTradesToday   = 0;     // Contador de disparos de Cascada en la sesión diaria actual
+        private bool cascadaHasWonToday   = false; // Bandera: Cascada ya cobró un trade ganador hoy (Pisar Suave liberado)
 
         // Tracking de MFE/MAE de la posición activa
         private double entryPriceGlobal = 0.0;
@@ -173,10 +174,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.3 - Poker de Ases (PAS) [Cascada Pisar Suave 1er Disparo, Z1-100B Escalonado Runner, Desbloqueo Piso, RTH 09:35 AM]";
+                Version                                     = "7.4 - Poker de Ases (PAS) [RTH Oficial 09:50 AM, Cascada Pisar Suave hasta 1er Win, Z1-100B Runner, Desbloqueo Piso]";
 
-                // Horario RTH estricto (Nueva York EST - Oficial 09:35 AM)
-                StartTime                                   = 93500;  // 09:35 AM EST
+                // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
+                StartTime                                   = 95000;  // 09:50 AM EST
                 StopEntriesTime                             = 154500; // 03:45 PM EST (Bloqueo de nuevas entradas)
                 ForceCloseTime                              = 160000; // 04:00 PM EST (Liquidación obligatoria)
 
@@ -336,6 +337,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 barsCascadaLongCount = 0;
                 barsCascadaShortCount = 0;
                 cascadaTradesToday = 0;
+                cascadaHasWonToday = false;
 
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
@@ -1243,14 +1245,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 entryContracts = 1;
             }
 
-            // REGLA DE ORO CASCADA - "PISAR SUAVE" EN PRIMERA ENTRADA (MODO EXPLORATORIO):
-            // El primer disparo de Cascada del día entra con contratos reducidos (1 contrato por defecto)
-            // para evitar comprar la cresta de la primera ola con riesgo máximo (3 contratos).
-            if (ace == AceType.As4_Cascada50 && cascadaTradesToday == 0)
+            // REGLA DE ORO CASCADA - "PISAR SUAVE BLINDADO" (HASTA 1ER TRADE GANADOR CONFIRMADO):
+            // Cascada entra en modo exploratorio con 1 contrato hasta que demuestre
+            // un trade ganador real en el día, protegiendo la cuenta en días picados o de trampa.
+            if (ace == AceType.As4_Cascada50 && !cascadaHasWonToday)
             {
                 entryContracts = Math.Min(entryContracts, CascadaFirstEntryContracts);
-                Print(string.Format("{0} - [PAS - Cascada | PISAR SUAVE] Primera entrada de Cascada del día en modo exploratorio con {1} contrato(s) para proteger la cuenta contra retrocesos de cresta.",
-                    Time[0], entryContracts));
+                Print(string.Format("{0} - [PAS - Cascada | PISAR SUAVE BLINDADO] Disparo #{1} de Cascada en modo exploratorio con {2} contrato(s) (Aún sin trade ganador confirmado hoy).",
+                    Time[0], cascadaTradesToday + 1, entryContracts));
             }
 
             if (ace == AceType.As4_Cascada50)
@@ -2274,6 +2276,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double netProfit = trade.ProfitCurrency;
                     sessionTradesProfit += netProfit;
 
+                    if (trade.Entry != null && trade.Entry.Name.IndexOf("Cascada", StringComparison.OrdinalIgnoreCase) >= 0 && netProfit > 0)
+                    {
+                        cascadaHasWonToday = true;
+                        Print(string.Format("{0} - [PAS | CASCADA WIN CONFIRMADO] Cascada logró trade ganador (+{1:C2}). ¡Pisar Suave liberado para próximas entradas!",
+                            trade.Exit.Time, netProfit));
+                    }
+
                     Print(string.Format("{0} - [PAS | CONTRATO CERRADO] Salida: {1} | PnL Contrato: {2:C2} | PnL Diario Acumulado: {3:C2}",
                         trade.Exit.Time, trade.Exit.Name, netProfit, dailyRealizedPnL));
                 }
@@ -2604,7 +2613,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(1, 3)]
-        [Display(Name = "Cascada Contratos 1er Disparo", Description = "Contratos para la primera entrada de Cascada del día (Pisar Suave: 1 contrato por defecto)", GroupName = "7. As 4: Cascada 25", Order = 0)]
+        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (Pisar Suave hasta 1er Win: 1 contrato por defecto)", GroupName = "7. As 4: Cascada 25", Order = 0)]
         public int CascadaFirstEntryContracts { get; set; }
 
         [NinjaScriptProperty]
