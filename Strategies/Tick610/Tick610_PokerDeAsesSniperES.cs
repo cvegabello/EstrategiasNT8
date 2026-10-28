@@ -83,6 +83,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int z1MidlineCountdownLong = 0;      // Contador de barras transcurridas tras el cruce para Largo
         private bool z1WaitingForMidlineShort = false;// Cronómetro activo tras cruce TEMA buscando toque de Línea Media (máx 40 barras)
         private int z1MidlineCountdownShort = 0;     // Contador de barras transcurridas tras el cruce para Corto
+        private bool z1C1Achieved = false;           // Contrato 1 cerrado a +8 ticks (BE armado)
+        private bool z1C2Achieved = false;           // Contrato 2 cerrado a +16 ticks
+        private bool z1ChokeActive = false;          // Contrato 3 Runner en Modo Ahogo (8 ticks)
 
         // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 CAPAS) ===
         private bool sobbArmedLong = false;        // Fase 1: TEMA 9 cruzó Upper 3.5 (Espera activa a que la vela salga)
@@ -169,7 +172,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.1 - Poker de Ases (PAS) [Z1-100B TEMA9 Tolerancia 1tk, Corte 1:00 PM Tiers 0-2, Cascada SL 12tk, RTH 09:35 AM]";
+                Version                                     = "7.2 - Poker de Ases (PAS) [Z1-100B Escalonado con Runner Ahogo, Desbloqueo Preventivo de Piso, RTH 09:35 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:35 AM)
                 StartTime                                   = 93500;  // 09:35 AM EST
@@ -186,12 +189,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 KeltnerBigMult                              = 3.5;
                 KeltnerSmallMult                            = 1.75;
 
-                // Parámetros del As 1: Z1-100Bar (Golazo Sincronizado EMA200 a Línea Media en 40 Barras)
+                // Parámetros del As 1: Z1-100Bar (Golazo Sincronizado EMA200 a Línea Media en 40 Barras + Escalonamiento 3 Fases)
                 MinCrossTicks                               = 2.3;    // Penetración mínima de cruce real
                 MinBarsZona1                                = 100;    // 100 barras obligatorias de compresión previa
                 Z1MaxBarsToMidline                          = 40;     // Ventana máxima de 40 barras para que EMA 200 toque la Línea Media tras el cruce
                 Z1MaxZone0Ticks                             = 10;     // Límite máximo de ticks en Zona 0 (no más de 10 ticks sobre/bajo Banda 3.5)
-                Zone1FixedTpTicks                           = 12;     // Target Fijo de Francotirador (12 ticks = $150 ES / $15 MES)
+                Zone1Tp1Ticks                               = 8;      // C1 TP (+8 ticks = $100 ES / $10 MES) -> Pasa a BE +1tk
+                Zone1Tp2Ticks                               = 16;     // C2 TP (+16 ticks = $200 ES / $20 MES) -> Meta de Expansión
+                Zone1ChokeTicks                             = 8;      // C3 Runner Ahogo a 8 ticks del High/Low
                 SlOffsetTicks                               = 2;      // Offset de respiro en ticks para el Stop Loss
                 MinSafetySlTicks                            = 8;      // Colchón mínimo de seguridad inicial
 
@@ -1165,28 +1170,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                 double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
 
-                // REGLA DE ORO DE ESCALÓN 1: Si ya estamos en ganancias protegidas (Escalón 1: $400 - $599),
-                // se opera OBLIGATORIAMENTE con 1 solo contrato. Esto garantiza un Stop Loss amplísimo y holgado
-                // (16 a 24 ticks de respiro) para absorber el ruido del mercado y dejar correr los runners hasta el Escalón 2/3.
-                if (currentDailyTier == 1)
+                // Si el PnL ya cayó en o por debajo del piso protegido:
+                if (allowedLossDollars <= 0)
                 {
-                    int maxTicksFor1Contract = (int)Math.Floor(allowedLossDollars / tickDollarVal);
-
-                    if (maxTicksFor1Contract >= MinSafetySlTicks)
-                    {
-                        Print(string.Format("{0} - [PAS | REGLA DE ORO ESCALÓN 1: 1 SOLO CONTRATO] PnL actual: ${1:F2} USD (Piso +${2:F2}). Operando con 1 solo contrato con Stop holgado de {3} ticks para dejar correr la ganancia.",
-                            Time[0], dailyRealizedPnL, currentDailyFloor, maxTicksFor1Contract));
-                        return 1;
-                    }
-                    else
-                    {
-                        Print(string.Format("{0} - [PAS | PROTECCIÓN TOTAL DE PISO] Margen disponible (${1:F2}) insuficiente para Stop mínimo de {2} ticks en 1 contrato. Protegiendo Piso de +${3:F2} USD.",
-                            Time[0], allowedLossDollars, MinSafetySlTicks, currentDailyFloor));
-                        return 0;
-                    }
+                    Print(string.Format("{0} - [PAS | PISO ALCANZADO] PnL actual (${1:F2}) en o por debajo del Piso (+${2:F2} USD). No se abren nuevas posiciones.",
+                        Time[0], dailyRealizedPnL, currentDailyFloor));
+                    return 0;
                 }
 
-                // Para Escalón 2 o superior: Exigimos al menos 14 ticks de respiro real por contrato para permitir 2 o más contratos
+                // REGLA DE ORO DE ESCALÓN 1: Si ya estamos en ganancias protegidas (Escalón 1: $400 - $599),
+                // se opera con 1 solo contrato. Mientras estemos sobre el piso, se permite operar.
+                if (currentDailyTier == 1)
+                {
+                    Print(string.Format("{0} - [PAS | ESCALÓN 1 ACTIVO: 1 CONTRATO] PnL actual: ${1:F2} USD (Piso +${2:F2}). Operando con 1 contrato protegido.",
+                        Time[0], dailyRealizedPnL, currentDailyFloor));
+                    return 1;
+                }
+
+                // Para Escalón 2 o superior (Modo Dulce): Permitimos 2 o 3 contratos solo si hay margen holgado (mínimo 14 ticks por contrato)
                 int minHealthyTicksPerContract = 14;
 
                 for (int qty = targetContracts; qty >= 1; qty--)
@@ -1194,27 +1195,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double dollarsPerTick = qty * tickDollarVal;
                     int maxTicksForQty = (int)Math.Floor(allowedLossDollars / dollarsPerTick);
 
-                    if (qty == 1 && maxTicksForQty >= MinSafetySlTicks)
-                    {
-                        Print(string.Format("{0} - [PAS | DESESCALADO DINÁMICO] Margen disponible: ${1:F2} USD. Posición ajustada a 1 contrato con {2} ticks de Stop holgado sin romper Piso (+${3:F2}).",
-                            Time[0], allowedLossDollars, maxTicksForQty, currentDailyFloor));
-                        return 1;
-                    }
-                    else if (qty > 1 && maxTicksForQty >= minHealthyTicksPerContract)
+                    if (qty > 1 && maxTicksForQty >= minHealthyTicksPerContract)
                     {
                         if (qty < targetContracts)
                         {
-                            Print(string.Format("{0} - [PAS | DESESCALADO DINÁMICO] Margen disponible: ${1:F2} USD. Posición desescalada de {2} a {3} contrato(s) para dar Stop saludable de {4} ticks sin romper Piso (+${5:F2}).",
-                                Time[0], allowedLossDollars, targetContracts, qty, maxTicksForQty, currentDailyFloor));
+                            Print(string.Format("{0} - [PAS | DESESCALADO DINÁMICO] Margen: ${1:F2} USD. Posición ajustada a {2} contratos ({3} ticks de respiro).",
+                                Time[0], allowedLossDollars, qty, maxTicksForQty));
                         }
                         return qty;
                     }
                 }
 
-                // Si ni siquiera con 1 contrato alcanzamos al menos MinSafetySlTicks de respiro, no arriesgamos el piso
-                Print(string.Format("{0} - [PAS | PROTECCIÓN TOTAL DE PISO] Margen disponible (${1:F2}) insuficiente para Stop mínimo en 1 contrato. Protegiendo Piso de +${2:F2} USD.",
+                // Si el margen no alcanza para multicontrato holgado pero seguimos sobre el piso, operamos con 1 contrato:
+                Print(string.Format("{0} - [PAS | DESESCALADO A 1 CONTRATO] Margen disponible: ${1:F2} USD. Posición ajustada a 1 contrato para seguir operando sin romper piso (+${2:F2}).",
                     Time[0], allowedLossDollars, currentDailyFloor));
-                return 0;
+                return 1;
             }
 
             return targetContracts;
@@ -1251,6 +1246,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             sobbLevel2Achieved = false;
             sobbLevel3ChokeActive = false;
 
+            z1C1Achieved = false;
+            z1C2Achieved = false;
+            z1ChokeActive = false;
+
             ratchetC1Achieved = false;
             ratchetC2Achieved = false;
             ratchetChokeActive = false;
@@ -1265,10 +1264,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (ace == AceType.As1_Zona1_100Bar)
                 {
-                    // Z1-100Bar: SL en Línea Media, pero con TOPE MÁXIMO de seguridad de 14 ticks (R:R saludable 1:1 vs TP 12 ticks)
+                    // Z1-100Bar: SL en Línea Media, pero con TOPE MÁXIMO de seguridad de 14 ticks (R:R saludable 1:1 vs TP 16 ticks)
                     double naturalSl = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
-                    double maxSafeSl = Close[0] - ((Zone1FixedTpTicks + 2) * TickSize);
+                    double maxSafeSl = Close[0] - (14 * TickSize);
                     initialSlPrice = Math.Max(naturalSl, maxSafeSl);
+
+                    // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
+                    double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (Zone1Tp1Ticks * TickSize));
+                    double tp2Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (Zone1Tp2Ticks * TickSize));
+                    if (activeTradeContracts >= 3)
+                    {
+                        ExitLongLimit(1, tp1Price, "Z1_C1_Tp8", "Z1-100Bar_Long");
+                        ExitLongLimit(1, tp2Price, "Z1_C2_Tp16", "Z1-100Bar_Long");
+                    }
+                    else if (activeTradeContracts == 2)
+                    {
+                        ExitLongLimit(1, tp1Price, "Z1_C1_Tp8", "Z1-100Bar_Long");
+                    }
+                    Print(string.Format("{0} - [PAS - Z1-100B | TARGETS LÍMITE COLOCADOS] C1 (+{1}tk): {2:F2} | C2 (+{3}tk): {4:F2} | Posición activa: {5} contrato(s)",
+                        Time[0], Zone1Tp1Ticks, tp1Price, Zone1Tp2Ticks, tp2Price, activeTradeContracts));
                 }
                 else if (ace == AceType.As2_SOBB)
                 {
@@ -1340,27 +1354,31 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Solo Zona 1 lleva TP y SL fijos en bloque de NinjaTrader (SetStopLoss / SetProfitTarget).
-                // SOBB, Cascada y Ratchet son escuadrones con salidas escalonadas que gestionan sus paradas
-                // de resguardo EXCLUSIVAMENTE en ManageDynamicExits, eliminando cualquier posibilidad
-                // de sobrellenado (overshoot) que voltee la posición al revés en el broker.
-                if (ace == AceType.As1_Zona1_100Bar)
-                {
-                    SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
-                    double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (Zone1FixedTpTicks * TickSize));
-                    SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
-                }
-
                 EnterLong(activeTradeContracts, signalName);
             }
             else // Short
             {
                 if (ace == AceType.As1_Zona1_100Bar)
                 {
-                    // Z1-100Bar: SL en Línea Media, pero con TOPE MÁXIMO de seguridad de 14 ticks (R:R saludable 1:1 vs TP 12 ticks)
+                    // Z1-100Bar: SL en Línea Media, pero con TOPE MÁXIMO de seguridad de 14 ticks (R:R saludable 1:1 vs TP 16 ticks)
                     double naturalSl = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
-                    double maxSafeSl = Close[0] + ((Zone1FixedTpTicks + 2) * TickSize);
+                    double maxSafeSl = Close[0] + (14 * TickSize);
                     initialSlPrice = Math.Min(naturalSl, maxSafeSl);
+
+                    // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
+                    double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (Zone1Tp1Ticks * TickSize));
+                    double tp2Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (Zone1Tp2Ticks * TickSize));
+                    if (activeTradeContracts >= 3)
+                    {
+                        ExitShortLimit(1, tp1Price, "Z1_C1_Tp8", "Z1-100Bar_Short");
+                        ExitShortLimit(1, tp2Price, "Z1_C2_Tp16", "Z1-100Bar_Short");
+                    }
+                    else if (activeTradeContracts == 2)
+                    {
+                        ExitShortLimit(1, tp1Price, "Z1_C1_Tp8", "Z1-100Bar_Short");
+                    }
+                    Print(string.Format("{0} - [PAS - Z1-100B | TARGETS LÍMITE COLOCADOS] C1 (-{1}tk): {2:F2} | C2 (-{3}tk): {4:F2} | Posición activa: {5} contrato(s)",
+                        Time[0], Zone1Tp1Ticks, tp1Price, Zone1Tp2Ticks, tp2Price, activeTradeContracts));
                 }
                 else if (ace == AceType.As2_SOBB)
                 {
@@ -1430,17 +1448,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], currentDailyFloor, maxTicksAllowedByFloor, activeTradeContracts, initialSlPrice));
                         }
                     }
-                }
-
-                // Solo Zona 1 lleva TP y SL fijos en bloque de NinjaTrader (SetStopLoss / SetProfitTarget).
-                // SOBB, Cascada y Ratchet son escuadrones con salidas escalonadas que gestionan sus paradas
-                // de resguardo EXCLUSIVAMENTE en ManageDynamicExits, eliminando cualquier posibilidad
-                // de sobrellenado (overshoot) que voltee la posición al revés en el broker.
-                if (ace == AceType.As1_Zona1_100Bar)
-                {
-                    SetStopLoss(signalName, CalculationMode.Price, initialSlPrice, false);
-                    double tpPrice = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (Zone1FixedTpTicks * TickSize));
-                    SetProfitTarget(signalName, CalculationMode.Price, tpPrice);
                 }
 
                 EnterShort(activeTradeContracts, signalName);
@@ -1609,15 +1616,98 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                 }
-                // --- GESTIÓN AS 1: ZONA 1 (MIDLINE STOP) ---
+                // --- GESTIÓN AS 1: ZONA 1 (ESCALONAMIENTO 3 FASES CON RUNNER AHOGO + MIDLINE SL) ---
                 else if (currentAce == AceType.As1_Zona1_100Bar)
                 {
-                    double midlineSl = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
-                    if (Close[0] <= midlineSl || Low[0] <= midlineSl)
+                    double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
+
+                    // Si estamos operando con 1 solo contrato (por desescalado tras pérdida o regla de piso):
+                    if (activeTradeContracts == 1)
                     {
-                        ExitLong("SL_Midline_Zona1", "Z1-100Bar_Long");
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | SL MIDLINE] Precio tocó Midline ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                            Time[0], midlineSl, Close[0]));
+                        // Target pasivo de +8 ticks
+                        if (maxProfitTicks >= Zone1Tp1Ticks || currentGainTicks >= Zone1Tp1Ticks)
+                        {
+                            ExitLong("Z1_Mono_Tp", "Z1-100Bar_Long");
+                            Print(string.Format("{0} - [PAS - Z1-100B | MONOCONTRATO TP COBRADO] +{1} ticks (+${2:F2}). ¡Ganancia asegurada!",
+                                Time[0], Zone1Tp1Ticks, Zone1Tp1Ticks * TickSize * Instrument.MasterInstrument.PointValue));
+                            return;
+                        }
+
+                        // Stop Loss en Línea Media con TOPE MÁXIMO de seguridad de 14 ticks:
+                        double naturalSl = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
+                        double slPrice = Math.Max(naturalSl, entryPrice - (14 * TickSize));
+
+                        if (Close[0] <= slPrice || Low[0] <= slPrice)
+                        {
+                            ExitLong("Z1_Mono_SL", "Z1-100Bar_Long");
+                            Print(string.Format("{0} - [PAS - Z1-100B | MONOCONTRATO SL EJECUTADO] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], slPrice, Close[0]));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // MULTICONTRATO (2 o 3 contratos)
+                        // CONTRATO 1: Target Límite pasivo a +8 ticks (Zone1Tp1Ticks) ejecutado o detectado
+                        if (!z1C1Achieved && (currentQty < activeTradeContracts || maxProfitTicks >= Zone1Tp1Ticks || currentGainTicks >= Zone1Tp1Ticks))
+                        {
+                            z1C1Achieved = true;
+                            if (currentQty >= 3)
+                            {
+                                ExitLong(1, "Z1_C1_Tp8", "Z1-100Bar_Long");
+                            }
+                            Print(string.Format("{0} - [PAS - Z1-100B | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN +1tk ({3:F2}). ¡Riesgo CERO!",
+                                Time[0], Zone1Tp1Ticks, Zone1Tp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice + (1 * TickSize)));
+                        }
+
+                        // CONTRATO 2: Target Límite pasivo a +16 ticks (Zone1Tp2Ticks) ejecutado o detectado
+                        if (z1C1Achieved && !z1C2Achieved && (currentQty <= 1 || maxProfitTicks >= Zone1Tp2Ticks || currentGainTicks >= Zone1Tp2Ticks))
+                        {
+                            z1C2Achieved = true;
+                            z1ChokeActive = true;
+                            if (currentQty >= 2)
+                            {
+                                ExitLong(1, "Z1_C2_Tp16", "Z1-100Bar_Long");
+                            }
+                            Print(string.Format("{0} - [PAS - Z1-100B | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del High.",
+                                Time[0], Zone1Tp2Ticks, Zone1Tp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, Zone1ChokeTicks));
+                        }
+
+                        // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico (Zone1ChokeTicks)
+                        if (z1ChokeActive || (z1C1Achieved && z1C2Achieved))
+                        {
+                            double chokeSl = highestPriceSinceEntry - (Zone1ChokeTicks * TickSize);
+                            if (Close[0] <= chokeSl || Low[0] <= chokeSl)
+                            {
+                                ExitLong("Z1_C3_RunnerAhogo", "Z1-100Bar_Long");
+                                Print(string.Format("{0} - [PAS - Z1-100B | RUNNER AHOGADO EN LA CIMA] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
+                                    Time[0], Close[0], highestPriceSinceEntry));
+                            }
+                        }
+                        // Stop de Resguardo tras cobrar C1: BreakEven + 1 tick
+                        else if (z1C1Achieved)
+                        {
+                            double bePrice = entryPrice + (1 * TickSize);
+                            if (Close[0] <= bePrice || Low[0] <= bePrice)
+                            {
+                                ExitLong("Z1_Stop_BE", "Z1-100Bar_Long");
+                                Print(string.Format("{0} - [PAS - Z1-100B | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
+                                    Time[0], bePrice));
+                            }
+                        }
+                        // Stop Inicial antes de C1 (Línea Media con TOPE DE 14 TICKS):
+                        else
+                        {
+                            double naturalSl = keltnerBig.Midline[0] - (SlOffsetTicks * TickSize);
+                            double slPrice = Math.Max(naturalSl, entryPrice - (14 * TickSize));
+
+                            if (Close[0] <= slPrice || Low[0] <= slPrice)
+                            {
+                                ExitLong("SL_Midline_Zona1", "Z1-100Bar_Long");
+                                Print(string.Format("{0} - [PAS - Z1-100B | SL MIDLINE] Precio tocó Midline ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                    Time[0], slPrice, Close[0]));
+                            }
+                        }
                     }
                 }
                 // --- GESTIÓN AS 4: CASCADA 25 (ESCALONAMIENTO 3 FASES + 6 ZONAS KELTNER + TARGETS LÍMITE) ---
@@ -1876,15 +1966,98 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                 }
-                // --- GESTIÓN AS 1: ZONA 1 (MIDLINE STOP) ---
+                // --- GESTIÓN AS 1: ZONA 1 (ESCALONAMIENTO 3 FASES CON RUNNER AHOGO + MIDLINE SL) ---
                 else if (currentAce == AceType.As1_Zona1_100Bar)
                 {
-                    double midlineSl = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
-                    if (Close[0] >= midlineSl || High[0] >= midlineSl)
+                    double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
+
+                    // Si estamos operando con 1 solo contrato (por desescalado tras pérdida o regla de piso):
+                    if (activeTradeContracts == 1)
                     {
-                        ExitShort("SL_Midline_Zona1", "Z1-100Bar_Short");
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | SL MIDLINE] Precio tocó Midline ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                            Time[0], midlineSl, Close[0]));
+                        // Target pasivo de +8 ticks
+                        if (maxProfitTicks >= Zone1Tp1Ticks || currentGainTicks >= Zone1Tp1Ticks)
+                        {
+                            ExitShort("Z1_Mono_Tp", "Z1-100Bar_Short");
+                            Print(string.Format("{0} - [PAS - Z1-100B | MONOCONTRATO TP COBRADO] +{1} ticks (+${2:F2}). ¡Ganancia asegurada!",
+                                Time[0], Zone1Tp1Ticks, Zone1Tp1Ticks * TickSize * Instrument.MasterInstrument.PointValue));
+                            return;
+                        }
+
+                        // Stop Loss en Línea Media con TOPE MÁXIMO de seguridad de 14 ticks:
+                        double naturalSl = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
+                        double slPrice = Math.Min(naturalSl, entryPrice + (14 * TickSize));
+
+                        if (Close[0] >= slPrice || High[0] >= slPrice)
+                        {
+                            ExitShort("Z1_Mono_SL", "Z1-100Bar_Short");
+                            Print(string.Format("{0} - [PAS - Z1-100B | MONOCONTRATO SL EJECUTADO] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], slPrice, Close[0]));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // MULTICONTRATO (2 o 3 contratos)
+                        // CONTRATO 1: Target Límite pasivo a +8 ticks (Zone1Tp1Ticks) ejecutado o detectado
+                        if (!z1C1Achieved && (currentQty < activeTradeContracts || maxProfitTicks >= Zone1Tp1Ticks || currentGainTicks >= Zone1Tp1Ticks))
+                        {
+                            z1C1Achieved = true;
+                            if (currentQty >= 3)
+                            {
+                                ExitShort(1, "Z1_C1_Tp8", "Z1-100Bar_Short");
+                            }
+                            Print(string.Format("{0} - [PAS - Z1-100B | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN -1tk ({3:F2}). ¡Riesgo CERO!",
+                                Time[0], Zone1Tp1Ticks, Zone1Tp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice - (1 * TickSize)));
+                        }
+
+                        // CONTRATO 2: Target Límite pasivo a +16 ticks (Zone1Tp2Ticks) ejecutado o detectado
+                        if (z1C1Achieved && !z1C2Achieved && (currentQty <= 1 || maxProfitTicks >= Zone1Tp2Ticks || currentGainTicks >= Zone1Tp2Ticks))
+                        {
+                            z1C2Achieved = true;
+                            z1ChokeActive = true;
+                            if (currentQty >= 2)
+                            {
+                                ExitShort(1, "Z1_C2_Tp16", "Z1-100Bar_Short");
+                            }
+                            Print(string.Format("{0} - [PAS - Z1-100B | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del Low.",
+                                Time[0], Zone1Tp2Ticks, Zone1Tp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, Zone1ChokeTicks));
+                        }
+
+                        // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico (Zone1ChokeTicks)
+                        if (z1ChokeActive || (z1C1Achieved && z1C2Achieved))
+                        {
+                            double chokeSl = lowestPriceSinceEntry + (Zone1ChokeTicks * TickSize);
+                            if (Close[0] >= chokeSl || High[0] >= chokeSl)
+                            {
+                                ExitShort("Z1_C3_RunnerAhogo", "Z1-100Bar_Short");
+                                Print(string.Format("{0} - [PAS - Z1-100B | RUNNER AHOGADO EN EL PISO] Salida a Mercado @ ~{1:F2} (Piso: {2:F2}). ¡Ganancia máxima asegurada!",
+                                    Time[0], Close[0], lowestPriceSinceEntry));
+                            }
+                        }
+                        // Stop de Resguardo tras cobrar C1: BreakEven - 1 tick
+                        else if (z1C1Achieved)
+                        {
+                            double bePrice = entryPrice - (1 * TickSize);
+                            if (Close[0] >= bePrice || High[0] >= bePrice)
+                            {
+                                ExitShort("Z1_Stop_BE", "Z1-100Bar_Short");
+                                Print(string.Format("{0} - [PAS - Z1-100B | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
+                                    Time[0], bePrice));
+                            }
+                        }
+                        // Stop Inicial antes de C1 (Línea Media con TOPE DE 14 TICKS):
+                        else
+                        {
+                            double naturalSl = keltnerBig.Midline[0] + (SlOffsetTicks * TickSize);
+                            double slPrice = Math.Min(naturalSl, entryPrice + (14 * TickSize));
+
+                            if (Close[0] >= slPrice || High[0] >= slPrice)
+                            {
+                                ExitShort("SL_Midline_Zona1", "Z1-100Bar_Short");
+                                Print(string.Format("{0} - [PAS - Z1-100B | SL MIDLINE] Precio tocó Midline ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                    Time[0], slPrice, Close[0]));
+                            }
+                        }
                     }
                 }
                 // --- GESTIÓN AS 4: CASCADA 25 (ESCALONAMIENTO 3 FASES + 6 ZONAS KELTNER + TARGETS LÍMITE) ---
@@ -2005,6 +2178,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             z1MidlineCountdownLong = 0;
             z1WaitingForMidlineShort = false;
             z1MidlineCountdownShort = 0;
+            z1C1Achieved = false;
+            z1C2Achieved = false;
+            z1ChokeActive = false;
             sobbArmedLong = false;
             sobbArmedShort = false;
             sobbHasFloatedLong = false;
@@ -2394,9 +2570,19 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Z1MaxZone0Ticks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(4, 50)]
-        [Display(Name = "Z1 TP Fijo (Ticks)", Description = "Target de salida de Zona 1 (12 ticks = $150 ES / $15 MES)", GroupName = "6. As 1: Zona 1", Order = 4)]
-        public int Zone1FixedTpTicks { get; set; }
+        [Range(4, 30)]
+        [Display(Name = "Z1 C1 TP (Ticks)", Description = "Target de salida de C1 y activación de BE (8 ticks = $100 ES / $10 MES)", GroupName = "6. As 1: Zona 1", Order = 4)]
+        public int Zone1Tp1Ticks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(8, 50)]
+        [Display(Name = "Z1 C2 TP (Ticks)", Description = "Target de salida de C2 (16 ticks = $200 ES / $20 MES)", GroupName = "6. As 1: Zona 1", Order = 5)]
+        public int Zone1Tp2Ticks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 20)]
+        [Display(Name = "Z1 C3 Ahogo (Ticks)", Description = "Distancia ceñida para el trailing del C3 Runner (8 ticks)", GroupName = "6. As 1: Zona 1", Order = 6)]
+        public int Zone1ChokeTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 200)]
