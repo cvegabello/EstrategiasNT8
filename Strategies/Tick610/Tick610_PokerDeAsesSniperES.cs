@@ -176,7 +176,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "8.2 - Poker de Ases (PAS) [Cascada Cuarentena 60min >$600, Surfer Monocontrato, Candado $180, RTH 09:50 AM]";
+                Version                                     = "8.3 - Poker de Ases (PAS) [Cascada Inicio 10:00 AM, Cuarentena 60min, Surfer Monocontrato, Candado $180]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -221,6 +221,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)
 
                 // Parámetros del As 4: Cascada Surfer Monocontrato (Expansión con Candado $180 y Fin de Ciclo)
+                CascadaStartTime                            = 100000; // 10:00 AM EST - Filtro Anti-Acomodación de Pre-Mercado
                 CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (calibración óptima)
                 CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
@@ -1141,7 +1142,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         // =========================================================================
         private void EvaluateAs4_Cascada50()
         {
-            // FILTRO DE SACIEDAD: Si Cascada logró un Súper Win (>= $600 USD), permanece en cuarentena de 60 min
+            // 1. FILTRO HORARIO EXCLUSIVO DE CASCADA: No opera antes de las 10:00 AM EST (Evita trampas de acomodación de pre-mercado)
+            int timeNow = ToTime(Time[0]);
+            if (timeNow < CascadaStartTime)
+            {
+                return;
+            }
+
+            // 2. FILTRO DE SACIEDAD: Si Cascada logró un Súper Win (>= $600 USD), permanece en cuarentena de 60 min
             if (Time[0] < cascadaQuarantineEndTime)
             {
                 return;
@@ -2511,8 +2519,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Zone1ChokeTicks { get; set; }
 
         [NinjaScriptProperty]
+        [Display(Name = "Cascada Hora Inicio (HHMMSS)", Description = "Hora mínima para disparar Cascada (10:00 AM = 100000 para evitar trampas de pre-mercado)", GroupName = "7. As 4: Cascada Surfer", Order = 0)]
+        public int CascadaStartTime { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1, 3)]
-        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (1 contrato)", GroupName = "7. As 4: Cascada Surfer", Order = 0)]
+        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (1 contrato)", GroupName = "7. As 4: Cascada Surfer", Order = 1)]
         public int CascadaFirstEntryContracts { get; set; }
 
         [NinjaScriptProperty]
