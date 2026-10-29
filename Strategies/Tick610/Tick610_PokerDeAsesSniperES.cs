@@ -104,9 +104,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ratchetC2Achieved = false;    // Contrato 2 cerrado (Stop Línea Media o Fase 3)
         private bool ratchetChokeActive = false;   // Contrato 3 Runner en Chicle Parabólico
 
-        // === VARIABLES DEL AS 4: CASCADA 25 BARRAS (ESCALONADA) ===
+        // === VARIABLES DEL AS 4: CASCADA (SURFER MONOCONTRATO CON CANDADO $180 Y FIN DE CICLO) ===
         private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks
         private int barsCascadaLongCount  = 0;     // Barras con EMA200 < Lower 3.5 - 4 ticks
+        private bool isCascadaLockActive  = false; // Candado de $180 activado (salida en Banda 1.75 favorable)
         private bool cascadaC1Achieved    = false; // Contrato 1 cerrado a +8 ticks (BE armado)
         private bool cascadaC2Achieved    = false; // Contrato 2 cerrado a +16 ticks
         private bool cascadaChokeActive   = false; // Contrato 3 Runner en Modo Ahogo (8 ticks)
@@ -174,7 +175,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "7.5 - Poker de Ases (PAS) [Z1-100B Anti-Entrada Tardía Reset Inmediato en Cruce, RTH 09:50 AM, Cascada Pisar Suave Win]";
+                Version                                     = "8.0 - Poker de Ases (PAS) [Cascada Surfer Monocontrato Candado $180 y Fin de Ciclo, Z1-100B Runner, RTH 09:50 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -218,15 +219,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetChicleTicks                          = 7;      // Trailing ceñido del Chicle Parabólico (7 ticks)
                 RatchetMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)
 
-                // Parámetros del As 4: Cascada 25 Barras (Escalonamiento 3 Fases + 6 Zonas Keltner)
-                CascadaFirstEntryContracts                  = 1;      // Pisar Suave: 1er disparo de Cascada del día en modo exploratorio (1 contrato)
+                // Parámetros del As 4: Cascada Surfer Monocontrato (Expansión con Candado $180 y Fin de Ciclo)
+                CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (calibración óptima)
                 CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
-                CascadaTp1Ticks                             = 8;      // C1 TP (8 ticks = $100 ES / $10 MES) -> Pasa a BE +1tk
-                CascadaTp2Ticks                             = 16;     // C2 TP (16 ticks = $200 ES / $20 MES) -> Meta clásica
-                CascadaChokeTicks                           = 8;      // C3 Runner Ahogo a 8 ticks del High/Low
-                CascadaMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Cascada (12 ticks = $450 ES / $45 MES en 3 contratos)
+                CascadaLockTriggerDollars                   = 180.0;  // Umbral de ganancia en USD para activar Candado ($180 ES / $18 MES)
+                CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
+                CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
+                CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
+                CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
 
                 // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Ceñida -$650 USD para 2.5 - 3 Vidas)
                 UseDailyManagement                          = true;   // Activar Cortacircuito y Trailing Diario
@@ -257,6 +259,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     DailyFloor_Piso2      = 50.0;
                     DailyGoal_Piso3       = 90.0;
                     DailyTrailingGiveback = 15.0;
+                    CascadaLockTriggerDollars = 18.0;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
@@ -1259,25 +1262,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // SOBB siempre opera con 1 solo contrato (Monocontrato Quirúrgico con Oxígeno Estructural)
-            if (ace == AceType.As2_SOBB)
+            // SOBB y CASCADA siempre operan con 1 solo contrato (Monocontrato Quirúrgico y Surfer con Oxígeno Estructural)
+            if (ace == AceType.As2_SOBB || ace == AceType.As4_Cascada50)
             {
                 entryContracts = 1;
-            }
-
-            // REGLA DE ORO CASCADA - "PISAR SUAVE BLINDADO" (HASTA 1ER TRADE GANADOR CONFIRMADO):
-            // Cascada entra en modo exploratorio con 1 contrato hasta que demuestre
-            // un trade ganador real en el día, protegiendo la cuenta en días picados o de trampa.
-            if (ace == AceType.As4_Cascada50 && !cascadaHasWonToday)
-            {
-                entryContracts = Math.Min(entryContracts, CascadaFirstEntryContracts);
-                Print(string.Format("{0} - [PAS - Cascada | PISAR SUAVE BLINDADO] Disparo #{1} de Cascada en modo exploratorio con {2} contrato(s) (Aún sin trade ganador confirmado hoy).",
-                    Time[0], cascadaTradesToday + 1, entryContracts));
             }
 
             if (ace == AceType.As4_Cascada50)
             {
                 cascadaTradesToday++;
+                Print(string.Format("{0} - [PAS - Cascada | SURFER MONOCONTRATO] Disparo #{1} de Cascada asignado a 1 contrato para surfear rally con respiro.",
+                    Time[0], cascadaTradesToday));
             }
 
             activeTradeContracts = entryContracts;
@@ -1297,6 +1292,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             cascadaC1Achieved = false;
             cascadaC2Achieved = false;
             cascadaChokeActive = false;
+            isCascadaLockActive = false;
 
             // Stop Loss inicial físico en el DOM
             double initialSlPrice = 0.0;
@@ -1335,31 +1331,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN LARGOS CON TOPE DE SEGURIDAD (CascadaMaxSlTicks = 12 ticks):
-                    // Zona 0 y Zona 1 (Close >= Upper 1.75): SL en Línea Media (Midline - 2 ticks)
-                    // Zona 2 (Close < Upper 1.75): SL en Banda Inferior Pequeña (Lower 1.75 - 2 ticks) para evitar amagues
-                    double naturalSl = (Close[0] >= keltnerSmall.Upper[0]) 
-                        ? (keltnerBig.Midline[0] - (2 * TickSize)) 
-                        : (keltnerSmall.Lower[0] - (2 * TickSize));
+                    // CASCADA SURFER MONOCONTRATO: SL Estructural con Oxígeno en Banda Pequeña Lower 1.75 con tope de seguridad (24 ticks = -$300 máx)
+                    double naturalSl = keltnerSmall.Lower[0] - (1 * TickSize);
                     double maxSafeSl = Close[0] - (CascadaMaxSlTicks * TickSize);
                     initialSlPrice = Math.Max(naturalSl, maxSafeSl);
-                    Print(string.Format("{0} - [PAS - Cascada | SL CON TOPE QUIRÚRGICO] Entrada Long @ {1:F2} | SL: {2:F2} (Tope máx {3} ticks = -${4:F2} USD en {5} ctos).",
-                        Time[0], Close[0], initialSlPrice, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts), activeTradeContracts));
-
-                    // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
-                    double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaTp1Ticks * TickSize));
-                    double tp2Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaTp2Ticks * TickSize));
-                    if (activeTradeContracts >= 3)
-                    {
-                        ExitLongLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Long");
-                        ExitLongLimit(1, tp2Price, "Cascada_C2_Tp16", "Cascada50_Long");
-                    }
-                    else if (activeTradeContracts == 2)
-                    {
-                        ExitLongLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Long");
-                    }
-                    Print(string.Format("{0} - [PAS - Cascada | TARGETS LÍMITE COLOCADOS] C1 (+{1}tk): {2:F2} | Posición activa: {3} contrato(s)",
-                        Time[0], CascadaTp1Ticks, tp1Price, activeTradeContracts));
+                    isCascadaLockActive = false;
+                    Print(string.Format("{0} - [PAS - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL en Lower 1.75 -1tk: {2:F2} ({3:F1} ticks de respiro | Tope {4}tk = -${5:F2}). Candado ${6:F0} armado.",
+                        Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), CascadaLockTriggerDollars));
                 }
                 else if (ace == AceType.As3_Ratchet)
                 {
@@ -1431,31 +1409,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // LÓGICA DE 6 ZONAS KELTNER PARA SL INICIAL EN CORTOS CON TOPE DE SEGURIDAD (CascadaMaxSlTicks = 12 ticks):
-                    // Zona 5 y Zona 4 (Close <= Lower 1.75): SL en Línea Media (Midline + 2 ticks)
-                    // Zona 3 (Close > Lower 1.75): SL en Banda Superior Pequeña (Upper 1.75 + 2 ticks) para evitar amagues
-                    double naturalSl = (Close[0] <= keltnerSmall.Lower[0]) 
-                        ? (keltnerBig.Midline[0] + (2 * TickSize)) 
-                        : (keltnerSmall.Upper[0] + (2 * TickSize));
+                    // CASCADA SURFER MONOCONTRATO: SL Estructural con Oxígeno en Banda Pequeña Upper 1.75 con tope de seguridad (24 ticks = -$300 máx)
+                    double naturalSl = keltnerSmall.Upper[0] + (1 * TickSize);
                     double maxSafeSl = Close[0] + (CascadaMaxSlTicks * TickSize);
                     initialSlPrice = Math.Min(naturalSl, maxSafeSl);
-                    Print(string.Format("{0} - [PAS - Cascada | SL CON TOPE QUIRÚRGICO] Entrada Short @ {1:F2} | SL: {2:F2} (Tope máx {3} ticks = -${4:F2} USD en {5} ctos).",
-                        Time[0], Close[0], initialSlPrice, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts), activeTradeContracts));
-
-                    // REGLA DE ORO INSTITUCIONAL: Targets pasivos LÍMITE en el libro para eliminar slippage
-                    double tp1Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaTp1Ticks * TickSize));
-                    double tp2Price = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaTp2Ticks * TickSize));
-                    if (activeTradeContracts >= 3)
-                    {
-                        ExitShortLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Short");
-                        ExitShortLimit(1, tp2Price, "Cascada_C2_Tp16", "Cascada50_Short");
-                    }
-                    else if (activeTradeContracts == 2)
-                    {
-                        ExitShortLimit(1, tp1Price, "Cascada_C1_Tp8", "Cascada50_Short");
-                    }
-                    Print(string.Format("{0} - [PAS - Cascada | TARGETS LÍMITE COLOCADOS] C1 (-{1}tk): {2:F2} | Posición activa: {3} contrato(s)",
-                        Time[0], CascadaTp1Ticks, tp1Price, activeTradeContracts));
+                    isCascadaLockActive = false;
+                    Print(string.Format("{0} - [PAS - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL en Upper 1.75 +1tk: {2:F2} ({3:F1} ticks de respiro | Tope {4}tk = -${5:F2}). Candado ${6:F0} armado.",
+                        Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), CascadaLockTriggerDollars));
                 }
                 else if (ace == AceType.As3_Ratchet)
                 {
@@ -1750,101 +1710,48 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                 }
-                // --- GESTIÓN AS 4: CASCADA 25 (ESCALONAMIENTO 3 FASES + 6 ZONAS KELTNER + TARGETS LÍMITE) ---
+                // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO $180 Y FIN DE CICLO) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
-                    double maxProfitTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
+                    double currentFavorableTicks = (High[0] - entryPrice) / TickSize;
+                    double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                    double effectiveLockTrigger  = CascadaLockTriggerDollars * instrumentMultiplier;
 
-                    // Si estamos operando con 1 solo contrato (por desescalado tras pérdida):
-                    if (activeTradeContracts == 1)
+                    // CANDADO DE $180: Al superar $180 a favor ($18 en MES), el candado se arma
+                    if (!isCascadaLockActive && currentProfitDollars >= effectiveLockTrigger)
                     {
-                        // Target pasivo de +8 ticks
-                        if (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks)
-                        {
-                            ExitLong("Cascada_Mono_Tp", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO TP COBRADO] +{1} ticks (+${2:F2}). ¡Ganancia asegurada!",
-                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue));
-                            return;
-                        }
+                        isCascadaLockActive = true;
+                        Print(string.Format("{0} - [PAS - Cascada | CANDADO ACTIVADO - LARGO] Ganancia flotante alcanzó {1:C2} (+{2:F1} tks). Candado armado en Upper 1.75 -1tk.",
+                            Time[0], currentProfitDollars, currentFavorableTicks));
+                    }
 
-                        // Stop Loss con TOPE DE SEGURIDAD de Cascada (CascadaMaxSlTicks = 12 ticks):
-                        double naturalSl = (entryPrice >= keltnerSmall.Upper[0]) 
-                            ? (keltnerBig.Midline[0] - (2 * TickSize)) 
-                            : (keltnerSmall.Lower[0] - (2 * TickSize));
-                        double slPrice = Math.Max(naturalSl, entryPrice - (CascadaMaxSlTicks * TickSize));
-
-                        if (Close[0] <= slPrice || Low[0] <= slPrice)
+                    // 1. Salida por Fin de Ciclo (EMA 200 corta o toca banda inferior 3.5)
+                    if (ema200[0] <= keltnerBig.Lower[0])
+                    {
+                        ExitLong("Exit_Cascada_CicloTerminado", "Cascada50_Long");
+                        Print(string.Format("{0} - [PAS - Cascada | LARGO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) cortó Lower 3.5 ({2:F2}) | Salida @ ~{3:F2}",
+                            Time[0], ema200[0], keltnerBig.Lower[0], Close[0]));
+                    }
+                    // 2. Salida por Candado activo (Upper 1.75 - 1 tick)
+                    else if (isCascadaLockActive)
+                    {
+                        double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
+                        if (Close[0] <= lockSl || Low[0] <= lockSl)
                         {
-                            ExitLong("Cascada_Mono_SL", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO SL EJECUTADO] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], slPrice, Close[0]));
-                            return;
+                            ExitLong("SL_Candado_Cascada", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | LARGO PROTEGIDO POR CANDADO] Precio perforó Upper 1.75 -1tk ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], lockSl, Close[0]));
                         }
                     }
+                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
                     else
                     {
-                        // MULTICONTRATO (2 o 3 contratos)
-                        // CONTRATO 1: Target Límite pasivo a +8 ticks (CascadaTp1Ticks) ejecutado o detectado
-                        if (!cascadaC1Achieved && (currentQty < activeTradeContracts || maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
+                        double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerSmall.Lower[0] - (1 * TickSize), entryPrice - (CascadaMaxSlTicks * TickSize)));
+                        if (Close[0] <= dynamicSl || Low[0] <= dynamicSl)
                         {
-                            cascadaC1Achieved = true;
-                            if (currentQty >= 3)
-                            {
-                                ExitLong(1, "Cascada_C1_Tp8", "Cascada50_Long");
-                            }
-                            Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN +1tk ({3:F2}). ¡Riesgo CERO!",
-                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice + (1 * TickSize)));
-                        }
-
-                        // CONTRATO 2: Target Límite pasivo a +16 ticks (CascadaTp2Ticks) ejecutado o detectado
-                        if (cascadaC1Achieved && !cascadaC2Achieved && (currentQty <= 1 || maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
-                        {
-                            cascadaC2Achieved = true;
-                            cascadaChokeActive = true;
-                            if (currentQty >= 2)
-                            {
-                                ExitLong(1, "Cascada_C2_Tp16", "Cascada50_Long");
-                            }
-                            Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del High.",
-                                Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
-                        }
-
-                        // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico (CascadaChokeTicks)
-                        if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
-                        {
-                            double chokeSl = highestPriceSinceEntry - (CascadaChokeTicks * TickSize);
-                            if (Close[0] <= chokeSl || Low[0] <= chokeSl)
-                            {
-                                ExitLong("Cascada_C3_RunnerAhogo", "Cascada50_Long");
-                                Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN LA CIMA] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
-                                    Time[0], Close[0], highestPriceSinceEntry));
-                            }
-                        }
-                        // Stop de Resguardo tras cobrar C1: BreakEven + 1 tick
-                        else if (cascadaC1Achieved)
-                        {
-                            double bePrice = entryPrice + (1 * TickSize);
-                            if (Close[0] <= bePrice || Low[0] <= bePrice)
-                            {
-                                ExitLong("Cascada_Stop_BE", "Cascada50_Long");
-                                Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
-                                    Time[0], bePrice));
-                            }
-                        }
-                        // Stop Inicial antes de C1 (según las 6 Zonas de Keltner con TOPE DE 12 TICKS):
-                        else
-                        {
-                            double naturalSl = (entryPrice >= keltnerSmall.Upper[0]) 
-                                ? (keltnerBig.Midline[0] - (2 * TickSize)) 
-                                : (keltnerSmall.Lower[0] - (2 * TickSize));
-                            double initialSl = Math.Max(naturalSl, entryPrice - (CascadaMaxSlTicks * TickSize));
-
-                            if (Close[0] <= initialSl || Low[0] <= initialSl)
-                            {
-                                ExitLong("SL_Zona_Cascada", "Cascada50_Long");
-                                Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2} (Tope {3}tk)",
-                                    Time[0], initialSl, Close[0], CascadaMaxSlTicks));
-                            }
+                            ExitLong("SL_BandaOpuesta_Cascada", "Cascada50_Long");
+                            Print(string.Format("{0} - [PAS - Cascada | LARGO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 -1tk / Tope {1}tk ({2:F2}) | Salida a Mercado @ ~{3:F2}",
+                                Time[0], CascadaMaxSlTicks, dynamicSl, Close[0]));
                         }
                     }
                 }
@@ -2100,101 +2007,48 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                 }
-                // --- GESTIÓN AS 4: CASCADA 25 (ESCALONAMIENTO 3 FASES + 6 ZONAS KELTNER + TARGETS LÍMITE) ---
+                // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO $180 Y FIN DE CICLO) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
-                    double maxProfitTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
+                    double currentFavorableTicks = (entryPrice - Low[0]) / TickSize;
+                    double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
+                    double effectiveLockTrigger  = CascadaLockTriggerDollars * instrumentMultiplier;
 
-                    // Si estamos operando con 1 solo contrato (por desescalado tras pérdida):
-                    if (activeTradeContracts == 1)
+                    // CANDADO DE $180: Al superar $180 a favor ($18 en MES), el candado se arma
+                    if (!isCascadaLockActive && currentProfitDollars >= effectiveLockTrigger)
                     {
-                        // Target pasivo de +8 ticks
-                        if (maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks)
-                        {
-                            ExitShort("Cascada_Mono_Tp", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO TP COBRADO] +{1} ticks (+${2:F2}). ¡Ganancia asegurada!",
-                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue));
-                            return;
-                        }
+                        isCascadaLockActive = true;
+                        Print(string.Format("{0} - [PAS - Cascada | CANDADO ACTIVADO - CORTO] Ganancia flotante alcanzó {1:C2} (+{2:F1} tks). Candado armado en Lower 1.75 +1tk.",
+                            Time[0], currentProfitDollars, currentFavorableTicks));
+                    }
 
-                        // Stop Loss con TOPE DE SEGURIDAD de Cascada (CascadaMaxSlTicks = 12 ticks):
-                        double naturalSl = (entryPrice <= keltnerSmall.Lower[0]) 
-                            ? (keltnerBig.Midline[0] + (2 * TickSize)) 
-                            : (keltnerSmall.Upper[0] + (2 * TickSize));
-                        double slPrice = Math.Min(naturalSl, entryPrice + (CascadaMaxSlTicks * TickSize));
-
-                        if (Close[0] >= slPrice || High[0] >= slPrice)
+                    // 1. Salida por Fin de Ciclo (EMA 200 corta o toca banda superior 3.5)
+                    if (ema200[0] >= keltnerBig.Upper[0])
+                    {
+                        ExitShort("Exit_Cascada_CicloTerminado", "Cascada50_Short");
+                        Print(string.Format("{0} - [PAS - Cascada | CORTO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) cortó Upper 3.5 ({2:F2}) | Salida @ ~{3:F2}",
+                            Time[0], ema200[0], keltnerBig.Upper[0], Close[0]));
+                    }
+                    // 2. Salida por Candado activo (Lower 1.75 + 1 tick)
+                    else if (isCascadaLockActive)
+                    {
+                        double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
+                        if (Close[0] >= lockSl || High[0] >= lockSl)
                         {
-                            ExitShort("Cascada_Mono_SL", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | MONOCONTRATO SL EJECUTADO] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], slPrice, Close[0]));
-                            return;
+                            ExitShort("SL_Candado_Cascada", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | CORTO PROTEGIDO POR CANDADO] Precio superó Lower 1.75 +1tk ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], lockSl, Close[0]));
                         }
                     }
+                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
                     else
                     {
-                        // MULTICONTRATO (2 o 3 contratos)
-                        // CONTRATO 1: Target Límite pasivo a +8 ticks (CascadaTp1Ticks) ejecutado o detectado
-                        if (!cascadaC1Achieved && (currentQty < activeTradeContracts || maxProfitTicks >= CascadaTp1Ticks || currentGainTicks >= CascadaTp1Ticks))
+                        double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerSmall.Upper[0] + (1 * TickSize), entryPrice + (CascadaMaxSlTicks * TickSize)));
+                        if (Close[0] >= dynamicSl || High[0] >= dynamicSl)
                         {
-                            cascadaC1Achieved = true;
-                            if (currentQty >= 3)
-                            {
-                                ExitShort(1, "Cascada_C1_Tp8", "Cascada50_Short");
-                            }
-                            Print(string.Format("{0} - [PAS - Cascada | FASE 1 SUPERADA] C1 ejecutado a +{1} ticks (+${2:F2}). Stop blindado en BREAKEVEN -1tk ({3:F2}). ¡Riesgo CERO!",
-                                Time[0], CascadaTp1Ticks, CascadaTp1Ticks * TickSize * Instrument.MasterInstrument.PointValue, entryPrice - (1 * TickSize)));
-                        }
-
-                        // CONTRATO 2: Target Límite pasivo a +16 ticks (CascadaTp2Ticks) ejecutado o detectado
-                        if (cascadaC1Achieved && !cascadaC2Achieved && (currentQty <= 1 || maxProfitTicks >= CascadaTp2Ticks || currentGainTicks >= CascadaTp2Ticks))
-                        {
-                            cascadaC2Achieved = true;
-                            cascadaChokeActive = true;
-                            if (currentQty >= 2)
-                            {
-                                ExitShort(1, "Cascada_C2_Tp16", "Cascada50_Short");
-                            }
-                            Print(string.Format("{0} - [PAS - Cascada | FASE 2 SUPERADA] C2 cobrado a +{1} ticks (+${2:F2}). Contrato 3 Runner en MODO AHOGO a {3} ticks del Low.",
-                                Time[0], CascadaTp2Ticks, CascadaTp2Ticks * TickSize * Instrument.MasterInstrument.PointValue, CascadaChokeTicks));
-                        }
-
-                        // CONTRATO 3 (RUNNER): Modo Ahogo a 8 ticks del pico bajista (CascadaChokeTicks)
-                        if (cascadaChokeActive || (cascadaC1Achieved && cascadaC2Achieved))
-                        {
-                            double chokeSl = lowestPriceSinceEntry + (CascadaChokeTicks * TickSize);
-                            if (Close[0] >= chokeSl || High[0] >= chokeSl)
-                            {
-                                ExitShort("Cascada_C3_RunnerAhogo", "Cascada50_Short");
-                                Print(string.Format("{0} - [PAS - Cascada | RUNNER AHOGADO EN EL FONDO] Salida a Mercado @ ~{1:F2} (Pico: {2:F2}). ¡Ganancia máxima asegurada!",
-                                    Time[0], Close[0], lowestPriceSinceEntry));
-                            }
-                        }
-                        // Stop de Resguardo tras cobrar C1: BreakEven - 1 tick
-                        else if (cascadaC1Achieved)
-                        {
-                            double bePrice = entryPrice - (1 * TickSize);
-                            if (Close[0] >= bePrice || High[0] >= bePrice)
-                            {
-                                ExitShort("Cascada_Stop_BE", "Cascada50_Short");
-                                Print(string.Format("{0} - [PAS - Cascada | SALIDA EN BREAKEVEN] Posición restante protegida en {1:F2}. Salida sin pérdida.",
-                                    Time[0], bePrice));
-                            }
-                        }
-                        // Stop Inicial antes de C1 (según las 6 Zonas de Keltner con TOPE DE 12 TICKS):
-                        else
-                        {
-                            double naturalSl = (entryPrice <= keltnerSmall.Lower[0]) 
-                                ? (keltnerBig.Midline[0] + (2 * TickSize)) 
-                                : (keltnerSmall.Upper[0] + (2 * TickSize));
-                            double initialSl = Math.Min(naturalSl, entryPrice + (CascadaMaxSlTicks * TickSize));
-
-                            if (Close[0] >= initialSl || High[0] >= initialSl)
-                            {
-                                ExitShort("SL_Zona_Cascada", "Cascada50_Short");
-                                Print(string.Format("{0} - [PAS - Cascada | STOP INICIAL ZONA] Precio perforó SL ({1:F2}) | Salida a Mercado @ ~{2:F2} (Tope {3}tk)",
-                                    Time[0], initialSl, Close[0], CascadaMaxSlTicks));
-                            }
+                            ExitShort("SL_BandaOpuesta_Cascada", "Cascada50_Short");
+                            Print(string.Format("{0} - [PAS - Cascada | CORTO CERRADO POR STOP DINÁMICO] Precio superó Upper 1.75 +1tk / Tope {1}tk ({2:F2}) | Salida a Mercado @ ~{3:F2}",
+                                Time[0], CascadaMaxSlTicks, dynamicSl, Close[0]));
                         }
                     }
                 }
@@ -2238,6 +2092,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             cascadaC1Achieved = false;
             cascadaC2Achieved = false;
             cascadaChokeActive = false;
+            isCascadaLockActive = false;
 
             highestPriceSinceEntry = 0.0;
             lowestPriceSinceEntry = double.MaxValue;
@@ -2633,43 +2488,48 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(1, 3)]
-        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (Pisar Suave hasta 1er Win: 1 contrato por defecto)", GroupName = "7. As 4: Cascada 25", Order = 0)]
+        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (1 contrato)", GroupName = "7. As 4: Cascada Surfer", Order = 0)]
         public int CascadaFirstEntryContracts { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 200)]
-        [Display(Name = "Cascada Barras Mínimas", Description = "Barras con EMA 200 separada de Banda 3.5 (25 por defecto)", GroupName = "7. As 4: Cascada 25", Order = 1)]
+        [Display(Name = "Cascada Barras Mínimas", Description = "Barras con EMA 200 separada de Banda 3.5 (25 por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 1)]
         public int CascadaMinBars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(4, 30)]
-        [Display(Name = "Cascada C1 TP (Ticks)", Description = "Target de salida de C1 y activación de BE (8 ticks = $100 ES / $10 MES)", GroupName = "7. As 4: Cascada 25", Order = 2)]
-        public int CascadaTp1Ticks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(8, 50)]
-        [Display(Name = "Cascada C2 TP (Ticks)", Description = "Target de salida de C2 (16 ticks = $200 ES / $20 MES)", GroupName = "7. As 4: Cascada 25", Order = 3)]
-        public int CascadaTp2Ticks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(2, 20)]
-        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "Distancia ceñida para el trailing del C3 Runner (8 ticks)", GroupName = "7. As 4: Cascada 25", Order = 4)]
-        public int CascadaChokeTicks { get; set; }
-
-        [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Cascada Separación Ticks", GroupName = "7. As 4: Cascada 25", Order = 5)]
+        [Display(Name = "Cascada Separación Ticks", GroupName = "7. As 4: Cascada Surfer", Order = 2)]
         public int CascadaSeparationTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "7. As 4: Cascada 25", Order = 6)]
+        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "7. As 4: Cascada Surfer", Order = 3)]
         public int CascadaMinSlopeTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(6, 30)]
-        [Display(Name = "Cascada SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida inicial para Cascada (12 ticks = $450 ES / $45 MES en 3 contratos)", GroupName = "7. As 4: Cascada 25", Order = 7)]
+        [Range(20.0, 500.0)]
+        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($180 ES / $18 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 4)]
+        public double CascadaLockTriggerDollars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(6, 40)]
+        [Display(Name = "Cascada SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 5)]
         public int CascadaMaxSlTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(4, 30)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 6)]
+        public int CascadaTp1Ticks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(8, 50)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
+        public int CascadaTp2Ticks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 20)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
+        public int CascadaChokeTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 50)]
