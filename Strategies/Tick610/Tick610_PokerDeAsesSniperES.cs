@@ -113,6 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool cascadaChokeActive   = false; // Contrato 3 Runner en Modo Ahogo (8 ticks)
         private int  cascadaTradesToday   = 0;     // Contador de disparos de Cascada en la sesión diaria actual
         private bool cascadaHasWonToday   = false; // Bandera: Cascada ya cobró un trade ganador hoy (Pisar Suave liberado)
+        private DateTime cascadaQuarantineEndTime = DateTime.MinValue; // Fin de la cuarentena de 60 min tras súper win (>= $600 USD)
 
         // Tracking de MFE/MAE de la posición activa
         private double entryPriceGlobal = 0.0;
@@ -175,7 +176,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "8.1 - Poker de Ases (PAS) [Cascada Surfer Re-ingreso Fin de Ciclo, Candado $180, RTH 09:50 AM]";
+                Version                                     = "8.2 - Poker de Ases (PAS) [Cascada Cuarentena 60min >$600, Surfer Monocontrato, Candado $180, RTH 09:50 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -226,6 +227,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
                 CascadaLockTriggerDollars                   = 180.0;  // Umbral de ganancia en USD para activar Candado ($180 ES / $18 MES)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
+                CascadaBigWinThresholdDollars               = 600.0;  // Umbral de ganancia para activar Cuarentena de Saciedad ($600 ES / $60 MES)
+                CascadaQuarantineMinutes                    = 60;     // Minutos de cuarentena/congelamiento de Cascada tras súper victoria (60 min)
                 CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
@@ -260,6 +263,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     DailyGoal_Piso3       = 90.0;
                     DailyTrailingGiveback = 15.0;
                     CascadaLockTriggerDollars = 18.0;
+                    CascadaBigWinThresholdDollars = 60.0;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
@@ -341,6 +345,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 barsCascadaShortCount = 0;
                 cascadaTradesToday = 0;
                 cascadaHasWonToday = false;
+                cascadaQuarantineEndTime = DateTime.MinValue;
 
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
@@ -1136,6 +1141,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         // =========================================================================
         private void EvaluateAs4_Cascada50()
         {
+            // FILTRO DE SACIEDAD: Si Cascada logró un Súper Win (>= $600 USD), permanece en cuarentena de 60 min
+            if (Time[0] < cascadaQuarantineEndTime)
+            {
+                return;
+            }
+
             double midline    = keltnerBig.Midline[0];
             double upperSmall = keltnerSmall.Upper[0];
             double lowerSmall = keltnerSmall.Lower[0];
@@ -2156,6 +2167,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                         cascadaHasWonToday = true;
                         Print(string.Format("{0} - [PAS | CASCADA WIN CONFIRMADO] Cascada logró trade ganador (+{1:C2}). ¡Pisar Suave liberado para próximas entradas!",
                             trade.Exit.Time, netProfit));
+
+                        // CUARENTENA DE SACIEDAD: Si ganó >= $600 USD ($60 MES), congela el gatillo de Cascada por 60 minutos
+                        double effectiveBigWinThreshold = CascadaBigWinThresholdDollars * instrumentMultiplier;
+                        if (netProfit >= effectiveBigWinThreshold)
+                        {
+                            cascadaQuarantineEndTime = trade.Exit.Time.AddMinutes(CascadaQuarantineMinutes);
+                            Print(string.Format("****************************************************************************************\n" +
+                                                "{0} - [PAS - Cascada | CUARENTENA DE SACIEDAD ACTIVADA] ¡SÚPER TRADE GANADOR (+{1:C2}) >= ${2:F2} USD!\n" +
+                                                "El mercado entra en agotamiento post-clímax. Cascada entra en CUARENTENA de {3} minutos.\n" +
+                                                "Gatillo de Cascada congelado hasta las {4:HH:mm:ss} EST para proteger el botín.\n" +
+                                                "****************************************************************************************",
+                                trade.Exit.Time, netProfit, effectiveBigWinThreshold, CascadaQuarantineMinutes, cascadaQuarantineEndTime));
+                        }
                     }
 
                     Print(string.Format("{0} - [PAS | CONTRATO CERRADO] Salida: {1} | PnL Contrato: {2:C2} | PnL Diario Acumulado: {3:C2}",
@@ -2517,18 +2541,28 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CascadaMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
+        [Range(100.0, 3000.0)]
+        [Display(Name = "Cascada Umbral Súper Win (USD)", Description = "Ganancia mínima en USD para activar la Cuarentena de Saciedad ($600 ES / $60 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 6)]
+        public double CascadaBigWinThresholdDollars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(10, 240)]
+        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras un Súper Win (60 minutos por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
+        public int CascadaQuarantineMinutes { get; set; }
+
+        [NinjaScriptProperty]
         [Range(4, 30)]
-        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 6)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
         public int CascadaTp1Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(8, 50)]
-        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 9)]
         public int CascadaTp2Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 10)]
         public int CascadaChokeTicks { get; set; }
 
         [NinjaScriptProperty]
