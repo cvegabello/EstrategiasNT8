@@ -175,7 +175,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "8.0 - Poker de Ases (PAS) [Cascada Surfer Monocontrato Candado $180 y Fin de Ciclo, Z1-100B Runner, RTH 09:50 AM]";
+                Version                                     = "8.1 - Poker de Ases (PAS) [Cascada Surfer Re-ingreso Fin de Ciclo, Candado $180, RTH 09:50 AM]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -1725,11 +1725,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], currentProfitDollars, currentFavorableTicks));
                     }
 
-                    // 1. Salida por Fin de Ciclo (EMA 200 corta o toca banda inferior 3.5)
-                    if (ema200[0] <= keltnerBig.Lower[0])
+                    // 1. Salida por Fin de Ciclo (EMA 200 re-ingresa al canal Keltner Grande Lower 3.5)
+                    if (ema200[0] >= keltnerBig.Lower[0])
                     {
                         ExitLong("Exit_Cascada_CicloTerminado", "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS - Cascada | LARGO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) cortó Lower 3.5 ({2:F2}) | Salida @ ~{3:F2}",
+                        Print(string.Format("{0} - [PAS - Cascada | LARGO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) re-ingresó a Lower 3.5 ({2:F2}) | Salida @ ~{3:F2}",
                             Time[0], ema200[0], keltnerBig.Lower[0], Close[0]));
                     }
                     // 2. Salida por Candado activo (Upper 1.75 - 1 tick)
@@ -2022,11 +2022,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], currentProfitDollars, currentFavorableTicks));
                     }
 
-                    // 1. Salida por Fin de Ciclo (EMA 200 corta o toca banda superior 3.5)
-                    if (ema200[0] >= keltnerBig.Upper[0])
+                    // 1. Salida por Fin de Ciclo (EMA 200 re-ingresa al canal Keltner Grande Upper 3.5)
+                    if (ema200[0] <= keltnerBig.Upper[0])
                     {
                         ExitShort("Exit_Cascada_CicloTerminado", "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS - Cascada | CORTO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) cortó Upper 3.5 ({2:F2}) | Salida @ ~{3:F2}",
+                        Print(string.Format("{0} - [PAS - Cascada | CORTO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) re-ingresó a Upper 3.5 ({2:F2}) | Salida @ ~{3:F2}",
                             Time[0], ema200[0], keltnerBig.Upper[0], Close[0]));
                     }
                     // 2. Salida por Candado activo (Lower 1.75 + 1 tick)
