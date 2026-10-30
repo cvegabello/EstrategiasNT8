@@ -178,7 +178,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "9.0 - Poker de Ases (PAS) [SOBB Barras Consecutivas Estructura HH/LL, Cascada Inicio 10:00 AM Cuarentena 60min]";
+                Version                                     = "9.1 - Poker de Ases (PAS) [SOBB Sin Susto TEMA, Ciclo Terminado Reingreso Real Banda 3.5, Barras Consecutivas HH/LL]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -1587,11 +1587,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             return;
                         }
 
-                        // B) Salida por Ciclo Terminado (Repliegue adentro de Banda Upper 3.5 o TEMA 9 engancha a la baja tras ganar >= 12 ticks)
-                        if (peakGainTicks >= 12 && (Close[0] < keltnerBig.Upper[0] || tema9[0] < tema9[1]))
+                        // B) Salida por Ciclo Terminado (Repliegue real adentro de Banda Upper 3.5 tras ganar >= 14 ticks - SIN SUSTO DE TEMA 9)
+                        if (peakGainTicks >= 14 && Close[0] < keltnerBig.Upper[0])
                         {
                             ExitLong("Exit_SOBB_CicloTerminado", "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB | CICLO TERMINADO] Repliegue adentro de Upper 3.5 ({1:F2}) o gancho TEMA9. Salida a Mercado @ ~{2:F2} (+{3:F1} tks pico).",
+                            Print(string.Format("{0} - [PAS - SOBB v9.1 | CICLO TERMINADO REAL] Repliegue adentro de Upper 3.5 ({1:F2}). Salida a Mercado @ ~{2:F2} (+{3:F1} tks pico).",
                                 Time[0], keltnerBig.Upper[0], Close[0], peakGainTicks));
                             return;
                         }
@@ -1884,11 +1884,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             return;
                         }
 
-                        // B) Salida por Ciclo Terminado (Repliegue adentro de Banda Lower 3.5 o TEMA 9 engancha al alza tras ganar >= 12 ticks)
-                        if (peakGainTicks >= 12 && (Close[0] > keltnerBig.Lower[0] || tema9[0] > tema9[1]))
+                        // B) Salida por Ciclo Terminado (Repliegue real adentro de Banda Lower 3.5 tras ganar >= 14 ticks - SIN SUSTO DE TEMA 9)
+                        if (peakGainTicks >= 14 && Close[0] > keltnerBig.Lower[0])
                         {
                             ExitShort("Exit_SOBB_CicloTerminado", "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB | CICLO TERMINADO] Repliegue adentro de Lower 3.5 ({1:F2}) o gancho TEMA9. Salida a Mercado @ ~{2:F2} (+{3:F1} tks pico).",
+                            Print(string.Format("{0} - [PAS - SOBB v9.1 | CICLO TERMINADO REAL] Repliegue adentro de Lower 3.5 ({1:F2}). Salida a Mercado @ ~{2:F2} (+{3:F1} tks pico).",
                                 Time[0], keltnerBig.Lower[0], Close[0], peakGainTicks));
                             return;
                         }
