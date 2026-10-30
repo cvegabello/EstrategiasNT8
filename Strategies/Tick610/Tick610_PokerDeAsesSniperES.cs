@@ -87,11 +87,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool z1C2Achieved = false;           // Contrato 2 cerrado a +16 ticks
         private bool z1ChokeActive = false;          // Contrato 3 Runner en Modo Ahogo (8 ticks)
 
-        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 CAPAS) ===
+        // === VARIABLES DEL AS 2: SOBB (SurferOutBigBanda - GATILLO 2 CAPAS + ESTRUCTURA CONSECUTIVA v9.0) ===
         private bool sobbArmedLong = false;        // Fase 1: TEMA 9 cruzó Upper 3.5 (Espera activa a que la vela salga)
         private bool sobbArmedShort = false;       // Fase 1: TEMA 9 cruzó Lower 3.5 (Espera activa a que la vela salga)
         private bool sobbHasFloatedLong = false;   // Bandera de vela flotando afuera para Largos
         private bool sobbHasFloatedShort = false;  // Bandera de vela flotando afuera para Cortos
+        private int  sobbFloatingBarsCountLong = 0;  // Contador de barras consecutivas flotando afuera en Largos
+        private int  sobbFloatingBarsCountShort = 0; // Contador de barras consecutivas flotando afuera en Cortos
         private bool sobbLevel1Achieved = false;   // Piso 1 alcanzado (Contrato 1 cerrado, BE armado)
         private bool sobbLevel2Achieved = false;   // Piso 2 alcanzado (Contrato 2 cerrado, Banda 3.5 anclada)
         private bool sobbLevel3ChokeActive = false;// Piso 3 activo (Modo Ahogo para Contrato 3 Runner)
@@ -176,7 +178,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "8.3 - Poker de Ases (PAS) [Cascada Inicio 10:00 AM, Cuarentena 60min, Surfer Monocontrato, Candado $180]";
+                Version                                     = "9.0 - Poker de Ases (PAS) [SOBB Barras Consecutivas Estructura HH/LL, Cascada Inicio 10:00 AM Cuarentena 60min]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -205,6 +207,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MinSafetySlTicks                            = 8;      // Colchón mínimo de seguridad inicial
 
                 // Parámetros del As 2: SOBB (SurferOutBigBanda) - Monocontrato Quirúrgico con Oxígeno Estructural
+                SobbRequiredFloatingBars                    = 2;      // Barras mínimas consecutivas 100% flotando afuera para confirmar fuga (2 barras por defecto)
+                SobbMaxFloatingBarsWindow                   = 3;      // Ventana máxima de barras consecutivas afuera para gatillar (máx 3 barras antes de cancelar)
                 SobbTp1Ticks                                = 10;     // Escalón 1: +10 ticks ($125 ES / $12.50 MES) - Pasa Stop a Break-Even + 1tk
                 SobbTp2Ticks                                = 20;     // Escalón 2: +20 ticks ($250 ES / $25.00 MES) - Meta de Expansión
                 SobbMaxSlTicks                              = 24;     // Tope de seguridad máximo para SL Estructural (24 ticks = 6 pts = $300 ES / $30 MES)
@@ -347,6 +351,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 cascadaTradesToday = 0;
                 cascadaHasWonToday = false;
                 cascadaQuarantineEndTime = DateTime.MinValue;
+                sobbArmedLong = false;
+                sobbArmedShort = false;
+                sobbHasFloatedLong = false;
+                sobbHasFloatedShort = false;
+                sobbFloatingBarsCountLong = 0;
+                sobbFloatingBarsCountShort = 0;
 
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
@@ -833,26 +843,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             double lowerSlope   = lowerBig - keltnerBig.Lower[2];
 
             // =========================================================================
-            // SOBB LARGO: Cruce de TEMA 9 de adentro hacia afuera + Filtro 2 Capas
+            // SOBB LARGO: Cruce de TEMA 9 hacia afuera + Confirmación de Barras Consecutivas (v9.0)
             // 1. Armado: TEMA 9 cruza por primera vez hacia afuera de Upper 3.5.
             // 2. Desarmado por repliegue: Si TEMA 9 regresa adentro (<= Upper 3.5), se desactiva.
-            // 3. Evaluación de Capas cuando la vela esté 100% afuera (Low > Upper 3.5):
-            //    - CAPA 1 (EMA 200 en Zona 3 - Inmediato y Estricto):
-            //      En la primera vela afuera, si la EMA 200 NO está en Zona 3 (entre Midline y Lower 1.75),
-            //      se descarta inmediatamente (sobbArmedLong = false). ¡PAILAS! Se cancela el setup.
-            //    - CAPA 2 (Pendientes - Espera Paciente):
-            //      Si la EMA 200 SÍ está en Zona 3, pero las pendientes aún no giran:
-            //      NO se desarma. Se mantiene en espera en las siguientes barras mientras flote afuera.
-            //      En cuanto las pendientes se alineen estando afuera: ¡PUM! Entrada Long ejecutada.
-            //    - Desarmado si el precio regresa adentro (Low <= Upper 3.5) tras haber flotado afuera sin pendientes.
+            // 3. Conteo de Barras Flotando Afuera (Low > Upper 3.5):
+            //    - Barra 1 Afuera: Inicializa contador = 1.
+            //    - Barra 2 Afuera: Si High[0] > High[1] (rompe techo anterior y continúa el empuje alcista)
+            //      y se cumplen las 2 capas (EMA en Zona 3 + Pendientes alineadas) -> ¡DISPARO LARGO!
+            //    - Si High[0] <= High[1] (vela frenada/pequeña): Espera a la Barra 3 afuera.
+            //    - Barra 3 Afuera: Si High[0] > High[1] y capas OK -> ¡DISPARO LARGO!
+            //    - Si se pasa de SobbMaxFloatingBarsWindow (3 barras) sin romper techo o si regresa adentro -> ¡PAILAS!
             // =========================================================================
             bool isTemaCruzoSalidaLargo = (tema9[1] <= keltnerBig.Upper[1] && tema9[0] > upperBig);
             if (isTemaCruzoSalidaLargo)
             {
                 sobbArmedLong = true;
                 sobbHasFloatedLong = false;
-                Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Upper 3.5 ({2:F2}). Espera de vela completa afuera y confirmación de 2 capas.",
-                    Time[0], tema9[0], upperBig));
+                sobbFloatingBarsCountLong = 0;
+                Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Upper 3.5 ({2:F2}). Espera de {3} barras consecutivas afuera con rompimiento alcista.",
+                    Time[0], tema9[0], upperBig, SobbRequiredFloatingBars));
             }
             else if (tema9[0] <= upperBig)
             {
@@ -860,6 +869,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     sobbArmedLong = false;
                     sobbHasFloatedLong = false;
+                    sobbFloatingBarsCountLong = 0;
                     Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
@@ -871,6 +881,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isVelaFlotandoLargo)
                 {
                     sobbHasFloatedLong = true;
+                    sobbFloatingBarsCountLong++;
 
                     bool isEmaZonaLargo    = (ema200[0] <= midline && ema200[0] >= lowerSmall);
                     bool isPendientesLargo = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
@@ -880,58 +891,88 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         sobbArmedLong = false;
                         sobbHasFloatedLong = false;
-                        Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO (PAILAS)] Vela flotando en Zona 0 detectada pero EMA 200 ({1:F2}) fuera de Zona 3 ([{2:F2}, {3:F2}]). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
-                            Time[0], ema200[0], lowerSmall, midline));
+                        sobbFloatingBarsCountLong = 0;
+                        Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO (PAILAS)] Vela flotando #{1} en Zona 0 detectada pero EMA 200 ({2:F2}) fuera de Zona 3 ([{3:F2}, {4:F2}]). ¡Apague y vámonos!",
+                            Time[0], sobbFloatingBarsCountLong, ema200[0], lowerSmall, midline));
                     }
-                    // CAPA 2: Si EMA 200 está en Zona 3, evaluamos las pendientes
-                    else if (isPendientesLargo)
+                    // REGLA DE ORO v9.0: Evaluación de Barras Consecutivas y Rompimiento de Techo (Higher High)
+                    else if (sobbFloatingBarsCountLong >= SobbRequiredFloatingBars && sobbFloatingBarsCountLong <= SobbMaxFloatingBarsWindow)
                     {
-                        // ¡Ambas capas confirmadas con éxito!
+                        // Si la barra actual supera el techo de la barra anterior (empuje alcista activo)
+                        bool rompioTechoAnterior = (High[0] > High[1]);
+
+                        if (rompioTechoAnterior && isPendientesLargo)
+                        {
+                            // ¡Confirmación estructural completa de 2 o 3 barras consecutivas!
+                            sobbArmedLong = false;
+                            sobbHasFloatedLong = false;
+                            sobbFloatingBarsCountLong = 0;
+                            ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
+                            Print(string.Format("{0} - [PAS - SOBB v9.0] ¡DISPARO LARGO CONFIRMADO! {1} barras consecutivas afuera con High ({2:F2}) > High[1] ({3:F2}) y pendientes alineadas | Entrada @ ~{4:F2}",
+                                Time[0], sobbFloatingBarsCountLong, High[0], High[1], Close[0]));
+                            return;
+                        }
+                        else if (!rompioTechoAnterior)
+                        {
+                            Print(string.Format("{0} - [PAS - SOBB v9.0 | LARGO FRENADO] Barra #{1} afuera pero techo High ({2:F2}) no superó High[1] ({3:F2}). Esperando impulso en siguiente barra...",
+                                Time[0], sobbFloatingBarsCountLong, High[0], High[1]));
+                        }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - SOBB | LARGO EN ESPERA DE PENDIENTES] Barra #{1} afuera OK. Pendientes no alineadas todavía (MidSlope={2:F4}, UpperSlope={3:F4}). Esperando...",
+                                Time[0], sobbFloatingBarsCountLong, midlineSlope, upperSlope));
+                        }
+                    }
+                    else if (sobbFloatingBarsCountLong > SobbMaxFloatingBarsWindow)
+                    {
+                        // Superó la ventana de 3 barras consecutivas sin confirmar rompimiento
                         sobbArmedLong = false;
                         sobbHasFloatedLong = false;
-                        ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
-                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO LARGO CONFIRMADO! Vela flotando en Zona 0 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
-                            Time[0], Close[0]));
-                        return;
+                        sobbFloatingBarsCountLong = 0;
+                        Print(string.Format("{0} - [PAS - SOBB v9.0 | LARGO EXPIRADO (PAILAS)] Pasaron {1} barras afuera sin rompimiento alcista con pendientes. Setup cancelado.",
+                            Time[0], SobbMaxFloatingBarsWindow));
                     }
                     else
                     {
-                        // EMA 200 en Zona 3 OK, pero pendientes aún no alineadas: mantenemos armado a la espera de la siguiente barra afuera
-                        Print(string.Format("{0} - [PAS - SOBB | LARGO EN ESPERA DE PENDIENTES] EMA 200 en Zona 3 OK. Pendientes no alineadas todavía (MidSlope={1:F4}, UpperSlope={2:F4}). Esperando mientras el precio siga afuera...",
-                            Time[0], midlineSlope, upperSlope));
+                        // Barra 1 afuera: guardando posición y esperando barra 2
+                        Print(string.Format("{0} - [PAS - SOBB v9.0 | BARRA 1 AFUERA] Primera vela 100% afuera (Low {1:F2} > Upper {2:F2}). Esperando Barra 2 consecutiva...",
+                            Time[0], Low[0], upperBig));
                     }
                 }
-                else if (sobbHasFloatedLong && Low[0] <= upperBig)
+                else
                 {
-                    // La vela ya había flotado afuera pero regresó adentro antes de que las pendientes confirmaran
-                    sobbArmedLong = false;
-                    sobbHasFloatedLong = false;
-                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO POR REPLIEGUE] El precio regresó adentro de Upper 3.5 ({1:F2}) sin haber confirmado pendientes. Setup cancelado.",
-                        Time[0], upperBig));
+                    // La vela ya no está 100% afuera (se metió adentro o tocó la banda) -> ¡PAILAS!
+                    if (sobbHasFloatedLong || sobbFloatingBarsCountLong > 0)
+                    {
+                        sobbArmedLong = false;
+                        sobbHasFloatedLong = false;
+                        sobbFloatingBarsCountLong = 0;
+                        Print(string.Format("{0} - [PAS - SOBB v9.0 | LARGO DESARMADO POR REPLIEGUE] El precio regresó adentro de Upper 3.5 ({1:F2}) tras {2} barra(s) afuera. ¡Pailas! Setup cancelado.",
+                            Time[0], upperBig, sobbFloatingBarsCountLong));
+                    }
                 }
             }
 
             // =========================================================================
-            // SOBB CORTO: Cruce de TEMA 9 de adentro hacia afuera + Filtro 2 Capas
+            // SOBB CORTO: Cruce de TEMA 9 hacia afuera + Confirmación de Barras Consecutivas (v9.0)
             // 1. Armado: TEMA 9 cruza por primera vez hacia afuera de Lower 3.5.
             // 2. Desarmado por repliegue: Si TEMA 9 regresa adentro (>= Lower 3.5), se desactiva.
-            // 3. Evaluación de Capas cuando la vela esté 100% afuera (High < Lower 3.5):
-            //    - CAPA 1 (EMA 200 en Zona 3 - Inmediato y Estricto):
-            //      En la primera vela afuera, si la EMA 200 NO está en Zona 3 (entre Midline y Upper 1.75),
-            //      se descarta inmediatamente (sobbArmedShort = false). ¡PAILAS! Se cancela el setup.
-            //    - CAPA 2 (Pendientes - Espera Paciente):
-            //      Si la EMA 200 SÍ está en Zona 3, pero las pendientes aún no giran:
-            //      NO se desarma. Se mantiene en espera en las siguientes barras mientras flote afuera.
-            //      En cuanto las pendientes se alineen estando afuera: ¡PUM! Entrada Short ejecutada.
-            //    - Desarmado si el precio regresa adentro (High >= Lower 3.5) tras haber flotado afuera sin pendientes.
+            // 3. Conteo de Barras Flotando Afuera (High < Lower 3.5):
+            //    - Barra 1 Afuera: Inicializa contador = 1.
+            //    - Barra 2 Afuera: Si Low[0] < Low[1] (rompe piso anterior y continúa el empuje bajista)
+            //      y se cumplen las 2 capas (EMA en Zona 3 + Pendientes alineadas) -> ¡DISPARO CORTO!
+            //    - Si Low[0] >= Low[1] (vela frenada/pequeña): Espera a la Barra 3 afuera.
+            //    - Barra 3 Afuera: Si Low[0] < Low[1] y capas OK -> ¡DISPARO CORTO!
+            //    - Si se pasa de SobbMaxFloatingBarsWindow (3 barras) sin romper piso o si regresa adentro -> ¡PAILAS!
             // =========================================================================
             bool isTemaCruzoSalidaCorto = (tema9[1] >= keltnerBig.Lower[1] && tema9[0] < lowerBig);
             if (isTemaCruzoSalidaCorto)
             {
                 sobbArmedShort = true;
                 sobbHasFloatedShort = false;
-                Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Lower 3.5 ({2:F2}). Espera de vela completa afuera y confirmación de 2 capas.",
-                    Time[0], tema9[0], lowerBig));
+                sobbFloatingBarsCountShort = 0;
+                Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Lower 3.5 ({2:F2}). Espera de {3} barras consecutivas afuera con rompimiento bajista.",
+                    Time[0], tema9[0], lowerBig, SobbRequiredFloatingBars));
             }
             else if (tema9[0] >= lowerBig)
             {
@@ -939,6 +980,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     sobbArmedShort = false;
                     sobbHasFloatedShort = false;
+                    sobbFloatingBarsCountShort = 0;
                     Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
@@ -950,6 +992,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isVelaFlotandoCorto)
                 {
                     sobbHasFloatedShort = true;
+                    sobbFloatingBarsCountShort++;
 
                     bool isEmaZonaCorto    = (ema200[0] >= midline && ema200[0] <= upperSmall);
                     bool isPendientesCorto = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
@@ -959,34 +1002,65 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         sobbArmedShort = false;
                         sobbHasFloatedShort = false;
-                        Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO (PAILAS)] Vela flotando en Zona 5 detectada pero EMA 200 ({1:F2}) fuera de Zona 3 ([{2:F2}, {3:F2}]). ¡Apague y vámonos! Bloqueado hasta nuevo cruce de TEMA 9.",
-                            Time[0], ema200[0], midline, upperSmall));
+                        sobbFloatingBarsCountShort = 0;
+                        Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO (PAILAS)] Vela flotando #{1} en Zona 5 detectada pero EMA 200 ({2:F2}) fuera de Zona 3 ([{3:F2}, {4:F2}]). ¡Apague y vámonos!",
+                            Time[0], sobbFloatingBarsCountShort, ema200[0], midline, upperSmall));
                     }
-                    // CAPA 2: Si EMA 200 está en Zona 3, evaluamos las pendientes
-                    else if (isPendientesCorto)
+                    // REGLA DE ORO v9.0: Evaluación de Barras Consecutivas y Rompimiento de Suelo (Lower Low)
+                    else if (sobbFloatingBarsCountShort >= SobbRequiredFloatingBars && sobbFloatingBarsCountShort <= SobbMaxFloatingBarsWindow)
                     {
-                        // ¡Ambas capas confirmadas con éxito!
+                        // Si la barra actual perfora el suelo de la barra anterior (empuje bajista activo)
+                        bool rompioSueloAnterior = (Low[0] < Low[1]);
+
+                        if (rompioSueloAnterior && isPendientesCorto)
+                        {
+                            // ¡Confirmación estructural completa de 2 o 3 barras consecutivas!
+                            sobbArmedShort = false;
+                            sobbHasFloatedShort = false;
+                            sobbFloatingBarsCountShort = 0;
+                            ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
+                            Print(string.Format("{0} - [PAS - SOBB v9.0] ¡DISPARO CORTO CONFIRMADO! {1} barras consecutivas afuera con Low ({2:F2}) < Low[1] ({3:F2}) y pendientes alineadas | Entrada @ ~{4:F2}",
+                                Time[0], sobbFloatingBarsCountShort, Low[0], Low[1], Close[0]));
+                            return;
+                        }
+                        else if (!rompioSueloAnterior)
+                        {
+                            Print(string.Format("{0} - [PAS - SOBB v9.0 | CORTO FRENADO] Barra #{1} afuera pero suelo Low ({2:F2}) no perforó Low[1] ({3:F2}). Esperando impulso en siguiente barra...",
+                                Time[0], sobbFloatingBarsCountShort, Low[0], Low[1]));
+                        }
+                        else
+                        {
+                            Print(string.Format("{0} - [PAS - SOBB | CORTO EN ESPERA DE PENDIENTES] Barra #{1} afuera OK. Pendientes no alineadas todavía (MidSlope={2:F4}, LowerSlope={3:F4}). Esperando...",
+                                Time[0], sobbFloatingBarsCountShort, midlineSlope, lowerSlope));
+                        }
+                    }
+                    else if (sobbFloatingBarsCountShort > SobbMaxFloatingBarsWindow)
+                    {
+                        // Superó la ventana de 3 barras consecutivas sin confirmar rompimiento
                         sobbArmedShort = false;
                         sobbHasFloatedShort = false;
-                        ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
-                        Print(string.Format("{0} - [PAS - SOBB] ¡DISPARO CORTO CONFIRMADO! Vela flotando en Zona 5 con EMA en Zona 3 y pendientes alineadas | Entrada @ ~{1:F2} | SL Canales 3 Tiers.",
-                            Time[0], Close[0]));
-                        return;
+                        sobbFloatingBarsCountShort = 0;
+                        Print(string.Format("{0} - [PAS - SOBB v9.0 | CORTO EXPIRADO (PAILAS)] Pasaron {1} barras afuera sin rompimiento bajista con pendientes. Setup cancelado.",
+                            Time[0], SobbMaxFloatingBarsWindow));
                     }
                     else
                     {
-                        // EMA 200 en Zona 3 OK, pero pendientes aún no alineadas: mantenemos armado a la espera de la siguiente barra afuera
-                        Print(string.Format("{0} - [PAS - SOBB | CORTO EN ESPERA DE PENDIENTES] EMA 200 en Zona 3 OK. Pendientes no alineadas todavía (MidSlope={1:F4}, LowerSlope={2:F4}). Esperando mientras el precio siga afuera...",
-                            Time[0], midlineSlope, lowerSlope));
+                        // Barra 1 afuera: guardando posición y esperando barra 2
+                        Print(string.Format("{0} - [PAS - SOBB v9.0 | BARRA 1 AFUERA] Primera vela 100% afuera (High {1:F2} < Lower {2:F2}). Esperando Barra 2 consecutiva...",
+                            Time[0], High[0], lowerBig));
                     }
                 }
-                else if (sobbHasFloatedShort && High[0] >= lowerBig)
+                else
                 {
-                    // La vela ya había flotado afuera pero regresó adentro antes de que las pendientes confirmaran
-                    sobbArmedShort = false;
-                    sobbHasFloatedShort = false;
-                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO POR REPLIEGUE] El precio regresó adentro de Lower 3.5 ({1:F2}) sin haber confirmado pendientes. Setup cancelado.",
-                        Time[0], lowerBig));
+                    // La vela ya no está 100% afuera (se metió adentro o tocó la banda) -> ¡PAILAS!
+                    if (sobbHasFloatedShort || sobbFloatingBarsCountShort > 0)
+                    {
+                        sobbArmedShort = false;
+                        sobbHasFloatedShort = false;
+                        sobbFloatingBarsCountShort = 0;
+                        Print(string.Format("{0} - [PAS - SOBB v9.0 | CORTO DESARMADO POR REPLIEGUE] El precio regresó adentro de Lower 3.5 ({1:F2}) tras {2} barra(s) afuera. ¡Pailas! Setup cancelado.",
+                            Time[0], lowerBig, sobbFloatingBarsCountShort));
+                    }
                 }
             }
         }
@@ -2098,6 +2172,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             sobbArmedShort = false;
             sobbHasFloatedLong = false;
             sobbHasFloatedShort = false;
+            sobbFloatingBarsCountLong = 0;
+            sobbFloatingBarsCountShort = 0;
             sobbLevel1Achieved = false;
             sobbLevel2Achieved = false;
             sobbLevel3ChokeActive = false;
@@ -2464,28 +2540,38 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Tier1CutoffTime { get; set; }
 
         [NinjaScriptProperty]
+        [Range(2, 5)]
+        [Display(Name = "SOBB Barras Consecutivas Requeridas", Description = "Número de barras consecutivas 100% afuera requeridas para evaluar confirmación (2 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 0)]
+        public int SobbRequiredFloatingBars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 6)]
+        [Display(Name = "SOBB Ventana Máxima Barras Afuera", Description = "Ventana máxima de barras afuera para confirmar rompimiento antes de cancelar (3 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 1)]
+        public int SobbMaxFloatingBarsWindow { get; set; }
+
+        [NinjaScriptProperty]
         [Range(4, 50)]
-        [Display(Name = "SOBB TP1 Asegurador (Ticks)", Description = "Ticks para liquidar C1 Asegurador o pasar a BE (+10 ticks = $125 ES / $12.50 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 1)]
+        [Display(Name = "SOBB TP1 Asegurador (Ticks)", Description = "Ticks para liquidar C1 Asegurador o pasar a BE (+10 ticks = $125 ES / $12.50 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 2)]
         public int SobbTp1Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(8, 100)]
-        [Display(Name = "SOBB TP2 Expansión (Ticks)", Description = "Ticks para liquidar en zona de expansión (+20 ticks = $250 ES / $25 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 2)]
+        [Display(Name = "SOBB TP2 Expansión (Ticks)", Description = "Ticks para liquidar en zona de expansión (+20 ticks = $250 ES / $25 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 3)]
         public int SobbTp2Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 50)]
-        [Display(Name = "SOBB SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida para el SL Estructural (24 ticks = 6 pts = $300 ES / $30 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 3)]
+        [Display(Name = "SOBB SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida para el SL Estructural (24 ticks = 6 pts = $300 ES / $30 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 4)]
         public int SobbMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 200)]
-        [Display(Name = "SOBB C3 Umbral Ahogo (Ticks)", Description = "Ticks para activar Modo Ahogo para C3 Runner (+30 ticks = $375 ES / $37.50 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 4)]
+        [Display(Name = "SOBB C3 Umbral Ahogo (Ticks)", Description = "Ticks para activar Modo Ahogo para C3 Runner (+30 ticks = $375 ES / $37.50 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 5)]
         public int SobbChokeThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "SOBB C3 Distancia Ahogo (Ticks)", Description = "Ticks de separación del High/Low para el trailing del Runner", GroupName = "5. As 2: SOBB (Escalones)", Order = 5)]
+        [Display(Name = "SOBB C3 Distancia Ahogo (Ticks)", Description = "Ticks de separación del High/Low para el trailing del Runner", GroupName = "5. As 2: SOBB (Escalones)", Order = 6)]
         public int SobbChokeTicks { get; set; }
 
         [NinjaScriptProperty]
