@@ -181,7 +181,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "10.2 - Poker de Ases (PAS) [Pendientes Independientes SOBB/Z1/Cascada, Logs de Calibracion]";
+                Version                                     = "10.3 - Poker de Ases (PAS) [Puente Quirurgico a Modo Dulce $900 en Escalon 2]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -256,6 +256,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
                 UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a la 1:00 PM EST
                 Tier1CutoffTime                             = 130000; // 01:00 PM EST (Hora de corte para Escalón 1)
+                UseTier2SweetBridge                         = true;   // Activar Puente Quirúrgico al Modo Dulce ($900) en Escalón 2
+                Tier2BridgeSafetyDollars                    = 10.0;   // Colchón de seguridad para comisiones ($10 ES / $1 MES)
             }
             else if (State == State.DataLoaded)
             {
@@ -1641,6 +1643,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double peakGainTicks = (highestPriceSinceEntry - entryPrice) / TickSize;
                 double peakGainDollars = peakGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
 
+                // --- PUENTE QUIRÚRGICO A MODO DULCE (ESCALÓN 2 -> ESCALÓN 3: >= $900 USD) ---
+                if (UseDailyManagement && UseTier2SweetBridge && (currentDailyTier == 2 || dailyRealizedPnL >= DailyGoal_Piso2) && dailyRealizedPnL < DailyGoal_Piso3)
+                {
+                    double dollarsPerPoint = currentQty * Instrument.MasterInstrument.PointValue;
+                    if (dollarsPerPoint > 0)
+                    {
+                        double neededDollars = (DailyGoal_Piso3 - dailyRealizedPnL) + (Tier2BridgeSafetyDollars * instrumentMultiplier);
+                        double neededPoints = neededDollars / dollarsPerPoint;
+                        double bridgePrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + neededPoints);
+
+                        if (Close[0] >= bridgePrice || High[0] >= bridgePrice)
+                        {
+                            string exitSignal = currentAce == AceType.As4_Cascada50 ? "Cascada50_Long" :
+                                                (currentAce == AceType.As2_SOBB ? "SOBB_Long" :
+                                                (currentAce == AceType.As1_Zona1_100Bar ? "Z1-100Bar_Long" : "Ratchet_Long"));
+
+                            if (currentAce == AceType.As4_Cascada50)
+                            {
+                                cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                            }
+
+                            ExitLong("Exit_PuenteModoDulce", exitSignal);
+                            double actualGainDollars = (Close[0] - entryPrice) * dollarsPerPoint;
+                            Print(string.Format("****************************************************************************************\n" +
+                                                "{0} - [ESCUDO DIARIO v10.3 | ¡PUM, ADIÓS! PUENTE AL MODO DULCE CORONADO]\n" +
+                                                "¡Qué grosería de trade! Ganancia flotante alcanzó +${1:F2} USD (Faltante requerido: +${2:F2} USD).\n" +
+                                                "Trade liquidado quirúrgicamente en ~{3:F2} para coronar el Modo Dulce ($900+ USD).\n" +
+                                                "¡Bienvenido al Escalón 3! Piso blindado en +$750 USD y trailing infinito activado.\n" +
+                                                "****************************************************************************************",
+                                Time[0], actualGainDollars, neededDollars, Close[0]));
+                            return;
+                        }
+                    }
+                }
+
                 // --- AS 2: SOBB (SURFER OUT BIG BANDA - MONOCONTRATO QUIRÚRGICO CON OXÍGENO) ---
                 if (currentAce == AceType.As2_SOBB)
                 {
@@ -1943,6 +1980,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double currentGainDollars = currentGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
                 double peakGainTicks = (entryPrice - lowestPriceSinceEntry) / TickSize;
                 double peakGainDollars = peakGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
+
+                // --- PUENTE QUIRÚRGICO A MODO DULCE (ESCALÓN 2 -> ESCALÓN 3: >= $900 USD) ---
+                if (UseDailyManagement && UseTier2SweetBridge && (currentDailyTier == 2 || dailyRealizedPnL >= DailyGoal_Piso2) && dailyRealizedPnL < DailyGoal_Piso3)
+                {
+                    double dollarsPerPoint = currentQty * Instrument.MasterInstrument.PointValue;
+                    if (dollarsPerPoint > 0)
+                    {
+                        double neededDollars = (DailyGoal_Piso3 - dailyRealizedPnL) + (Tier2BridgeSafetyDollars * instrumentMultiplier);
+                        double neededPoints = neededDollars / dollarsPerPoint;
+                        double bridgePrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - neededPoints);
+
+                        if (Close[0] <= bridgePrice || Low[0] <= bridgePrice)
+                        {
+                            string exitSignal = currentAce == AceType.As4_Cascada50 ? "Cascada50_Short" :
+                                                (currentAce == AceType.As2_SOBB ? "SOBB_Short" :
+                                                (currentAce == AceType.As1_Zona1_100Bar ? "Z1-100Bar_Short" : "Ratchet_Short"));
+
+                            if (currentAce == AceType.As4_Cascada50)
+                            {
+                                cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                            }
+
+                            ExitShort("Exit_PuenteModoDulce", exitSignal);
+                            double actualGainDollars = (entryPrice - Close[0]) * dollarsPerPoint;
+                            Print(string.Format("****************************************************************************************\n" +
+                                                "{0} - [ESCUDO DIARIO v10.3 | ¡PUM, ADIÓS! PUENTE AL MODO DULCE CORONADO]\n" +
+                                                "¡Qué grosería de trade! Ganancia flotante alcanzó +${1:F2} USD (Faltante requerido: +${2:F2} USD).\n" +
+                                                "Trade liquidado quirúrgicamente en ~{3:F2} para coronar el Modo Dulce ($900+ USD).\n" +
+                                                "¡Bienvenido al Escalón 3! Piso blindado en +$750 USD y trailing infinito activado.\n" +
+                                                "****************************************************************************************",
+                                Time[0], actualGainDollars, neededDollars, Close[0]));
+                            return;
+                        }
+                    }
+                }
 
                 // --- AS 2: SOBB (SURFER OUT BIG BANDA - MONOCONTRATO QUIRÚRGICO CON OXÍGENO) ---
                 if (currentAce == AceType.As2_SOBB)
@@ -2631,6 +2703,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(100000, 160000)]
         [Display(Name = "Hora Límite Escalón 1 (HHmmss)", Description = "Hora límite para apagar en Escalón 1 (130000 = 01:00 PM EST)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 11)]
         public int Tier1CutoffTime { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Activar Puente Dinámico a Modo Dulce", Description = "En Escalón 2 (>= $600), calcula los dólares exactos para llegar a $900 y toma ganancia inmediata", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 12)]
+        public bool UseTier2SweetBridge { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.0, 50.0)]
+        [Display(Name = "Colchón de Seguridad Puente ($)", Description = "Margen en USD sobre los $900 para cubrir comisiones ($10 ES / $1 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 13)]
+        public double Tier2BridgeSafetyDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 5)]
