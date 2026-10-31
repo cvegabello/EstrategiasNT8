@@ -526,13 +526,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 7. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI BOTÓN ACTIVO, FLAT Y EN HORARIO VÁLIDO)
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
-                // Reseteo inteligente del ciclo de Cascada (cuando el precio descansa en Línea Media o pendiente se neutraliza)
-                double currentNormMidSlope = GetNormalizedSlope(keltnerBig.Midline);
-                if (cascadaCycleLongFired && (Low[0] <= keltnerBig.Midline[0] || currentNormMidSlope < 0.05))
+                // Reseteo estructural estricto del ciclo de Cascada (SOLO cuando el precio descansa físicamente en la Línea Media)
+                if (cascadaCycleLongFired && Low[0] <= keltnerBig.Midline[0])
                 {
                     cascadaCycleLongFired = false;
                 }
-                if (cascadaCycleShortFired && (High[0] >= keltnerBig.Midline[0] || currentNormMidSlope > -0.05))
+                if (cascadaCycleShortFired && High[0] >= keltnerBig.Midline[0])
                 {
                     cascadaCycleShortFired = false;
                 }
@@ -1903,9 +1902,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
                         if (Close[0] <= lockSl || Low[0] <= lockSl)
                         {
+                            cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
                             ExitLong("SL_Candado_Cascada", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada v10.1 | LARGO COBRADO CON CANDADO] Precio perforó Upper 1.75 -1tk ({1:F2}) | Salida a Mercado @ ~{2:F2} (Ganancia asegurada).",
-                                Time[0], lockSl, Close[0]));
+                            Print(string.Format("{0} - [PAS - Cascada v10.1 | LARGO COBRADO CON CANDADO] Precio perforó Upper 1.75 -1tk ({1:F2}) | Salida a Mercado @ ~{2:F2} (Ganancia asegurada). Cuarentena de {3} min armada.",
+                                Time[0], lockSl, Close[0], CascadaQuarantineMinutes));
                             return;
                         }
                     }
@@ -2205,9 +2205,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
                         if (Close[0] >= lockSl || High[0] >= lockSl)
                         {
+                            cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
                             ExitShort("SL_Candado_Cascada", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada v10.1 | CORTO COBRADO CON CANDADO] Precio superó Lower 1.75 +1tk ({1:F2}) | Salida a Mercado @ ~{2:F2} (Ganancia asegurada).",
-                                Time[0], lockSl, Close[0]));
+                            Print(string.Format("{0} - [PAS - Cascada v10.1 | CORTO COBRADO CON CANDADO] Precio superó Lower 1.75 +1tk ({1:F2}) | Salida a Mercado @ ~{2:F2} (Ganancia asegurada). Cuarentena de {3} min armada.",
+                                Time[0], lockSl, Close[0], CascadaQuarantineMinutes));
                             return;
                         }
                     }
