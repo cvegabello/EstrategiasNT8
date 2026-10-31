@@ -268,7 +268,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TrancaBonusDollars                          = 100.0;  // Dólares de Sprint Bonus tras clavar la tranca ($100 ES / $10 MES)
                 TrancaSafetyDollars                         = 10.0;   // Colchón de seguridad para comisiones ($10 ES / $1 MES)
                 MinTrancaDistanceDollars                    = 125.0;  // Filtro Anti-Asfixia: Mínimo $125 USD (10 ticks ES / $12.5 MES) de pista para armar tranca
-                TrancaConquestBufferDollars                 = 35.0;   // Colchón Conquista Adamantium: Penetración de $35 USD (~3 ticks) para validar fuerza
+                TrancaConquestBufferDollars                 = 50.0;   // Colchón Conquista Adamantium: Penetración de $50 USD (4 ticks en ES / $5 MES) para validar fuerza real
                 TrancaCommissionBufferDollars               = 15.0;   // Colchón neto que garantiza quedar adentro del nuevo escalón tras comisiones y slippage
             }
             else if (State == State.DataLoaded)
@@ -292,7 +292,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     TrancaBonusDollars    = 10.0;
                     TrancaSafetyDollars   = 1.0;
                     MinTrancaDistanceDollars = 12.5;
-                    TrancaConquestBufferDollars = 3.5;
+                    TrancaConquestBufferDollars = 5.0;
                     TrancaCommissionBufferDollars = 1.5;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
@@ -1802,7 +1802,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                                         "El mercado intentó retroceder pero chocó contra las Garras de Wolverine en {1:F2}.\n" +
                                                         "Trade liquidado con +${2:F2} USD netos garantizados. ¡Escalón {3} (${4:F2} USD) sellado para siempre!\n" +
                                                         "****************************************************************************************",
-                                        Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel));
+                                        Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel > 0 ? trancaMilestoneLevel : nextMilestone));
                                     return;
                                 }
                             }
@@ -2249,7 +2249,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                                         "El mercado intentó retroceder pero chocó contra las Garras de Wolverine en {1:F2}.\n" +
                                                         "Trade liquidado con +${2:F2} USD netos garantizados. ¡Escalón {3} (${4:F2} USD) sellado para siempre!\n" +
                                                         "****************************************************************************************",
-                                        Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel));
+                                        Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel > 0 ? trancaMilestoneLevel : nextMilestone));
                                     return;
                                 }
                             }
@@ -2976,7 +2976,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(5.0, 200.0)]
-        [Display(Name = "Tranca Colchón Conquista Adamantium ($)", Description = "Penetración requerida por encima del escalón para armar la Tranca de Adamantium ($35 ES / $3.5 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 17)]
+        [Display(Name = "Tranca Colchón Conquista Adamantium ($)", Description = "Penetración requerida por encima del escalón para armar la Tranca de Adamantium ($50 ES / $5 MES = 4 ticks)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 17)]
         public double TrancaConquestBufferDollars { get; set; }
 
         [NinjaScriptProperty]
