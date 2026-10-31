@@ -106,16 +106,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ratchetC2Achieved = false;    // Contrato 2 cerrado (Stop Línea Media o Fase 3)
         private bool ratchetChokeActive = false;   // Contrato 3 Runner en Chicle Parabólico
 
-        // === VARIABLES DEL AS 4: CASCADA (SURFER MONOCONTRATO CON CANDADO $180 Y FIN DE CICLO) ===
-        private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks
-        private int barsCascadaLongCount  = 0;     // Barras con EMA200 < Lower 3.5 - 4 ticks
+        // === VARIABLES DEL AS 4: CASCADA (CAZADOR DE RÁPIDOS POR PENDIENTE NORMALIZADA + CANDADO $180) ===
+        private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks (conteo de fondo)
+        private int barsCascadaLongCount  = 0;     // Barras con EMA200 < Lower 3.5 - 4 ticks (conteo de fondo)
+        private bool cascadaCycleLongFired  = false; // Bandera de 1 solo tiro por impulso en Largos (Anti-compras en techos)
+        private bool cascadaCycleShortFired = false; // Bandera de 1 solo tiro por impulso en Cortos (Anti-ventas en suelos)
         private bool isCascadaLockActive  = false; // Candado de $180 activado (salida en Banda 1.75 favorable)
         private bool cascadaC1Achieved    = false; // Contrato 1 cerrado a +8 ticks (BE armado)
         private bool cascadaC2Achieved    = false; // Contrato 2 cerrado a +16 ticks
         private bool cascadaChokeActive   = false; // Contrato 3 Runner en Modo Ahogo (8 ticks)
         private int  cascadaTradesToday   = 0;     // Contador de disparos de Cascada en la sesión diaria actual
         private bool cascadaHasWonToday   = false; // Bandera: Cascada ya cobró un trade ganador hoy (Pisar Suave liberado)
-        private DateTime cascadaQuarantineEndTime = DateTime.MinValue; // Fin de la cuarentena de 60 min tras súper win (>= $600 USD)
+        private DateTime cascadaQuarantineEndTime = DateTime.MinValue; // Fin de la cuarentena de 60 min tras victoria (>= $180 USD)
 
         // Tracking de MFE/MAE de la posición activa
         private double entryPriceGlobal = 0.0;
@@ -142,6 +144,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private EMA ema200;
         private KeltnerChannel keltnerBig;   // Canal Exterior (52, 3.5)
         private KeltnerChannel keltnerSmall; // Canal Interior (52, 1.75)
+        private ATR atr14;                   // ATR 14 para Normalización Institucional de Pendientes LinReg
 
         // === INTERFAZ WPF (BOTÓN DE PÁNICO) ===
         private System.Windows.Controls.Button panicButton;
@@ -178,7 +181,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "9.1 - Poker de Ases (PAS) [SOBB Sin Susto TEMA, Ciclo Terminado Reingreso Real Banda 3.5, Barras Consecutivas HH/LL]";
+                Version                                     = "10.0 - Poker de Ases (PAS) [Pendiente Normalizada LinReg+ATR, Cascada Cazador de Rapidos, Logs Humanos]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -224,19 +227,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetChicleTicks                          = 7;      // Trailing ceñido del Chicle Parabólico (7 ticks)
                 RatchetMaxSlTicks                           = 12;     // Tope máximo de seguridad para SL de Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)
 
-                // Parámetros del As 4: Cascada Surfer Monocontrato (Expansión con Candado $180 y Fin de Ciclo)
+                // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado $180)
                 CascadaStartTime                            = 100000; // 10:00 AM EST - Filtro Anti-Acomodación de Pre-Mercado
                 CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
-                CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (calibración óptima)
+                CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (compatibilidad)
                 CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
                 CascadaLockTriggerDollars                   = 180.0;  // Umbral de ganancia en USD para activar Candado ($180 ES / $18 MES)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
-                CascadaBigWinThresholdDollars               = 600.0;  // Umbral de ganancia para activar Cuarentena de Saciedad ($600 ES / $60 MES)
-                CascadaQuarantineMinutes                    = 60;     // Minutos de cuarentena/congelamiento de Cascada tras súper victoria (60 min)
+                CascadaBigWinThresholdDollars               = 180.0;  // Umbral de ganancia para activar Cuarentena de Saciedad ($180 ES / $18 MES)
+                CascadaQuarantineMinutes                    = 60;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (60 min)
                 CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
+                CascadaSlopeThreshold                       = 0.20;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.20)
+                SlopeThresholdTrend                         = 0.15;   // Umbral de Pendiente Normalizada LinReg/ATR para Tendencia Real en SOBB y Z1 (0.15)
 
                 // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Ceñida -$650 USD para 2.5 - 3 Vidas)
                 UseDailyManagement                          = true;   // Activar Cortacircuito y Trailing Diario
@@ -268,7 +273,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     DailyGoal_Piso3       = 90.0;
                     DailyTrailingGiveback = 15.0;
                     CascadaLockTriggerDollars = 18.0;
-                    CascadaBigWinThresholdDollars = 60.0;
+                    CascadaBigWinThresholdDollars = 18.0;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
@@ -285,6 +290,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ema200       = EMA(Close, EmaPeriod);
                 keltnerBig   = KeltnerChannel(Close, KeltnerBigMult, KeltnerPeriod);
                 keltnerSmall = KeltnerChannel(Close, KeltnerSmallMult, KeltnerPeriod);
+                atr14        = ATR(14);
 
                 // En modo Backtest o Strategy Analyzer, se activa automáticamente
                 if (ChartControl == null)
@@ -351,6 +357,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 cascadaTradesToday = 0;
                 cascadaHasWonToday = false;
                 cascadaQuarantineEndTime = DateTime.MinValue;
+                cascadaCycleLongFired = false;
+                cascadaCycleShortFired = false;
                 sobbArmedLong = false;
                 sobbArmedShort = false;
                 sobbHasFloatedLong = false;
@@ -479,11 +487,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                     dailyLockReason = string.Format("CORTACIRCUITO DIARIO ({0}) ALCANZADO (${1:F2})",
                         currentDailyTier == 0 ? "PÉRDIDA MÁXIMA" : ("PISO ESCALÓN " + currentDailyTier), currentDailyFloor);
                     
-                    Print(string.Format("****************************************************************************************\n" +
-                                        "{0} - [CORTACIRCUITO EN VIVO | PISO ACTIVADO] PnL total cayó a ${1:F2} (Piso protegido: ${2:F2}).\n" +
-                                        "¡PUM, ADIÓS! Liquidando a mercado inmediatamente para proteger el capital planeado. Operativa bloqueada por hoy.\n" +
-                                        "****************************************************************************************",
-                        Time[0], totalDailyFloatingPnL, currentDailyFloor));
+                    if (currentDailyTier == 0)
+                    {
+                        Print(string.Format("****************************************************************************************\n" +
+                                            "{0} - [CORTACIRCUITO DE SEGURIDAD | PÉRDIDA MÁXIMA ALCANZADA]\n" +
+                                            "¡APAGUE ESA VAINA! Ya perdiste el límite del día (-${1:F2} USD). Agradezca que no te hice perder más.\n" +
+                                            "Olvídate de esa pérdida que fueron centavos, mañana será otro día.\n" +
+                                            "¡Adiós pues, que no te veo apagando ese PC! 🛑🔒\n" +
+                                            "****************************************************************************************",
+                            Time[0], Math.Abs(totalDailyFloatingPnL)));
+                    }
+                    else
+                    {
+                        Print(string.Format("****************************************************************************************\n" +
+                                            "{0} - [ESCUDO DIARIO | PISO DE GANANCIAS ALCANZADO]\n" +
+                                            "¡APAGUE Y VÁMONOS! Te fuiste con ${1:F2} USD en el bolsillo, ¡vete a montar cicla! 🚴‍♂️💨\n" +
+                                            "¿Qué haces pegado a ese PC todo el día si ya ganaste? ¡Para qué más!\n" +
+                                            "Liquidando a mercado inmediatamente. Operativa bloqueada por hoy con la plata a salvo.\n" +
+                                            "****************************************************************************************",
+                            Time[0], totalDailyFloatingPnL));
+                    }
                     
                     if (Position.MarketPosition != MarketPosition.Flat)
                         LiquidateAllMarket("Cortacircuito_Diario_Piso");
@@ -503,6 +526,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 7. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI BOTÓN ACTIVO, FLAT Y EN HORARIO VÁLIDO)
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
+                // Reseteo inteligente del ciclo de Cascada (cuando el precio descansa en Línea Media o pendiente se neutraliza)
+                double currentNormMidSlope = GetNormalizedSlope(keltnerBig.Midline);
+                if (cascadaCycleLongFired && (Low[0] <= keltnerBig.Midline[0] || currentNormMidSlope < 0.05))
+                {
+                    cascadaCycleLongFired = false;
+                }
+                if (cascadaCycleShortFired && (High[0] >= keltnerBig.Midline[0] || currentNormMidSlope > -0.05))
+                {
+                    cascadaCycleShortFired = false;
+                }
+
                 // GESTIÓN DE RIESGO INTELIGENTE: Verificamos si existe margen para operar al menos 1 contrato con Stop saludable
                 if (GetRiskAdjustedContracts() <= 0)
                 {
@@ -692,23 +726,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
-            // === CONTADOR AS 4: CASCADA 50 BARRAS (Separación de EMA 200 > 4 ticks de Banda 3.5) ===
+            // === CONTADOR AS 4: CASCADA (Separación de EMA 200 > 4 ticks de Banda 3.5 - Silencioso) ===
             double separationDist = CascadaSeparationTicks * TickSize;
 
             // Bajista (EMA 200 arriba de Upper 3.5 por > 4 ticks)
             if (ema200[0] > (keltnerBig.Upper[0] + separationDist))
             {
                 barsCascadaShortCount++;
-                Print(string.Format("{0} - [PAS - Cascada50 | CORTO] Cascada50_Barra {1}/{2} | EMA200 ({3:F2}) > Upper 3.5 + {4}tk ({5:F2})",
-                    Time[0], barsCascadaShortCount, CascadaMinBars, ema200[0], CascadaSeparationTicks, keltnerBig.Upper[0] + separationDist));
             }
             else
             {
-                if (barsCascadaShortCount > 0)
-                {
-                    Print(string.Format("{0} - [PAS - Cascada50 | CORTO] Separación perdida tras {1} barras. Cascada50_Barra 0.",
-                        Time[0], barsCascadaShortCount));
-                }
                 barsCascadaShortCount = 0;
             }
 
@@ -716,18 +743,33 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (ema200[0] < (keltnerBig.Lower[0] - separationDist))
             {
                 barsCascadaLongCount++;
-                Print(string.Format("{0} - [PAS - Cascada50 | LARGO] Cascada50_Barra {1}/{2} | EMA200 ({3:F2}) < Lower 3.5 - {4}tk ({5:F2})",
-                    Time[0], barsCascadaLongCount, CascadaMinBars, ema200[0], CascadaSeparationTicks, keltnerBig.Lower[0] - separationDist));
             }
             else
             {
-                if (barsCascadaLongCount > 0)
-                {
-                    Print(string.Format("{0} - [PAS - Cascada50 | LARGO] Separación perdida tras {1} barras. Cascada50_Barra 0.",
-                        Time[0], barsCascadaLongCount));
-                }
                 barsCascadaLongCount = 0;
             }
+        }
+        #endregion
+
+        #region Cálculo de Pendiente Normalizada Institucional (LinReg 5 Barras / ATR 14)
+        /// <summary>
+        /// Calcula la pendiente de regresión lineal por mínimos cuadrados (OLS) sobre 5 barras
+        /// y la normaliza dividiéndola por el ATR(14), obteniendo un ratio adimensional de aceleración/inclinación.
+        /// Fórmula cerrada OLS 5 barras: m = (2*Y[0] + 1*Y[1] - 1*Y[3] - 2*Y[4]) / 10
+        /// Pendiente Normalizada = m / ATR(14)
+        /// </summary>
+        private double GetNormalizedSlope(ISeries<double> series)
+        {
+            if (CurrentBar < 15 || atr14 == null) return 0.0;
+            
+            double atr = atr14[0];
+            if (atr <= 0.0001) return 0.0;
+
+            // Regresión lineal exacta de 5 barras (pesos centrados: x in {-2, -1, 0, 1, 2})
+            double linRegSlope = ((2.0 * series[0]) + (1.0 * series[1]) - (1.0 * series[3]) - (2.0 * series[4])) / 10.0;
+
+            // Normalización por volatilidad
+            return linRegSlope / atr;
         }
         #endregion
 
@@ -743,7 +785,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             double upperBig     = keltnerBig.Upper[0];
             double lowerBig     = keltnerBig.Lower[0];
             double midline      = keltnerBig.Midline[0];
-            double midlineSlope = midline - keltnerBig.Midline[2];
+            double normSlope    = GetNormalizedSlope(keltnerBig.Midline);
 
             // =========================================================================
             // AS 1 - GOLAZO LARGO: Toque de Línea Media durante ventana de 40 barras
@@ -756,8 +798,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 if (emaTocoMidline)
                 {
-                    // 2. Pendiente positiva de la Línea Media (blanca)
-                    bool pendienteMidlineAlcista = midlineSlope > 0;
+                    // 2. Pendiente Normalizada positiva de la Línea Media (m/ATR >= SlopeThresholdTrend)
+                    bool pendienteMidlineAlcista = normSlope >= SlopeThresholdTrend;
 
                     // 3. Ubicación del precio: Zona 1 o Zona 0 moderada (no más de 10 ticks sobre Upper 3.5)
                     bool precioEnZona = (Close[0] >= upperSmall) && (Close[0] <= upperBig + (Z1MaxZone0Ticks * TickSize));
@@ -768,13 +810,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (pendienteMidlineAlcista && precioEnZona && confirmacionAlcista)
                     {
                         ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Long, "Z1-100Bar_Long");
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: +{4:F4} | TEMA9 ({5:F2}) > EMA200 ({6:F2}) | Precio ({7:F2}) en Zona 1/0 | Entrada @ ~{8:F2}",
-                            Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, tema9[0], ema200[0], Close[0], Close[0]));
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO LARGO EJECUTADO!] Entrada @ ~{1:F2} en barra {2}/40 | Pendiente Normalizada: +{3:F2} (Mín: +{4:F2}) | ATR: {5:F2} pts | TEMA9 ({6:F2}) > EMA200 ({7:F2})",
+                            Time[0], Close[0], z1MidlineCountdownLong, normSlope, SlopeThresholdTrend, atr14 != null ? atr14[0] : 0.0, tema9[0], ema200[0]));
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Z1-100B | CRUCE MIDLINE DESCARTADO] EMA200 ({1:F2}) tocó/cruzó Línea Media ({2:F2}) en barra {3}/40 pero condiciones no se cumplieron en el cruce (Pendiente: {4:F4}, PrecioEnZona: {5}, Confirmación: {6}). ¡Setup cancelado inmediatamente para evitar entradas tardías a destiempo!",
-                            Time[0], ema200[0], midline, z1MidlineCountdownLong, midlineSlope, precioEnZona, confirmacionAlcista));
+                        Print(string.Format("{0} - [PAS - Z1-100B | ¡PAILAS MI PEZ!] Cruce Midline en barra {1}/40 descartado: Pendiente en +{2:F2} (Requerido: >={3:F2}, ZonaOK: {4}, ConfOK: {5}) | ATR: {6:F2} pts. ¡Mercado plano sin fuerza, no regalamos ni un dólar!",
+                            Time[0], z1MidlineCountdownLong, normSlope, SlopeThresholdTrend, precioEnZona, confirmacionAlcista, atr14 != null ? atr14[0] : 0.0));
                     }
 
                     // REGLA DE ORO DE PRECISIÓN: El cruce ya ocurrió. Se resetea inmediatamente el cronómetro
@@ -796,8 +838,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 if (emaTocoMidline)
                 {
-                    // 2. Pendiente negativa de la Línea Media (blanca)
-                    bool pendienteMidlineBajista = midlineSlope < 0;
+                    // 2. Pendiente Normalizada negativa de la Línea Media (m/ATR <= -SlopeThresholdTrend)
+                    bool pendienteMidlineBajista = normSlope <= -SlopeThresholdTrend;
 
                     // 3. Ubicación del precio: Zona 4 o Zona 5 moderada (no más de 10 ticks bajo Lower 3.5)
                     bool precioEnZona = (Close[0] <= lowerSmall) && (Close[0] >= lowerBig - (Z1MaxZone0Ticks * TickSize));
@@ -808,13 +850,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (pendienteMidlineBajista && precioEnZona && confirmacionBajista)
                     {
                         ExecuteAceEntry(AceType.As1_Zona1_100Bar, MarketPosition.Short, "Z1-100Bar_Short");
-                        Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO CORTO EJECUTADO!] EMA200 ({1:F2}) tocó Línea Media ({2:F2}) en barra {3}/40. Pendiente Midline: {4:F4} | Precio ({5:F2}) en Zona 4/5 | Entrada @ ~{6:F2}",
-                            Time[0], ema200[0], midline, z1MidlineCountdownShort, midlineSlope, Close[0], Close[0]));
+                        Print(string.Format("{0} - [PAS - Z1-100Bar | ¡GOLAZO CORTO EJECUTADO!] Entrada @ ~{1:F2} en barra {2}/40 | Pendiente Normalizada: {3:F2} (Mín: -{4:F2}) | ATR: {5:F2} pts | TEMA9 ({6:F2}) < EMA200 ({7:F2})",
+                            Time[0], Close[0], z1MidlineCountdownShort, normSlope, SlopeThresholdTrend, atr14 != null ? atr14[0] : 0.0, tema9[0], ema200[0]));
                     }
                     else
                     {
-                        Print(string.Format("{0} - [PAS - Z1-100B | CRUCE MIDLINE DESCARTADO] EMA200 ({1:F2}) tocó/cruzó Línea Media ({2:F2}) en barra {3}/40 pero condiciones no se cumplieron en el cruce (Pendiente: {4:F4}, PrecioEnZona: {5}, Confirmación: {6}). ¡Setup cancelado inmediatamente para evitar entradas tardías a destiempo!",
-                            Time[0], ema200[0], midline, z1MidlineCountdownShort, midlineSlope, precioEnZona, confirmacionBajista));
+                        Print(string.Format("{0} - [PAS - Z1-100B | ¡PAILAS MI PEZ!] Cruce Midline en barra {1}/40 descartado: Pendiente en {2:F2} (Requerido: <={3:F2}, ZonaOK: {4}, ConfOK: {5}) | ATR: {6:F2} pts. ¡Mercado plano sin fuerza, no regalamos ni un dólar!",
+                            Time[0], z1MidlineCountdownShort, normSlope, -SlopeThresholdTrend, precioEnZona, confirmacionBajista, atr14 != null ? atr14[0] : 0.0));
                     }
 
                     // REGLA DE ORO DE PRECISIÓN: El cruce ya ocurrió. Se resetea inmediatamente el cronómetro
@@ -827,7 +869,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
-        // AS 2: SOBB (SurferOutBigBanda - FILTRO DE 2 CAPAS: EMA ZONA 3 Y ESPERA DE PENDIENTES)
+        // AS 2: SOBB (SurferOutBigBanda - FILTRO DE 2 CAPAS: EMA ZONA 3 Y PENDIENTE NORMALIZADA)
         // =========================================================================
         private void EvaluateAs2_SOBB()
         {
@@ -837,10 +879,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             double upperSmall = keltnerSmall.Upper[0];
             double lowerSmall = keltnerSmall.Lower[0];
 
-            double emaSlope     = ema200[0] - ema200[2];
-            double midlineSlope = midline - keltnerBig.Midline[2];
-            double upperSlope   = upperBig - keltnerBig.Upper[2];
-            double lowerSlope   = lowerBig - keltnerBig.Lower[2];
+            double normMidSlope   = GetNormalizedSlope(keltnerBig.Midline);
+            double normUpperSlope = GetNormalizedSlope(keltnerBig.Upper);
+            double normLowerSlope = GetNormalizedSlope(keltnerBig.Lower);
 
             // =========================================================================
             // SOBB LARGO: Cruce de TEMA 9 hacia afuera + Confirmación de Barras Consecutivas (v9.0)
@@ -849,7 +890,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 3. Conteo de Barras Flotando Afuera (Low > Upper 3.5):
             //    - Barra 1 Afuera: Inicializa contador = 1.
             //    - Barra 2 Afuera: Si High[0] > High[1] (rompe techo anterior y continúa el empuje alcista)
-            //      y se cumplen las 2 capas (EMA en Zona 3 + Pendientes alineadas) -> ¡DISPARO LARGO!
+            //      y se cumplen las 2 capas (EMA en Zona 3 + Pendientes Normalizadas alineadas >= SlopeThresholdTrend) -> ¡DISPARO LARGO!
             //    - Si High[0] <= High[1] (vela frenada/pequeña): Espera a la Barra 3 afuera.
             //    - Barra 3 Afuera: Si High[0] > High[1] y capas OK -> ¡DISPARO LARGO!
             //    - Si se pasa de SobbMaxFloatingBarsWindow (3 barras) sin romper techo o si regresa adentro -> ¡PAILAS!
@@ -860,7 +901,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 sobbArmedLong = true;
                 sobbHasFloatedLong = false;
                 sobbFloatingBarsCountLong = 0;
-                Print(string.Format("{0} - [PAS - SOBB | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Upper 3.5 ({2:F2}). Espera de {3} barras consecutivas afuera con rompimiento alcista.",
+                Print(string.Format("{0} - [PAS - SOBB v10.0 | LARGO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Upper 3.5 ({2:F2}). Espera de {3} barras consecutivas afuera con rompimiento alcista.",
                     Time[0], tema9[0], upperBig, SobbRequiredFloatingBars));
             }
             else if (tema9[0] <= upperBig)
@@ -870,7 +911,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     sobbArmedLong = false;
                     sobbHasFloatedLong = false;
                     sobbFloatingBarsCountLong = 0;
-                    Print(string.Format("{0} - [PAS - SOBB | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
+                    Print(string.Format("{0} - [PAS - SOBB v10.0 | LARGO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
             }
@@ -884,7 +925,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     sobbFloatingBarsCountLong++;
 
                     bool isEmaZonaLargo    = (ema200[0] <= midline && ema200[0] >= lowerSmall);
-                    bool isPendientesLargo = (midlineSlope > 0 && upperSlope > 0 && emaSlope < midlineSlope);
+                    bool isPendientesLargo = (normMidSlope >= SlopeThresholdTrend && normUpperSlope >= SlopeThresholdTrend);
 
                     // CAPA 1: EMA 200 en Zona 3 (Contexto Macro Estricto e Inmediato)
                     if (!isEmaZonaLargo)
@@ -892,7 +933,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         sobbArmedLong = false;
                         sobbHasFloatedLong = false;
                         sobbFloatingBarsCountLong = 0;
-                        Print(string.Format("{0} - [PAS - SOBB | LARGO DESCARTADO (PAILAS)] Vela flotando #{1} en Zona 0 detectada pero EMA 200 ({2:F2}) fuera de Zona 3 ([{3:F2}, {4:F2}]). ¡Apague y vámonos!",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PAILAS MI PEZ!] Largo descartado: Vela flotando #{1} afuera pero EMA 200 ({2:F2}) fuera de Zona 3 ([{3:F2}, {4:F2}]). ¡Apague y vámonos!",
                             Time[0], sobbFloatingBarsCountLong, ema200[0], lowerSmall, midline));
                     }
                     // REGLA DE ORO v9.0: Evaluación de Barras Consecutivas y Rompimiento de Techo (Higher High)
@@ -903,24 +944,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         if (rompioTechoAnterior && isPendientesLargo)
                         {
-                            // ¡Confirmación estructural completa de 2 o 3 barras consecutivas!
+                            // ¡Confirmación estructural completa de 2 o 3 barras consecutivas con pendiente institucional!
                             sobbArmedLong = false;
                             sobbHasFloatedLong = false;
                             sobbFloatingBarsCountLong = 0;
                             ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Long, "SOBB_Long");
-                            Print(string.Format("{0} - [PAS - SOBB v9.0] ¡DISPARO LARGO CONFIRMADO! {1} barras consecutivas afuera con High ({2:F2}) > High[1] ({3:F2}) y pendientes alineadas | Entrada @ ~{4:F2}",
-                                Time[0], sobbFloatingBarsCountLong, High[0], High[1], Close[0]));
+                            Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PUM, ADIÓS! QUÉ GROSERÍA DE TRADE] ¡Largo disparado @ ~{1:F2}! {2} barras consecutivas afuera con High ({3:F2}) > High[1] ({4:F2}) | Pendiente Normalizada: +{5:F2} (Mín: +{6:F2}) | ATR: {7:F2} pts.",
+                                Time[0], Close[0], sobbFloatingBarsCountLong, High[0], High[1], normMidSlope, SlopeThresholdTrend, atr14 != null ? atr14[0] : 0.0));
                             return;
                         }
                         else if (!rompioTechoAnterior)
                         {
-                            Print(string.Format("{0} - [PAS - SOBB v9.0 | LARGO FRENADO] Barra #{1} afuera pero techo High ({2:F2}) no superó High[1] ({3:F2}). Esperando impulso en siguiente barra...",
+                            Print(string.Format("{0} - [PAS - SOBB v10.0 | LARGO FRENADO] Barra #{1} afuera pero techo High ({2:F2}) no superó High[1] ({3:F2}). Esperando impulso en siguiente barra...",
                                 Time[0], sobbFloatingBarsCountLong, High[0], High[1]));
                         }
                         else
                         {
-                            Print(string.Format("{0} - [PAS - SOBB | LARGO EN ESPERA DE PENDIENTES] Barra #{1} afuera OK. Pendientes no alineadas todavía (MidSlope={2:F4}, UpperSlope={3:F4}). Esperando...",
-                                Time[0], sobbFloatingBarsCountLong, midlineSlope, upperSlope));
+                            Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PAILAS MI PEZ!] Largo en espera de pendiente: Midline en +{1:F2} vs Umbral requerido: +{2:F2} | ATR: {3:F2} pts. Mercado plano/ruido, ¡no arriesgamos!",
+                                Time[0], normMidSlope, SlopeThresholdTrend, atr14 != null ? atr14[0] : 0.0));
                         }
                     }
                     else if (sobbFloatingBarsCountLong > SobbMaxFloatingBarsWindow)
@@ -929,13 +970,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         sobbArmedLong = false;
                         sobbHasFloatedLong = false;
                         sobbFloatingBarsCountLong = 0;
-                        Print(string.Format("{0} - [PAS - SOBB v9.0 | LARGO EXPIRADO (PAILAS)] Pasaron {1} barras afuera sin rompimiento alcista con pendientes. Setup cancelado.",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PAILAS!] Pasaron {1} barras afuera sin rompimiento alcista con pendiente. Setup cancelado.",
                             Time[0], SobbMaxFloatingBarsWindow));
                     }
                     else
                     {
                         // Barra 1 afuera: guardando posición y esperando barra 2
-                        Print(string.Format("{0} - [PAS - SOBB v9.0 | BARRA 1 AFUERA] Primera vela 100% afuera (Low {1:F2} > Upper {2:F2}). Esperando Barra 2 consecutiva...",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | BARRA 1 AFUERA] Primera vela 100% afuera (Low {1:F2} > Upper {2:F2}). Esperando Barra 2 consecutiva...",
                             Time[0], Low[0], upperBig));
                     }
                 }
@@ -947,7 +988,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         sobbArmedLong = false;
                         sobbHasFloatedLong = false;
                         sobbFloatingBarsCountLong = 0;
-                        Print(string.Format("{0} - [PAS - SOBB v9.0 | LARGO DESARMADO POR REPLIEGUE] El precio regresó adentro de Upper 3.5 ({1:F2}) tras {2} barra(s) afuera. ¡Pailas! Setup cancelado.",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | LARGO DESARMADO POR REPLIEGUE] El precio regresó adentro de Upper 3.5 ({1:F2}) tras {2} barra(s) afuera. ¡Pailas! Setup cancelado.",
                             Time[0], upperBig, sobbFloatingBarsCountLong));
                     }
                 }
@@ -960,7 +1001,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 3. Conteo de Barras Flotando Afuera (High < Lower 3.5):
             //    - Barra 1 Afuera: Inicializa contador = 1.
             //    - Barra 2 Afuera: Si Low[0] < Low[1] (rompe piso anterior y continúa el empuje bajista)
-            //      y se cumplen las 2 capas (EMA en Zona 3 + Pendientes alineadas) -> ¡DISPARO CORTO!
+            //      y se cumplen las 2 capas (EMA en Zona 3 + Pendientes Normalizadas alineadas <= -SlopeThresholdTrend) -> ¡DISPARO CORTO!
             //    - Si Low[0] >= Low[1] (vela frenada/pequeña): Espera a la Barra 3 afuera.
             //    - Barra 3 Afuera: Si Low[0] < Low[1] y capas OK -> ¡DISPARO CORTO!
             //    - Si se pasa de SobbMaxFloatingBarsWindow (3 barras) sin romper piso o si regresa adentro -> ¡PAILAS!
@@ -971,7 +1012,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 sobbArmedShort = true;
                 sobbHasFloatedShort = false;
                 sobbFloatingBarsCountShort = 0;
-                Print(string.Format("{0} - [PAS - SOBB | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Lower 3.5 ({2:F2}). Espera de {3} barras consecutivas afuera con rompimiento bajista.",
+                Print(string.Format("{0} - [PAS - SOBB v10.0 | CORTO ARMADO] TEMA 9 ({1:F2}) cruzó hacia afuera de Lower 3.5 ({2:F2}). Espera de {3} barras consecutivas afuera con rompimiento bajista.",
                     Time[0], tema9[0], lowerBig, SobbRequiredFloatingBars));
             }
             else if (tema9[0] >= lowerBig)
@@ -981,7 +1022,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     sobbArmedShort = false;
                     sobbHasFloatedShort = false;
                     sobbFloatingBarsCountShort = 0;
-                    Print(string.Format("{0} - [PAS - SOBB | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
+                    Print(string.Format("{0} - [PAS - SOBB v10.0 | CORTO DESARMADO] TEMA 9 ({1:F2}) regresó dentro del canal sin haber disparado. Espera cancelada.",
                         Time[0], tema9[0]));
                 }
             }
@@ -995,7 +1036,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     sobbFloatingBarsCountShort++;
 
                     bool isEmaZonaCorto    = (ema200[0] >= midline && ema200[0] <= upperSmall);
-                    bool isPendientesCorto = (midlineSlope < 0 && lowerSlope < 0 && emaSlope > midlineSlope);
+                    bool isPendientesCorto = (normMidSlope <= -SlopeThresholdTrend && normLowerSlope <= -SlopeThresholdTrend);
 
                     // CAPA 1: EMA 200 en Zona 3 (Contexto Macro Estricto e Inmediato)
                     if (!isEmaZonaCorto)
@@ -1003,7 +1044,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         sobbArmedShort = false;
                         sobbHasFloatedShort = false;
                         sobbFloatingBarsCountShort = 0;
-                        Print(string.Format("{0} - [PAS - SOBB | CORTO DESCARTADO (PAILAS)] Vela flotando #{1} en Zona 5 detectada pero EMA 200 ({2:F2}) fuera de Zona 3 ([{3:F2}, {4:F2}]). ¡Apague y vámonos!",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PAILAS MI PEZ!] Corto descartado: Vela flotando #{1} afuera pero EMA 200 ({2:F2}) fuera de Zona 3 ([{3:F2}, {4:F2}]). ¡Apague y vámonos!",
                             Time[0], sobbFloatingBarsCountShort, ema200[0], midline, upperSmall));
                     }
                     // REGLA DE ORO v9.0: Evaluación de Barras Consecutivas y Rompimiento de Suelo (Lower Low)
@@ -1014,24 +1055,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         if (rompioSueloAnterior && isPendientesCorto)
                         {
-                            // ¡Confirmación estructural completa de 2 o 3 barras consecutivas!
+                            // ¡Confirmación estructural completa de 2 o 3 barras consecutivas con pendiente institucional!
                             sobbArmedShort = false;
                             sobbHasFloatedShort = false;
                             sobbFloatingBarsCountShort = 0;
                             ExecuteAceEntry(AceType.As2_SOBB, MarketPosition.Short, "SOBB_Short");
-                            Print(string.Format("{0} - [PAS - SOBB v9.0] ¡DISPARO CORTO CONFIRMADO! {1} barras consecutivas afuera con Low ({2:F2}) < Low[1] ({3:F2}) y pendientes alineadas | Entrada @ ~{4:F2}",
-                                Time[0], sobbFloatingBarsCountShort, Low[0], Low[1], Close[0]));
+                            Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PUM, ADIÓS! QUÉ GROSERÍA DE TRADE] ¡Corto disparado @ ~{1:F2}! {2} barras consecutivas afuera con Low ({3:F2}) < Low[1] ({4:F2}) | Pendiente Normalizada: {5:F2} (Mín: -{6:F2}) | ATR: {7:F2} pts.",
+                                Time[0], Close[0], sobbFloatingBarsCountShort, Low[0], Low[1], normMidSlope, SlopeThresholdTrend, atr14 != null ? atr14[0] : 0.0));
                             return;
                         }
                         else if (!rompioSueloAnterior)
                         {
-                            Print(string.Format("{0} - [PAS - SOBB v9.0 | CORTO FRENADO] Barra #{1} afuera pero suelo Low ({2:F2}) no perforó Low[1] ({3:F2}). Esperando impulso en siguiente barra...",
+                            Print(string.Format("{0} - [PAS - SOBB v10.0 | CORTO FRENADO] Barra #{1} afuera pero suelo Low ({2:F2}) no perforó Low[1] ({3:F2}). Esperando impulso en siguiente barra...",
                                 Time[0], sobbFloatingBarsCountShort, Low[0], Low[1]));
                         }
                         else
                         {
-                            Print(string.Format("{0} - [PAS - SOBB | CORTO EN ESPERA DE PENDIENTES] Barra #{1} afuera OK. Pendientes no alineadas todavía (MidSlope={2:F4}, LowerSlope={3:F4}). Esperando...",
-                                Time[0], sobbFloatingBarsCountShort, midlineSlope, lowerSlope));
+                            Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PAILAS MI PEZ!] Corto en espera de pendiente: Midline en {1:F2} vs Umbral requerido: -{2:F2} | ATR: {3:F2} pts. Mercado plano/ruido, ¡no arriesgamos!",
+                                Time[0], normMidSlope, SlopeThresholdTrend, atr14 != null ? atr14[0] : 0.0));
                         }
                     }
                     else if (sobbFloatingBarsCountShort > SobbMaxFloatingBarsWindow)
@@ -1040,13 +1081,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         sobbArmedShort = false;
                         sobbHasFloatedShort = false;
                         sobbFloatingBarsCountShort = 0;
-                        Print(string.Format("{0} - [PAS - SOBB v9.0 | CORTO EXPIRADO (PAILAS)] Pasaron {1} barras afuera sin rompimiento bajista con pendientes. Setup cancelado.",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | ¡PAILAS!] Pasaron {1} barras afuera sin rompimiento bajista con pendiente. Setup cancelado.",
                             Time[0], SobbMaxFloatingBarsWindow));
                     }
                     else
                     {
                         // Barra 1 afuera: guardando posición y esperando barra 2
-                        Print(string.Format("{0} - [PAS - SOBB v9.0 | BARRA 1 AFUERA] Primera vela 100% afuera (High {1:F2} < Lower {2:F2}). Esperando Barra 2 consecutiva...",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | BARRA 1 AFUERA] Primera vela 100% afuera (High {1:F2} < Lower {2:F2}). Esperando Barra 2 consecutiva...",
                             Time[0], High[0], lowerBig));
                     }
                 }
@@ -1058,7 +1099,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         sobbArmedShort = false;
                         sobbHasFloatedShort = false;
                         sobbFloatingBarsCountShort = 0;
-                        Print(string.Format("{0} - [PAS - SOBB v9.0 | CORTO DESARMADO POR REPLIEGUE] El precio regresó adentro de Lower 3.5 ({1:F2}) tras {2} barra(s) afuera. ¡Pailas! Setup cancelado.",
+                        Print(string.Format("{0} - [PAS - SOBB v10.0 | CORTO DESARMADO POR REPLIEGUE] El precio regresó adentro de Lower 3.5 ({1:F2}) tras {2} barra(s) afuera. ¡Pailas! Setup cancelado.",
                             Time[0], lowerBig, sobbFloatingBarsCountShort));
                     }
                 }
@@ -1212,7 +1253,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
-        // AS 4: CASCADA 25 BARRAS (EL TREN BALA DESBOCADO - FILTRO ZONAS EXPANSIVAS 0/1 Y 4/5)
+        // AS 4: CASCADA (EL CAZADOR DE RÁPIDOS DE RÍO - PENDIENTE NORMALIZADA + CANDADO $180)
         // =========================================================================
         private void EvaluateAs4_Cascada50()
         {
@@ -1223,7 +1264,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 2. FILTRO DE SACIEDAD: Si Cascada logró un Súper Win (>= $600 USD), permanece en cuarentena de 60 min
+            // 2. FILTRO DE SACIEDAD: Si Cascada logró una victoria previa (>= $180 USD), permanece en cuarentena de 60 min
             if (Time[0] < cascadaQuarantineEndTime)
             {
                 return;
@@ -1232,39 +1273,77 @@ namespace NinjaTrader.NinjaScript.Strategies
             double midline    = keltnerBig.Midline[0];
             double upperSmall = keltnerSmall.Upper[0];
             double lowerSmall = keltnerSmall.Lower[0];
-            double minSlope   = CascadaMinSlopeTicks * TickSize;
+            double normSlope  = GetNormalizedSlope(keltnerBig.Midline);
 
-            // DISPARO CORTO: EMA 200 > Upper 3.5 + 4 ticks por >= 25 barras.
-            // FILTRO ESTRUCTURAL: El precio DEBE estar en Zona 5 o Zona 4 (Close <= Lower 1.75).
-            // Si el precio subió a Zona 3 o superior, el tren perdió velocidad y NO se opera.
-            if (barsCascadaShortCount >= CascadaMinBars)
+            // =========================================================================
+            // DISPARO CORTO: Rápido de Río Bajista
+            // 1. Regla de 1 Solo Tiro: no haber disparado ya en este mismo impulso bajista
+            // 2. Contexto Macro: EMA 200 por encima de la Línea Media (keltnerBig.Midline)
+            // 3. Ubicación: Precio en Zona 4 o 5 (Close <= lowerSmall)
+            // 4. Aceleración: Pendiente Normalizada de Línea Media <= -CascadaSlopeThreshold (-0.20)
+            // 5. Vela con intención bajista: Close[0] < Open[0]
+            // =========================================================================
+            if (!cascadaCycleShortFired)
             {
+                bool macroBajista          = ema200[0] > midline;
                 bool precioEnZonaExpansion = Close[0] <= lowerSmall;
-                bool pendienteBajista      = (ema200[5] - ema200[0]) >= minSlope;
+                bool pendienteRapido       = normSlope <= -CascadaSlopeThreshold;
+                bool velaBajista           = Close[0] < Open[0];
 
-                if (precioEnZonaExpansion && pendienteBajista)
+                if (macroBajista && precioEnZonaExpansion)
                 {
-                    ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                    Print(string.Format("{0} - [PAS - Cascada50] ¡DISPARO CORTO CONFIRMADO! Tren bala en ZONA 5/4 (Close {1:F2} <= Lower 1.75 {2:F2}) con EMA > Upper 3.5 por {3} barras | Entrada @ ~{4:F2}",
-                        Time[0], Close[0], lowerSmall, barsCascadaShortCount, Close[0]));
-                    return;
+                    if (pendienteRapido && velaBajista)
+                    {
+                        cascadaCycleShortFired = true;
+                        ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
+                        Print(string.Format("{0} - [PAS - Cascada v10.0 | ¡PUM, ADIÓS! RÁPIDO CORTO DISPARADO] Entrada @ ~{1:F2} en Zona 4/5 | Pendiente Normalizada: {2:F2} (Mínimo: -{3:F2}) | ATR(14): {4:F2} pts | SL inicial en Línea Media ({5:F2}). ¡Qué grosería de trade!",
+                            Time[0], Close[0], normSlope, CascadaSlopeThreshold, atr14 != null ? atr14[0] : 0.0, midline));
+                        return;
+                    }
+                    else if (!pendienteRapido)
+                    {
+                        if (normSlope < -0.05)
+                        {
+                            Print(string.Format("{0} - [PAS - Cascada v10.0 | ¡PAILAS MI PEZ!] Corto frenado: Pendiente en {1:F2} vs Umbral requerido: -{2:F2} | ATR: {3:F2} pts. Esperando aceleración real del río...",
+                                Time[0], normSlope, CascadaSlopeThreshold, atr14 != null ? atr14[0] : 0.0));
+                        }
+                    }
                 }
             }
 
-            // DISPARO LARGO: EMA 200 < Lower 3.5 - 4 ticks por >= 25 barras.
-            // FILTRO ESTRUCTURAL: El precio DEBE estar en Zona 0 o Zona 1 (Close >= Upper 1.75).
-            // Si el precio cayó a Zona 2 o inferior, el tren perdió velocidad y NO se opera.
-            if (barsCascadaLongCount >= CascadaMinBars)
+            // =========================================================================
+            // DISPARO LARGO: Rápido de Río Alcista
+            // 1. Regla de 1 Solo Tiro: no haber disparado ya en este mismo impulso alcista
+            // 2. Contexto Macro: EMA 200 por debajo de la Línea Media (keltnerBig.Midline)
+            // 3. Ubicación: Precio en Zona 0 o 1 (Close >= upperSmall)
+            // 4. Aceleración: Pendiente Normalizada de Línea Media >= CascadaSlopeThreshold (+0.20)
+            // 5. Vela con intención alcista: Close[0] > Open[0]
+            // =========================================================================
+            if (!cascadaCycleLongFired)
             {
+                bool macroAlcista          = ema200[0] < midline;
                 bool precioEnZonaExpansion = Close[0] >= upperSmall;
-                bool pendienteAlcista      = (ema200[0] - ema200[5]) >= minSlope;
+                bool pendienteRapido       = normSlope >= CascadaSlopeThreshold;
+                bool velaAlcista           = Close[0] > Open[0];
 
-                if (precioEnZonaExpansion && pendienteAlcista)
+                if (macroAlcista && precioEnZonaExpansion)
                 {
-                    ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                    Print(string.Format("{0} - [PAS - Cascada50] ¡DISPARO LARGO CONFIRMADO! Tren bala en ZONA 0/1 (Close {1:F2} >= Upper 1.75 {2:F2}) con EMA < Lower 3.5 por {3} barras | Entrada @ ~{4:F2}",
-                        Time[0], Close[0], upperSmall, barsCascadaLongCount, Close[0]));
-                    return;
+                    if (pendienteRapido && velaAlcista)
+                    {
+                        cascadaCycleLongFired = true;
+                        ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
+                        Print(string.Format("{0} - [PAS - Cascada v10.0 | ¡PUM, ADIÓS! RÁPIDO LARGO DISPARADO] Entrada @ ~{1:F2} en Zona 0/1 | Pendiente Normalizada: +{2:F2} (Mínimo: +{3:F2}) | ATR(14): {4:F2} pts | SL inicial en Línea Media ({5:F2}). ¡Qué grosería de trade!",
+                            Time[0], Close[0], normSlope, CascadaSlopeThreshold, atr14 != null ? atr14[0] : 0.0, midline));
+                        return;
+                    }
+                    else if (!pendienteRapido)
+                    {
+                        if (normSlope > 0.05)
+                        {
+                            Print(string.Format("{0} - [PAS - Cascada v10.0 | ¡PAILAS MI PEZ!] Largo frenado: Pendiente en +{1:F2} vs Umbral requerido: +{2:F2} | ATR: {3:F2} pts. Esperando aceleración real del río...",
+                                Time[0], normSlope, CascadaSlopeThreshold, atr14 != null ? atr14[0] : 0.0));
+                        }
+                    }
                 }
             }
         }
@@ -1836,15 +1915,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], lockSl, Close[0]));
                         }
                     }
-                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
+                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) en Línea Media con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
                     else
                     {
-                        double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(keltnerSmall.Lower[0] - (1 * TickSize), entryPrice - (CascadaMaxSlTicks * TickSize)));
+                        double structuralSl = keltnerBig.Midline[0] - (2 * TickSize);
+                        double maxSafeSl    = entryPrice - (CascadaMaxSlTicks * TickSize);
+                        double dynamicSl    = Instrument.MasterInstrument.RoundToTickSize(Math.Max(structuralSl, maxSafeSl));
                         if (Close[0] <= dynamicSl || Low[0] <= dynamicSl)
                         {
                             ExitLong("SL_BandaOpuesta_Cascada", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | LARGO CERRADO POR STOP DINÁMICO] Precio perforó Lower 1.75 -1tk / Tope {1}tk ({2:F2}) | Salida a Mercado @ ~{3:F2}",
-                                Time[0], CascadaMaxSlTicks, dynamicSl, Close[0]));
+                            Print(string.Format("{0} - [PAS - Cascada v10.0 | LARGO CERRADO POR SL ESTRUCTURAL] Precio perforó Línea Media ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], dynamicSl, Close[0]));
                         }
                     }
                 }
@@ -2133,15 +2214,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 Time[0], lockSl, Close[0]));
                         }
                     }
-                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
+                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) en Línea Media con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
                     else
                     {
-                        double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(keltnerSmall.Upper[0] + (1 * TickSize), entryPrice + (CascadaMaxSlTicks * TickSize)));
+                        double structuralSl = keltnerBig.Midline[0] + (2 * TickSize);
+                        double maxSafeSl    = entryPrice + (CascadaMaxSlTicks * TickSize);
+                        double dynamicSl    = Instrument.MasterInstrument.RoundToTickSize(Math.Min(structuralSl, maxSafeSl));
                         if (Close[0] >= dynamicSl || High[0] >= dynamicSl)
                         {
                             ExitShort("SL_BandaOpuesta_Cascada", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | CORTO CERRADO POR STOP DINÁMICO] Precio superó Upper 1.75 +1tk / Tope {1}tk ({2:F2}) | Salida a Mercado @ ~{3:F2}",
-                                Time[0], CascadaMaxSlTicks, dynamicSl, Close[0]));
+                            Print(string.Format("{0} - [PAS - Cascada v10.0 | CORTO CERRADO POR SL ESTRUCTURAL] Precio superó Línea Media ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                                Time[0], dynamicSl, Close[0]));
                         }
                     }
                 }
@@ -2220,13 +2303,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Si se cerró Cascada, se resetea su contador para permitir re-entradas si la tendencia persiste
+                // Si se cerró Cascada, reseteo de contadores de fondo
                 if (currentAce == AceType.As4_Cascada50)
                 {
                     barsCascadaShortCount = 0;
                     barsCascadaLongCount = 0;
-                    Print(string.Format("{0} - [PAS - Cascada] Posición cerrada. Contador reseteado a 0; re-entrará si la tendencia acumula {1} barras más.",
-                        Time[0], CascadaMinBars));
                 }
 
                 ResetAllTradeCounters();
@@ -2249,20 +2330,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (trade.Entry != null && trade.Entry.Name.IndexOf("Cascada", StringComparison.OrdinalIgnoreCase) >= 0 && netProfit > 0)
                     {
                         cascadaHasWonToday = true;
-                        Print(string.Format("{0} - [PAS | CASCADA WIN CONFIRMADO] Cascada logró trade ganador (+{1:C2}). ¡Pisar Suave liberado para próximas entradas!",
-                            trade.Exit.Time, netProfit));
 
-                        // CUARENTENA DE SACIEDAD: Si ganó >= $600 USD ($60 MES), congela el gatillo de Cascada por 60 minutos
+                        // CUARENTENA DE SACIEDAD: Si ganó >= $180 USD ($18 MES) o salió por Candado, congela Cascada por 60 minutos
                         double effectiveBigWinThreshold = CascadaBigWinThresholdDollars * instrumentMultiplier;
-                        if (netProfit >= effectiveBigWinThreshold)
+                        if (netProfit >= effectiveBigWinThreshold || (trade.Exit != null && trade.Exit.Name.Contains("Candado")))
                         {
                             cascadaQuarantineEndTime = trade.Exit.Time.AddMinutes(CascadaQuarantineMinutes);
                             Print(string.Format("****************************************************************************************\n" +
-                                                "{0} - [PAS - Cascada | CUARENTENA DE SACIEDAD ACTIVADA] ¡SÚPER TRADE GANADOR (+{1:C2}) >= ${2:F2} USD!\n" +
-                                                "El mercado entra en agotamiento post-clímax. Cascada entra en CUARENTENA de {3} minutos.\n" +
-                                                "Gatillo de Cascada congelado hasta las {4:HH:mm:ss} EST para proteger el botín.\n" +
+                                                "{0} - [PAS - Cascada v10.0 | ¡QUIETO EN PRIMERA! CUARENTENA DE SACIEDAD ACTIVADA]\n" +
+                                                "¡Qué grosería de trade! Ganamos +{1:C2} en Cascada. Candado asegurado.\n" +
+                                                "Gatillo de Cascada congelado por {2} minutos (hasta las {3:HH:mm:ss} EST). ¡A cuidar el botín!\n" +
                                                 "****************************************************************************************",
-                                trade.Exit.Time, netProfit, effectiveBigWinThreshold, CascadaQuarantineMinutes, cascadaQuarantineEndTime));
+                                trade.Exit.Time, netProfit, CascadaQuarantineMinutes, cascadaQuarantineEndTime));
                         }
                     }
 
@@ -2332,10 +2411,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         currentDailyFloor = dynamicFloor;
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [¡MODO DULCE ACTIVO! TRAILING DIARIO INFINITO] PnL Diario Realizado: ${1:F2} (Pico: ${2:F2}).\n" +
-                                           "¡SEGUIMOS OPERANDO SIN TECHO ARTIFICIAL! Nuevo Piso Protegido clavado en: +${3:F2} USD (Giveback: -${4:F2}).\n" +
+                                           "{0} - [ESCUDO DIARIO | ¡MODO DULCE ACTIVADO!]\n" +
+                                           "¡Qué grosería de día! PnL Diario: ${1:F2} USD. Ya superamos las ${2:F2} lukas.\n" +
+                                           "Soltamos el trailing infinito y el nuevo piso protegido sube a +${3:F2} USD.\n" +
+                                           "¡A romper la banca sin techo!\n" +
                                            "****************************************************************************************",
-                            Time[0], dailyRealizedPnL, peakDailyClosedPnL, currentDailyFloor, DailyTrailingGiveback));
+                            Time[0], dailyRealizedPnL, DailyGoal_Piso3, currentDailyFloor));
                     }
                 }
                 // Escalón 2: >= $600 USD ($60 MES) -> Piso Protegido de +$500 USD (+ $50 MES)
@@ -2345,11 +2426,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         currentDailyTier = 2;
                         currentDailyFloor = DailyFloor_Piso2;
-                        Print(string.Format("========================================================================================\n" +
-                                           "{0} - [ESCUDO DIARIO | ESCALÓN 2 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta 2: ${2:F2}).\n" +
-                                           "Nuevo Piso Protegido CLAVADO en +${3:F2} USD. ¡Pase lo que pase, los $500 están garantizados!\n" +
-                                           "========================================================================================",
-                            Time[0], dailyRealizedPnL, DailyGoal_Piso2, currentDailyFloor));
+                        Print(string.Format("****************************************************************************************\n" +
+                                           "{0} - [ESCUDO DIARIO | ¡SEGUNDO ESCALÓN CONQUISTADO!]\n" +
+                                           "¡Qué nivel mi pez! Subiste al segundo escalón. PnL Diario: ${1:F2} USD.\n" +
+                                           "Ya te llevas mínimo en tu bolsillo ${2:F2} lukas blindadas.\n" +
+                                           "Ahora apúntele a las ${3:F2} lukas para activar el Modo Dulce y soltar el trailing infinito. ¡Eso es trading de verdad!\n" +
+                                           "****************************************************************************************",
+                            Time[0], dailyRealizedPnL, currentDailyFloor, DailyGoal_Piso3));
                     }
                 }
                 // Escalón 1: >= $400 USD ($40 MES) -> Piso Protegido de +$250 USD (+ $25 MES)
@@ -2359,11 +2442,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         currentDailyTier = 1;
                         currentDailyFloor = DailyFloor_Piso1;
-                        Print(string.Format("========================================================================================\n" +
-                                           "{0} - [ESCUDO DIARIO | ESCALÓN 1 ACTIVADO] PnL Diario: ${1:F2} (Superó Meta Base: ${2:F2}).\n" +
-                                           "Nuevo Piso Protegido CLAVADO en +${3:F2} USD. Jugamos con la plata de la casa buscando el Escalón 2.\n" +
-                                           "========================================================================================",
-                            Time[0], dailyRealizedPnL, DailyGoal_Piso1, currentDailyFloor));
+                        Print(string.Format("****************************************************************************************\n" +
+                                           "{0} - [ESCUDO DIARIO | ¡PRIMER ESCALÓN CONQUISTADO!]\n" +
+                                           "¡Ufff parsero, ya subiste el primer escalón! PnL Diario: ${1:F2} USD.\n" +
+                                           "Ya te llevas mínimo en tu bolsillo ${2:F2} lukas aseguradas.\n" +
+                                           "Sigue para el siguiente nivel que tú puedes, solo tienes que llegar a ${3:F2} lukas y estamos en el otro nivel. ¡Vamos con toda!\n" +
+                                           "****************************************************************************************",
+                            Time[0], dailyRealizedPnL, currentDailyFloor, DailyGoal_Piso2));
                     }
                 }
                 // Si el PnL cerrado cayó por debajo del piso protegido ya establecido
@@ -2639,29 +2724,39 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CascadaMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(100.0, 3000.0)]
-        [Display(Name = "Cascada Umbral Súper Win (USD)", Description = "Ganancia mínima en USD para activar la Cuarentena de Saciedad ($600 ES / $60 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 6)]
+        [Range(20.0, 3000.0)]
+        [Display(Name = "Cascada Umbral Súper Win (USD)", Description = "Ganancia mínima en USD para activar la Cuarentena de Saciedad ($180 ES / $18 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 6)]
         public double CascadaBigWinThresholdDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 240)]
-        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras un Súper Win (60 minutos por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
+        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras una victoria (60 minutos por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
         public int CascadaQuarantineMinutes { get; set; }
 
         [NinjaScriptProperty]
+        [Range(0.05, 1.0)]
+        [Display(Name = "Cascada Umbral Pendiente Rápido", Description = "Umbral de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada (0.20 por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
+        public double CascadaSlopeThreshold { get; set; }
+
+        [NinjaScriptProperty]
         [Range(4, 30)]
-        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 9)]
         public int CascadaTp1Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(8, 50)]
-        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 9)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 10)]
         public int CascadaTp2Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 10)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 11)]
         public int CascadaChokeTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.05, 1.0)]
+        [Display(Name = "Umbral Pendiente Tendencia SOBB y Z1", Description = "Umbral de Pendiente Normalizada (LinReg 5 / ATR 14) para filtrar mercados planos en SOBB y Z1 (0.15 por defecto)", GroupName = "8. Indicadores", Order = 0)]
+        public double SlopeThresholdTrend { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 50)]
