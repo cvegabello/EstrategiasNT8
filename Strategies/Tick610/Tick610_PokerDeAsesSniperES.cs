@@ -188,7 +188,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "11.1 - Poker de Ases (PAS) [Tranca de Adamantium Anclada a +$20 ($420, $620, $920) & Filtro Anti-Asfixia]";
+                Version                                     = "11.2 - Poker de Ases (PAS) [Piso Blindado Hardcore $900 en Modo Dulce & Tranca de Adamantium]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -1399,24 +1399,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return 0;
                 }
 
+                // REGLA DE RESPIRO SALUDABLE (v11.2): Para abrir cualquier posición sobre un piso protegido
+                // (Escalón 1, 2 o Modo Dulce), el margen DEBE permitir al menos 12 ticks de SL saludable (12 tk = $150 ES / $15 MES).
+                // Si el margen disponible es menor, NO se abre la posición para proteger el piso blindado y evitar asfixias.
+                int minHealthyTicksPerContract = 12;
+                double minHealthyDollars = minHealthyTicksPerContract * tickDollarVal;
+
+                if (allowedLossDollars < minHealthyDollars)
+                {
+                    Print(string.Format("{0} - [ESCUDO PISO BLINDADO v11.2] Margen disponible (${1:F2} USD) insuficiente para 12 ticks de respiro (${2:F2} USD) sin violar el Piso protegido (+${3:F2} USD). Entrada bloqueada para blindar el botín.",
+                        Time[0], allowedLossDollars, minHealthyDollars, currentDailyFloor));
+                    return 0;
+                }
+
                 // REGLA DE ORO DE ESCALÓN 1: Si ya estamos en ganancias protegidas (Escalón 1: $400 - $599),
                 // se opera con 1 solo contrato. Mientras estemos sobre el piso, se permite operar.
                 if (currentDailyTier == 1)
                 {
-                    Print(string.Format("{0} - [PAS | ESCALÓN 1 ACTIVO: 1 CONTRATO] PnL actual: ${1:F2} USD (Piso +${2:F2}). Operando con 1 contrato protegido.",
-                        Time[0], dailyRealizedPnL, currentDailyFloor));
+                    Print(string.Format("{0} - [PAS | ESCALÓN 1 ACTIVO: 1 CONTRATO] PnL actual: ${1:F2} USD (Piso +${2:F2}). Operando con 1 contrato protegido ({3} ticks de margen).",
+                        Time[0], dailyRealizedPnL, currentDailyFloor, (int)Math.Floor(allowedLossDollars / tickDollarVal)));
                     return 1;
                 }
 
                 // Para Escalón 2 o superior (Modo Dulce): Permitimos 2 o 3 contratos solo si hay margen holgado (mínimo 14 ticks por contrato)
-                int minHealthyTicksPerContract = 14;
+                int minMulticontractTicks = 14;
 
-                for (int qty = targetContracts; qty >= 1; qty--)
+                for (int qty = targetContracts; qty >= 2; qty--)
                 {
                     double dollarsPerTick = qty * tickDollarVal;
                     int maxTicksForQty = (int)Math.Floor(allowedLossDollars / dollarsPerTick);
 
-                    if (qty > 1 && maxTicksForQty >= minHealthyTicksPerContract)
+                    if (maxTicksForQty >= minMulticontractTicks)
                     {
                         if (qty < targetContracts)
                         {
@@ -1427,7 +1440,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Si el margen no alcanza para multicontrato holgado pero seguimos sobre el piso, operamos con 1 contrato:
+                // Si el margen no alcanza para multicontrato holgado pero supera el respiro mínimo saludable (>= 12 ticks), operamos con 1 contrato:
                 Print(string.Format("{0} - [PAS | DESESCALADO A 1 CONTRATO] Margen disponible: ${1:F2} USD. Posición ajustada a 1 contrato para seguir operando sin romper piso (+${2:F2}).",
                     Time[0], allowedLossDollars, currentDailyFloor));
                 return 1;
@@ -2743,17 +2756,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     currentDailyTier = 3;
                     peakDailyClosedPnL = Math.Max(peakDailyClosedPnL, dailyRealizedPnL);
-                    double dynamicFloor = peakDailyClosedPnL - DailyTrailingGiveback;
+                    // REGLA DE ORO DE MODO DULCE (v11.2): El piso NUNCA baja de DailyGoal_Piso3 ($900 ES / $90 MES)
+                    double dynamicFloor = Math.Max(DailyGoal_Piso3, peakDailyClosedPnL - DailyTrailingGiveback);
                     if (dynamicFloor > currentDailyFloor)
                     {
                         currentDailyFloor = dynamicFloor;
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [ESCUDO DIARIO | ¡MODO DULCE ACTIVADO!]\n" +
-                                           "¡Qué grosería de día! PnL Diario: ${1:F2} USD. Ya superamos las ${2:F2} lukas.\n" +
-                                           "Soltamos el trailing infinito y el nuevo piso protegido sube a +${3:F2} USD.\n" +
-                                           "¡A romper la banca sin techo!\n" +
+                                           "{0} - [ESCUDO DIARIO v11.2 | ¡MODO DULCE BLINDADO!]\n" +
+                                           "¡Qué grosería de día! PnL Diario: ${1:F2} USD. Piso dulce blindado en +${2:F2} USD (Inviolable).\n" +
+                                           "Trailing Infinito activo buscando el infinito sin permitir caer jamás de los $900.\n" +
                                            "****************************************************************************************",
-                            Time[0], dailyRealizedPnL, DailyGoal_Piso3, currentDailyFloor));
+                            Time[0], dailyRealizedPnL, currentDailyFloor));
                     }
                 }
                 // Escalón 2: >= $600 USD ($60 MES) -> Piso Protegido de +$500 USD (+ $50 MES)
