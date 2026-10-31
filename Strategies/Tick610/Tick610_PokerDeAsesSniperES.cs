@@ -181,7 +181,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "10.0 - Poker de Ases (PAS) [Pendiente Normalizada LinReg+ATR, Cascada Cazador de Rapidos, Logs Humanos]";
+                Version                                     = "10.1 - Poker de Ases (PAS) [Cascada Salida de Rapido Real, Candado $180, Pendiente LinReg+ATR, Logs Humanos]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -1897,36 +1897,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], currentProfitDollars, currentFavorableTicks));
                     }
 
-                    // 1. Salida por Fin de Ciclo (EMA 200 re-ingresa al canal Keltner Grande Lower 3.5)
-                    if (ema200[0] >= keltnerBig.Lower[0])
-                    {
-                        ExitLong("Exit_Cascada_CicloTerminado", "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS - Cascada | LARGO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) re-ingresó a Lower 3.5 ({2:F2}) | Salida @ ~{3:F2}",
-                            Time[0], ema200[0], keltnerBig.Lower[0], Close[0]));
-                    }
-                    // 2. Salida por Candado activo (Upper 1.75 - 1 tick)
-                    else if (isCascadaLockActive)
+                    // 1. Salida por Candado Activo (Upper 1.75 - 1 tick tras superar $180 USD)
+                    if (isCascadaLockActive)
                     {
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (1 * TickSize));
                         if (Close[0] <= lockSl || Low[0] <= lockSl)
                         {
                             ExitLong("SL_Candado_Cascada", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada | LARGO PROTEGIDO POR CANDADO] Precio perforó Upper 1.75 -1tk ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                            Print(string.Format("{0} - [PAS - Cascada v10.1 | LARGO COBRADO CON CANDADO] Precio perforó Upper 1.75 -1tk ({1:F2}) | Salida a Mercado @ ~{2:F2} (Ganancia asegurada).",
                                 Time[0], lockSl, Close[0]));
+                            return;
                         }
                     }
-                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) en Línea Media con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
-                    else
+
+                    // 2. Salida por Fin de Ciclo del Rápido (Repliegue adentro de Banda 1.75 o freno de pendiente tras ganar >= 14 ticks)
+                    double normMidSlope = GetNormalizedSlope(keltnerBig.Midline);
+                    if (peakGainTicks >= 14 && (Close[0] < keltnerSmall.Upper[0] || normMidSlope <= 0.0))
                     {
-                        double structuralSl = keltnerBig.Midline[0] - (2 * TickSize);
-                        double maxSafeSl    = entryPrice - (CascadaMaxSlTicks * TickSize);
-                        double dynamicSl    = Instrument.MasterInstrument.RoundToTickSize(Math.Max(structuralSl, maxSafeSl));
-                        if (Close[0] <= dynamicSl || Low[0] <= dynamicSl)
-                        {
-                            ExitLong("SL_BandaOpuesta_Cascada", "Cascada50_Long");
-                            Print(string.Format("{0} - [PAS - Cascada v10.0 | LARGO CERRADO POR SL ESTRUCTURAL] Precio perforó Línea Media ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], dynamicSl, Close[0]));
-                        }
+                        ExitLong("Exit_Cascada_CicloTerminado", "Cascada50_Long");
+                        Print(string.Format("{0} - [PAS - Cascada v10.1 | FIN DE RÁPIDO] Repliegue adentro de Upper 1.75 ({1:F2}) o freno de pendiente ({2:F2}) tras ganar {3:F1} tks pico. Salida a Mercado @ ~{4:F2}",
+                            Time[0], keltnerSmall.Upper[0], normMidSlope, peakGainTicks, Close[0]));
+                        return;
+                    }
+
+                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) en Línea Media con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
+                    double structuralSl = keltnerBig.Midline[0] - (2 * TickSize);
+                    double maxSafeSl    = entryPrice - (CascadaMaxSlTicks * TickSize);
+                    double dynamicSl    = Instrument.MasterInstrument.RoundToTickSize(Math.Max(structuralSl, maxSafeSl));
+                    if (Close[0] <= dynamicSl || Low[0] <= dynamicSl)
+                    {
+                        ExitLong("SL_BandaOpuesta_Cascada", "Cascada50_Long");
+                        Print(string.Format("{0} - [PAS - Cascada v10.1 | LARGO CERRADO POR SL ESTRUCTURAL] Precio perforó Línea Media ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                            Time[0], dynamicSl, Close[0]));
+                        return;
                     }
                 }
             }
@@ -2196,36 +2199,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], currentProfitDollars, currentFavorableTicks));
                     }
 
-                    // 1. Salida por Fin de Ciclo (EMA 200 re-ingresa al canal Keltner Grande Upper 3.5)
-                    if (ema200[0] <= keltnerBig.Upper[0])
-                    {
-                        ExitShort("Exit_Cascada_CicloTerminado", "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS - Cascada | CORTO CERRADO POR FIN DE CICLO] EMA200 ({1:F2}) re-ingresó a Upper 3.5 ({2:F2}) | Salida @ ~{3:F2}",
-                            Time[0], ema200[0], keltnerBig.Upper[0], Close[0]));
-                    }
-                    // 2. Salida por Candado activo (Lower 1.75 + 1 tick)
-                    else if (isCascadaLockActive)
+                    // 1. Salida por Candado Activo (Lower 1.75 + 1 tick tras superar $180 USD)
+                    if (isCascadaLockActive)
                     {
                         double lockSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (1 * TickSize));
                         if (Close[0] >= lockSl || High[0] >= lockSl)
                         {
                             ExitShort("SL_Candado_Cascada", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada | CORTO PROTEGIDO POR CANDADO] Precio superó Lower 1.75 +1tk ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                            Print(string.Format("{0} - [PAS - Cascada v10.1 | CORTO COBRADO CON CANDADO] Precio superó Lower 1.75 +1tk ({1:F2}) | Salida a Mercado @ ~{2:F2} (Ganancia asegurada).",
                                 Time[0], lockSl, Close[0]));
+                            return;
                         }
                     }
-                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) en Línea Media con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
-                    else
+
+                    // 2. Salida por Fin de Ciclo del Rápido (Repliegue adentro de Banda 1.75 o freno de pendiente tras ganar >= 14 ticks)
+                    double normMidSlopeShort = GetNormalizedSlope(keltnerBig.Midline);
+                    if (peakGainTicks >= 14 && (Close[0] > keltnerSmall.Lower[0] || normMidSlopeShort >= 0.0))
                     {
-                        double structuralSl = keltnerBig.Midline[0] + (2 * TickSize);
-                        double maxSafeSl    = entryPrice + (CascadaMaxSlTicks * TickSize);
-                        double dynamicSl    = Instrument.MasterInstrument.RoundToTickSize(Math.Min(structuralSl, maxSafeSl));
-                        if (Close[0] >= dynamicSl || High[0] >= dynamicSl)
-                        {
-                            ExitShort("SL_BandaOpuesta_Cascada", "Cascada50_Short");
-                            Print(string.Format("{0} - [PAS - Cascada v10.0 | CORTO CERRADO POR SL ESTRUCTURAL] Precio superó Línea Media ({1:F2}) | Salida a Mercado @ ~{2:F2}",
-                                Time[0], dynamicSl, Close[0]));
-                        }
+                        ExitShort("Exit_Cascada_CicloTerminado", "Cascada50_Short");
+                        Print(string.Format("{0} - [PAS - Cascada v10.1 | FIN DE RÁPIDO] Repliegue adentro de Lower 1.75 ({1:F2}) o freno de pendiente ({2:F2}) tras ganar {3:F1} tks pico. Salida a Mercado @ ~{4:F2}",
+                            Time[0], keltnerSmall.Lower[0], normMidSlopeShort, peakGainTicks, Close[0]));
+                        return;
+                    }
+
+                    // 3. Stop Loss Inicial Estructural (antes de alcanzar el Candado) en Línea Media con tope de seguridad CascadaMaxSlTicks (24 ticks = -$300 máx)
+                    double structuralSl = keltnerBig.Midline[0] + (2 * TickSize);
+                    double maxSafeSl    = entryPrice + (CascadaMaxSlTicks * TickSize);
+                    double dynamicSl    = Instrument.MasterInstrument.RoundToTickSize(Math.Min(structuralSl, maxSafeSl));
+                    if (Close[0] >= dynamicSl || High[0] >= dynamicSl)
+                    {
+                        ExitShort("SL_BandaOpuesta_Cascada", "Cascada50_Short");
+                        Print(string.Format("{0} - [PAS - Cascada v10.1 | CORTO CERRADO POR SL ESTRUCTURAL] Precio superó Línea Media ({1:F2}) | Salida a Mercado @ ~{2:F2}",
+                            Time[0], dynamicSl, Close[0]));
+                        return;
                     }
                 }
             }
