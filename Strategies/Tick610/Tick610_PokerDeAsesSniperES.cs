@@ -187,7 +187,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "10.4 - Poker de Ases (PAS) [Tranca de Acero Universal en Escalones $400, $600, $900 con Sprint Bonus]";
+                Version                                     = "10.5 - Poker de Ases (PAS) [Tranca de Acero Selectiva desde Escalon 2 ($600+) con Pista Libre Inicial]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -262,7 +262,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
                 UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a la 1:00 PM EST
                 Tier1CutoffTime                             = 130000; // 01:00 PM EST (Hora de corte para Escalón 1)
-                UseTrancaUniversal                          = true;   // Activar Tranca de Acero Universal en cada escalón ($400, $600, $900)
+                UseTrancaUniversal                          = true;   // Activar Tranca de Acero Universal en cada escalón
+                TrancaOnlyFromTier2                         = true;   // Pista libre en piso inicial: solo clava tranca desde Escalón 2 ($600+) y Modo Dulce ($900)
                 TrancaBonusDollars                          = 100.0;  // Dólares de Sprint Bonus tras clavar la tranca ($100 ES / $10 MES)
                 TrancaSafetyDollars                         = 10.0;   // Colchón de seguridad para comisiones ($10 ES / $1 MES)
             }
@@ -1667,20 +1668,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double nextMilestone = 0.0;
                     int nextTierTarget = 0;
 
-                    if (dailyRealizedPnL < DailyGoal_Piso1)
+                    if (TrancaOnlyFromTier2)
                     {
-                        nextMilestone = DailyGoal_Piso1; // $400 ES
-                        nextTierTarget = 1;
+                        // Pista libre en piso inicial: solo trancamos al tocar Escalón 2 ($600) o Modo Dulce ($900)
+                        if (dailyRealizedPnL < DailyGoal_Piso2)
+                        {
+                            nextMilestone = DailyGoal_Piso2; // $600 ES (Escalón 2)
+                            nextTierTarget = 2;
+                        }
+                        else if (dailyRealizedPnL < DailyGoal_Piso3)
+                        {
+                            nextMilestone = DailyGoal_Piso3; // $900 ES (Modo Dulce)
+                            nextTierTarget = 3;
+                        }
                     }
-                    else if (dailyRealizedPnL < DailyGoal_Piso2)
+                    else
                     {
-                        nextMilestone = DailyGoal_Piso2; // $600 ES
-                        nextTierTarget = 2;
-                    }
-                    else if (dailyRealizedPnL < DailyGoal_Piso3)
-                    {
-                        nextMilestone = DailyGoal_Piso3; // $900 ES (Modo Dulce)
-                        nextTierTarget = 3;
+                        if (dailyRealizedPnL < DailyGoal_Piso1)
+                        {
+                            nextMilestone = DailyGoal_Piso1; // $400 ES
+                            nextTierTarget = 1;
+                        }
+                        else if (dailyRealizedPnL < DailyGoal_Piso2)
+                        {
+                            nextMilestone = DailyGoal_Piso2; // $600 ES
+                            nextTierTarget = 2;
+                        }
+                        else if (dailyRealizedPnL < DailyGoal_Piso3)
+                        {
+                            nextMilestone = DailyGoal_Piso3; // $900 ES (Modo Dulce)
+                            nextTierTarget = 3;
+                        }
                     }
 
                     double dollarsPerPoint = currentQty * Instrument.MasterInstrument.PointValue;
@@ -2071,20 +2089,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double nextMilestone = 0.0;
                     int nextTierTarget = 0;
 
-                    if (dailyRealizedPnL < DailyGoal_Piso1)
+                    if (TrancaOnlyFromTier2)
                     {
-                        nextMilestone = DailyGoal_Piso1; // $400 ES
-                        nextTierTarget = 1;
+                        // Pista libre en piso inicial: solo trancamos al tocar Escalón 2 ($600) o Modo Dulce ($900)
+                        if (dailyRealizedPnL < DailyGoal_Piso2)
+                        {
+                            nextMilestone = DailyGoal_Piso2; // $600 ES (Escalón 2)
+                            nextTierTarget = 2;
+                        }
+                        else if (dailyRealizedPnL < DailyGoal_Piso3)
+                        {
+                            nextMilestone = DailyGoal_Piso3; // $900 ES (Modo Dulce)
+                            nextTierTarget = 3;
+                        }
                     }
-                    else if (dailyRealizedPnL < DailyGoal_Piso2)
+                    else
                     {
-                        nextMilestone = DailyGoal_Piso2; // $600 ES
-                        nextTierTarget = 2;
-                    }
-                    else if (dailyRealizedPnL < DailyGoal_Piso3)
-                    {
-                        nextMilestone = DailyGoal_Piso3; // $900 ES (Modo Dulce)
-                        nextTierTarget = 3;
+                        if (dailyRealizedPnL < DailyGoal_Piso1)
+                        {
+                            nextMilestone = DailyGoal_Piso1; // $400 ES
+                            nextTierTarget = 1;
+                        }
+                        else if (dailyRealizedPnL < DailyGoal_Piso2)
+                        {
+                            nextMilestone = DailyGoal_Piso2; // $600 ES
+                            nextTierTarget = 2;
+                        }
+                        else if (dailyRealizedPnL < DailyGoal_Piso3)
+                        {
+                            nextMilestone = DailyGoal_Piso3; // $900 ES (Modo Dulce)
+                            nextTierTarget = 3;
+                        }
                     }
 
                     double dollarsPerPoint = currentQty * Instrument.MasterInstrument.PointValue;
@@ -2860,13 +2895,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseTrancaUniversal { get; set; }
 
         [NinjaScriptProperty]
+        [Display(Name = "Tranca Solo Desde Escalón 2 ($600+)", Description = "Deja correr libre el trade en piso inicial y solo tranca al tocar Escalón 2 ($600) o Modo Dulce ($900)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 13)]
+        public bool TrancaOnlyFromTier2 { get; set; }
+
+        [NinjaScriptProperty]
         [Range(10.0, 500.0)]
-        [Display(Name = "Tranca Dólares de Sprint Bonus ($)", Description = "Ganancia adicional en USD a buscar tras clavar la tranca del escalón ($100 ES / $10 MES por defecto)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 13)]
+        [Display(Name = "Tranca Dólares de Sprint Bonus ($)", Description = "Ganancia adicional en USD a buscar tras clavar la tranca del escalón ($100 ES / $10 MES por defecto)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 14)]
         public double TrancaBonusDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0.0, 50.0)]
-        [Display(Name = "Tranca Colchón de Comisiones ($)", Description = "Margen de seguridad sobre el piso para garantizar que quede limpio tras comisiones ($10 ES / $1 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 14)]
+        [Display(Name = "Tranca Colchón de Comisiones ($)", Description = "Margen de seguridad sobre el piso para garantizar que quede limpio tras comisiones ($10 ES / $1 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 15)]
         public double TrancaSafetyDollars { get; set; }
 
         [NinjaScriptProperty]
