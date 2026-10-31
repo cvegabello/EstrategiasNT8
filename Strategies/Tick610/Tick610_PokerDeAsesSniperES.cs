@@ -135,11 +135,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double peakDailyClosedPnL = 0.0;   // Máximo PnL diario cerrado para arrastre del Trailing Infinito
         private int activeTradeContracts = 3;      // Contratos asignados dinámicamente según el margen del piso
 
-        // === TRANCA DE ACERO UNIVERSAL (RATCHET INDESTRUCTIBLE DE ESCALONES) ===
-        private bool   trancaActive = false;         // Bandera: ¿Se activó la tranca de acero en este trade?
-        private double trancaPrice = 0.0;            // Precio del Stop de acero indestructible que asegura el piso
+        // === TRANCA DE ADAMANTIUM (GARRAS DE WOLVERINE & FILTRO ANTI-ASFIXIA) ===
+        private bool   trancaActive = false;         // Bandera: ¿Se activó la tranca de adamantium en este trade?
+        private double trancaPrice = 0.0;            // Precio del Stop de adamantium que asegura el nuevo escalón neto
         private double trancaBonusPrice = 0.0;       // Precio del TP Sprint Bonus (+ $100 extra)
         private double trancaMilestoneLevel = 0.0;   // Nivel del escalón conquistado ($400, $600 o $900)
+        private int    trancaArmedBar = -1;          // Barra donde se clavó la Tranca para evitar falso autodisparo en misma vela
 
         // === FACTOR MULTIPLICADOR (AUTO-ADAPTACIÓN MINI ES VS MICRO MES) ===
         private double instrumentMultiplier = 1.0; // 1.0 para ES, 0.1 para MES
@@ -187,7 +188,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "10.5 - Poker de Ases (PAS) [Tranca de Acero Selectiva desde Escalon 2 ($600+) con Pista Libre Inicial]";
+                Version                                     = "11.0 - Poker de Ases (PAS) [Tranca de Adamantium Wolverine & Filtro Anti-Asfixia]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -262,10 +263,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
                 UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a la 1:00 PM EST
                 Tier1CutoffTime                             = 130000; // 01:00 PM EST (Hora de corte para Escalón 1)
-                UseTrancaUniversal                          = true;   // Activar Tranca de Acero Universal en cada escalón
+                UseTrancaUniversal                          = true;   // Activar Tranca de Adamantium Universal en cada escalón
                 TrancaOnlyFromTier2                         = true;   // Pista libre en piso inicial: solo clava tranca desde Escalón 2 ($600+) y Modo Dulce ($900)
                 TrancaBonusDollars                          = 100.0;  // Dólares de Sprint Bonus tras clavar la tranca ($100 ES / $10 MES)
                 TrancaSafetyDollars                         = 10.0;   // Colchón de seguridad para comisiones ($10 ES / $1 MES)
+                MinTrancaDistanceDollars                    = 125.0;  // Filtro Anti-Asfixia: Mínimo $125 USD (10 ticks ES / $12.5 MES) de pista para armar tranca
+                TrancaConquestBufferDollars                 = 35.0;   // Colchón Conquista Adamantium: Penetración de $35 USD (~3 ticks) para validar fuerza
+                TrancaCommissionBufferDollars               = 15.0;   // Colchón neto que garantiza quedar adentro del nuevo escalón tras comisiones y slippage
             }
             else if (State == State.DataLoaded)
             {
@@ -287,6 +291,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     CascadaBigWinThresholdDollars = 18.0;
                     TrancaBonusDollars    = 10.0;
                     TrancaSafetyDollars   = 1.0;
+                    MinTrancaDistanceDollars = 12.5;
+                    TrancaConquestBufferDollars = 3.5;
+                    TrancaCommissionBufferDollars = 1.5;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
@@ -1482,6 +1489,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             trancaPrice = 0.0;
             trancaBonusPrice = 0.0;
             trancaMilestoneLevel = 0.0;
+            trancaArmedBar = -1;
 
             // Stop Loss inicial físico en el DOM
             double initialSlPrice = 0.0;
@@ -1659,9 +1667,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double peakGainDollars = peakGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
 
                 // =========================================================================
-                // TRANCA DE ACERO UNIVERSAL (RATCHET INDESTRUCTIBLE DE ESCALONES $400, $600, $900)
-                // Al alcanzar la meta de cualquier escalón, clava un Stop indestructible que asegura ese piso
-                // y busca un Sprint Bonus (+ $100 USD). Si retrocede, la tranca liquida garantizando el escalón.
+                // TRANCA DE ADAMANTIUM (GARRAS DE WOLVERINE & FILTRO ANTI-ASFIXIA) v11.0
+                // 1. FILTRO ANTI-ASFIXIA: Si faltan menos de MinTrancaDistanceDollars ($125 ES / $12.5 MES)
+                //    para la meta, la Tranca se APAGA para no asfixiar el trade por centavos.
+                //    El trade corre libre con su gestión de As (Candado Cascada, TP2 SOBB, Zona 1, etc.).
+                // 2. COLCHÓN DE CONQUISTA ADAMANTIUM: Para armarse, el mercado debe penetrar con fuerza
+                //    superando el escalón por TrancaConquestBufferDollars ($35 ES / $3.5 MES).
+                // 3. PISO BLINDADO GARANTIZADO: La Tranca se clava con TrancaCommissionBufferDollars ($15 ES / $1.5 MES),
+                //    garantizando que al liquidar, la cuenta quede matemáticamente ADENTRO del nuevo escalón (>= $600 o $900).
+                // 4. CERO AUTODISPARO: No evalúa el Low[0] de la vela donde se armó; solo evalúa retrocesos
+                //    en velas posteriores o si el precio de cierre Close[0] perfora la tranca.
                 // =========================================================================
                 if (UseDailyManagement && UseTrancaUniversal)
                 {
@@ -1704,73 +1719,92 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double dollarsPerPoint = currentQty * Instrument.MasterInstrument.PointValue;
                     if (nextMilestone > 0.0 && dollarsPerPoint > 0)
                     {
-                        double neededDollarsToMilestone = (nextMilestone - dailyRealizedPnL) + (TrancaSafetyDollars * instrumentMultiplier);
-                        double floatingGainDollars = (Close[0] - entryPrice) * dollarsPerPoint;
-                        double favorableGainDollars = (High[0] - entryPrice) * dollarsPerPoint;
+                        double rawDistanceToMilestone = nextMilestone - dailyRealizedPnL;
+                        double minHealthyDistance = MinTrancaDistanceDollars * instrumentMultiplier;
 
-                        // 1. ACTIVACIÓN DE LA TRANCA: En cuanto el trade toca el hito del escalón
-                        if (!trancaActive && (favorableGainDollars >= neededDollarsToMilestone || floatingGainDollars >= neededDollarsToMilestone))
+                        // FILTRO ANTI-ASFIXIA:
+                        // Si falta una mincha (< $125 USD) para la meta, apagamos la tranca para no estrangular el trade.
+                        // El trade corre libre con la gestión natural del As.
+                        if (rawDistanceToMilestone < minHealthyDistance && !trancaActive)
                         {
-                            trancaActive = true;
-                            trancaMilestoneLevel = nextMilestone;
-                            double neededPointsToFloor = neededDollarsToMilestone / dollarsPerPoint;
-                            trancaPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + neededPointsToFloor);
-
-                            double bonusPoints = (TrancaBonusDollars * instrumentMultiplier) / dollarsPerPoint;
-                            trancaBonusPrice = Instrument.MasterInstrument.RoundToTickSize(trancaPrice + bonusPoints);
-
-                            Print(string.Format("****************************************************************************************\n" +
-                                                "{0} - [ESCUDO DIARIO v10.4 | ¡TRANCA DE ACERO CLAVADA! ESCALÓN {1} CONQUISTADO]\n" +
-                                                "¡Qué nivel mi pez! El trade tocó la meta del Escalón {1} (${2:F2} USD).\n" +
-                                                "Tranca indestructible armada en {3:F2} (Garantiza el escalón sin retroceso).\n" +
-                                                "Sprint Bonus armado en {4:F2} buscando +${5:F2} USD adicionales. ¡A romperla sin miedo!\n" +
-                                                "****************************************************************************************",
-                                Time[0], nextTierTarget, trancaMilestoneLevel, trancaPrice, trancaBonusPrice, TrancaBonusDollars * instrumentMultiplier));
+                            // Tranca inhibida por Anti-Asfixia: el trade respira libremente
                         }
-
-                        // 2. GESTIÓN MIENTRAS LA TRANCA ESTÁ ACTIVA
-                        if (trancaActive)
+                        else
                         {
-                            string exitSignal = currentAce == AceType.As4_Cascada50 ? "Cascada50_Long" :
-                                                (currentAce == AceType.As2_SOBB ? "SOBB_Long" :
-                                                (currentAce == AceType.As1_Zona1_100Bar ? "Z1-100Bar_Long" : "Ratchet_Long"));
+                            double conquestRequiredDollars = rawDistanceToMilestone + (TrancaConquestBufferDollars * instrumentMultiplier);
+                            double lockRequiredDollars = rawDistanceToMilestone + (TrancaCommissionBufferDollars * instrumentMultiplier);
+                            double floatingGainDollars = (Close[0] - entryPrice) * dollarsPerPoint;
+                            double favorableGainDollars = (High[0] - entryPrice) * dollarsPerPoint;
 
-                            // A) SPRINT BONUS ALCANZADO (+ $100 USD adicionales conquistados)
-                            if (Close[0] >= trancaBonusPrice || High[0] >= trancaBonusPrice)
+                            // 1. ACTIVACIÓN DE LA TRANCA DE ADAMANTIUM: Requiere penetración con fuerza (Conquest Buffer)
+                            if (!trancaActive && (favorableGainDollars >= conquestRequiredDollars || floatingGainDollars >= conquestRequiredDollars))
                             {
-                                if (currentAce == AceType.As4_Cascada50)
-                                {
-                                    cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
-                                }
+                                trancaActive = true;
+                                trancaArmedBar = CurrentBar;
+                                trancaMilestoneLevel = nextMilestone;
+                                double lockPoints = lockRequiredDollars / dollarsPerPoint;
+                                trancaPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + lockPoints);
 
-                                ExitLong("Exit_Tranca_TP_Bonus", exitSignal);
-                                double actualGain = (Close[0] - entryPrice) * dollarsPerPoint;
+                                double bonusPoints = (TrancaBonusDollars * instrumentMultiplier) / dollarsPerPoint;
+                                trancaBonusPrice = Instrument.MasterInstrument.RoundToTickSize(trancaPrice + bonusPoints);
+
                                 Print(string.Format("****************************************************************************************\n" +
-                                                    "{0} - [ESCUDO DIARIO v10.4 | ¡PUM, ADIÓS! SPRINT BONUS CORONADO]\n" +
-                                                    "¡GROSERÍA TOTAL! Alcanzó el TP Bonus en {1:F2}. Ganancia de +${2:F2} USD asegurada.\n" +
-                                                    "Escalón {3} superado con creces. ¡Dinero blindado en la caja fuerte!\n" +
+                                                    "{0} - [ESCUDO DIARIO v11.0 | ¡TRANCA DE ADAMANTIUM CLAVADA! ESCALÓN {1} CONQUISTADO]\n" +
+                                                    "¡QUÉ GROSERÍA MI PEZ! El mercado perforó con fuerza la meta del Escalón {1} (${2:F2} USD).\n" +
+                                                    "Tranca de Adamantium clavada en {3:F2} (Garantiza salir EN o SOBRE el nuevo escalón tras comisiones).\n" +
+                                                    "Sprint Bonus armado en {4:F2} buscando +${5:F2} USD adicionales. ¡A romperla sin miedo!\n" +
                                                     "****************************************************************************************",
-                                    Time[0], Close[0], actualGain, nextTierTarget));
-                                return;
+                                    Time[0], nextTierTarget, trancaMilestoneLevel, trancaPrice, trancaBonusPrice, TrancaBonusDollars * instrumentMultiplier));
                             }
 
-                            // B) RETROCESO DETENIDO EN SECO POR LA TRANCA DE ACERO
-                            if (Close[0] <= trancaPrice || Low[0] <= trancaPrice)
+                            // 2. GESTIÓN MIENTRAS LA TRANCA ESTÁ ACTIVA
+                            if (trancaActive)
                             {
-                                if (currentAce == AceType.As4_Cascada50)
+                                string exitSignal = currentAce == AceType.As4_Cascada50 ? "Cascada50_Long" :
+                                                    (currentAce == AceType.As2_SOBB ? "SOBB_Long" :
+                                                    (currentAce == AceType.As1_Zona1_100Bar ? "Z1-100Bar_Long" : "Ratchet_Long"));
+
+                                // A) SPRINT BONUS ALCANZADO (+ $100 USD adicionales conquistados)
+                                if (Close[0] >= trancaBonusPrice || High[0] >= trancaBonusPrice)
                                 {
-                                    cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                                    if (currentAce == AceType.As4_Cascada50)
+                                    {
+                                        cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                                    }
+
+                                    ExitLong("Exit_Tranca_TP_Bonus", exitSignal);
+                                    double actualGain = (Close[0] - entryPrice) * dollarsPerPoint;
+                                    Print(string.Format("****************************************************************************************\n" +
+                                                        "{0} - [ESCUDO DIARIO v11.0 | ¡PUM, ADIÓS! SPRINT BONUS CORONADO]\n" +
+                                                        "¡GROSERÍA TOTAL! Alcanzó el TP Bonus en {1:F2}. Ganancia de +${2:F2} USD asegurada.\n" +
+                                                        "Escalón {3} superado con creces. ¡Dinero blindado en la caja fuerte!\n" +
+                                                        "****************************************************************************************",
+                                        Time[0], Close[0], actualGain, nextTierTarget));
+                                    return;
                                 }
 
-                                ExitLong("Exit_Tranca_Acero", exitSignal);
-                                double actualGain = (Close[0] - entryPrice) * dollarsPerPoint;
-                                Print(string.Format("****************************************************************************************\n" +
-                                                    "{0} - [ESCUDO DIARIO v10.4 | TRANCA DE ACERO INDESTRUCTIBLE EJECUTADA]\n" +
-                                                    "El mercado intentó retroceder pero chocó contra la Tranca en {1:F2}.\n" +
-                                                    "Trade liquidado con +${2:F2} USD garantizados. ¡Escalón {3} (${4:F2} USD) sellado para siempre!\n" +
-                                                    "****************************************************************************************",
-                                    Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel));
-                                return;
+                                // B) RETROCESO DETENIDO EN SECO POR LA TRANCA DE ADAMANTIUM
+                                // CERO AUTODISPARO: En la misma barra donde se armó solo salimos si Close[0] cae bajo la tranca;
+                                // en barras posteriores evaluamos si Low[0] toca o perfora la tranca.
+                                bool retrocesoConfirmadoLong = (Close[0] <= trancaPrice) || (CurrentBar > trancaArmedBar && Low[0] <= trancaPrice);
+
+                                if (retrocesoConfirmadoLong)
+                                {
+                                    if (currentAce == AceType.As4_Cascada50)
+                                    {
+                                        cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                                    }
+
+                                    ExitLong("Exit_Tranca_Acero", exitSignal);
+                                    double actualGain = (Close[0] - entryPrice) * dollarsPerPoint;
+                                    Print(string.Format("****************************************************************************************\n" +
+                                                        "{0} - [ESCUDO DIARIO v11.0 | TRANCA DE ADAMANTIUM INDESTRUCTIBLE EJECUTADA]\n" +
+                                                        "El mercado intentó retroceder pero chocó contra las Garras de Wolverine en {1:F2}.\n" +
+                                                        "Trade liquidado con +${2:F2} USD netos garantizados. ¡Escalón {3} (${4:F2} USD) sellado para siempre!\n" +
+                                                        "****************************************************************************************",
+                                        Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel));
+                                    return;
+                                }
                             }
                         }
                     }
@@ -2080,9 +2114,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double peakGainDollars = peakGainTicks * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
 
                 // =========================================================================
-                // TRANCA DE ACERO UNIVERSAL (RATCHET INDESTRUCTIBLE DE ESCALONES $400, $600, $900)
-                // Al alcanzar la meta de cualquier escalón, clava un Stop indestructible que asegura ese piso
-                // y busca un Sprint Bonus (+ $100 USD). Si retrocede, la tranca liquida garantizando el escalón.
+                // TRANCA DE ADAMANTIUM (GARRAS DE WOLVERINE & FILTRO ANTI-ASFIXIA) v11.0 (CORTO)
+                // 1. FILTRO ANTI-ASFIXIA: Si faltan menos de MinTrancaDistanceDollars ($125 ES / $12.5 MES)
+                //    para la meta, la Tranca se APAGA para no asfixiar el trade por centavos.
+                //    El trade corre libre con su gestión de As (Candado Cascada, TP2 SOBB, Zona 1, etc.).
+                // 2. COLCHÓN DE CONQUISTA ADAMANTIUM: Para armarse, el mercado debe penetrar con fuerza
+                //    superando el escalón por TrancaConquestBufferDollars ($35 ES / $3.5 MES).
+                // 3. PISO BLINDADO GARANTIZADO: La Tranca se clava con TrancaCommissionBufferDollars ($15 ES / $1.5 MES),
+                //    garantizando que al liquidar, la cuenta quede matemáticamente ADENTRO del nuevo escalón (>= $600 o $900).
+                // 4. CERO AUTODISPARO: No evalúa el High[0] de la vela donde se armó; solo evalúa retrocesos
+                //    en velas posteriores o si el precio de cierre Close[0] perfora la tranca hacia arriba.
                 // =========================================================================
                 if (UseDailyManagement && UseTrancaUniversal)
                 {
@@ -2125,73 +2166,92 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double dollarsPerPoint = currentQty * Instrument.MasterInstrument.PointValue;
                     if (nextMilestone > 0.0 && dollarsPerPoint > 0)
                     {
-                        double neededDollarsToMilestone = (nextMilestone - dailyRealizedPnL) + (TrancaSafetyDollars * instrumentMultiplier);
-                        double floatingGainDollars = (entryPrice - Close[0]) * dollarsPerPoint;
-                        double favorableGainDollars = (entryPrice - Low[0]) * dollarsPerPoint;
+                        double rawDistanceToMilestone = nextMilestone - dailyRealizedPnL;
+                        double minHealthyDistance = MinTrancaDistanceDollars * instrumentMultiplier;
 
-                        // 1. ACTIVACIÓN DE LA TRANCA: En cuanto el trade toca el hito del escalón
-                        if (!trancaActive && (favorableGainDollars >= neededDollarsToMilestone || floatingGainDollars >= neededDollarsToMilestone))
+                        // FILTRO ANTI-ASFIXIA:
+                        // Si falta una mincha (< $125 USD) para la meta, apagamos la tranca para no estrangular el trade.
+                        // El trade corre libre con la gestión natural del As.
+                        if (rawDistanceToMilestone < minHealthyDistance && !trancaActive)
                         {
-                            trancaActive = true;
-                            trancaMilestoneLevel = nextMilestone;
-                            double neededPointsToFloor = neededDollarsToMilestone / dollarsPerPoint;
-                            trancaPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - neededPointsToFloor);
-
-                            double bonusPoints = (TrancaBonusDollars * instrumentMultiplier) / dollarsPerPoint;
-                            trancaBonusPrice = Instrument.MasterInstrument.RoundToTickSize(trancaPrice - bonusPoints);
-
-                            Print(string.Format("****************************************************************************************\n" +
-                                                "{0} - [ESCUDO DIARIO v10.4 | ¡TRANCA DE ACERO CLAVADA! ESCALÓN {1} CONQUISTADO]\n" +
-                                                "¡Qué nivel mi pez! El trade tocó la meta del Escalón {1} (${2:F2} USD).\n" +
-                                                "Tranca indestructible armada en {3:F2} (Garantiza el escalón sin retroceso).\n" +
-                                                "Sprint Bonus armado en {4:F2} buscando +${5:F2} USD adicionales. ¡A romperla sin miedo!\n" +
-                                                "****************************************************************************************",
-                                Time[0], nextTierTarget, trancaMilestoneLevel, trancaPrice, trancaBonusPrice, TrancaBonusDollars * instrumentMultiplier));
+                            // Tranca inhibida por Anti-Asfixia: el trade respira libremente
                         }
-
-                        // 2. GESTIÓN MIENTRAS LA TRANCA ESTÁ ACTIVA
-                        if (trancaActive)
+                        else
                         {
-                            string exitSignal = currentAce == AceType.As4_Cascada50 ? "Cascada50_Short" :
-                                                (currentAce == AceType.As2_SOBB ? "SOBB_Short" :
-                                                (currentAce == AceType.As1_Zona1_100Bar ? "Z1-100Bar_Short" : "Ratchet_Short"));
+                            double conquestRequiredDollars = rawDistanceToMilestone + (TrancaConquestBufferDollars * instrumentMultiplier);
+                            double lockRequiredDollars = rawDistanceToMilestone + (TrancaCommissionBufferDollars * instrumentMultiplier);
+                            double floatingGainDollars = (entryPrice - Close[0]) * dollarsPerPoint;
+                            double favorableGainDollars = (entryPrice - Low[0]) * dollarsPerPoint;
 
-                            // A) SPRINT BONUS ALCANZADO (+ $100 USD adicionales conquistados)
-                            if (Close[0] <= trancaBonusPrice || Low[0] <= trancaBonusPrice)
+                            // 1. ACTIVACIÓN DE LA TRANCA DE ADAMANTIUM: Requiere penetración con fuerza (Conquest Buffer)
+                            if (!trancaActive && (favorableGainDollars >= conquestRequiredDollars || floatingGainDollars >= conquestRequiredDollars))
                             {
-                                if (currentAce == AceType.As4_Cascada50)
-                                {
-                                    cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
-                                }
+                                trancaActive = true;
+                                trancaArmedBar = CurrentBar;
+                                trancaMilestoneLevel = nextMilestone;
+                                double lockPoints = lockRequiredDollars / dollarsPerPoint;
+                                trancaPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - lockPoints);
 
-                                ExitShort("Exit_Tranca_TP_Bonus", exitSignal);
-                                double actualGain = (entryPrice - Close[0]) * dollarsPerPoint;
+                                double bonusPoints = (TrancaBonusDollars * instrumentMultiplier) / dollarsPerPoint;
+                                trancaBonusPrice = Instrument.MasterInstrument.RoundToTickSize(trancaPrice - bonusPoints);
+
                                 Print(string.Format("****************************************************************************************\n" +
-                                                    "{0} - [ESCUDO DIARIO v10.4 | ¡PUM, ADIÓS! SPRINT BONUS CORONADO]\n" +
-                                                    "¡GROSERÍA TOTAL! Alcanzó el TP Bonus en {1:F2}. Ganancia de +${2:F2} USD asegurada.\n" +
-                                                    "Escalón {3} superado con creces. ¡Dinero blindado en la caja fuerte!\n" +
+                                                    "{0} - [ESCUDO DIARIO v11.0 | ¡TRANCA DE ADAMANTIUM CLAVADA! ESCALÓN {1} CONQUISTADO]\n" +
+                                                    "¡QUÉ GROSERÍA MI PEZ! El mercado perforó con fuerza la meta del Escalón {1} (${2:F2} USD).\n" +
+                                                    "Tranca de Adamantium clavada en {3:F2} (Garantiza salir EN o SOBRE el nuevo escalón tras comisiones).\n" +
+                                                    "Sprint Bonus armado en {4:F2} buscando +${5:F2} USD adicionales. ¡A romperla sin miedo!\n" +
                                                     "****************************************************************************************",
-                                    Time[0], Close[0], actualGain, nextTierTarget));
-                                return;
+                                    Time[0], nextTierTarget, trancaMilestoneLevel, trancaPrice, trancaBonusPrice, TrancaBonusDollars * instrumentMultiplier));
                             }
 
-                            // B) RETROCESO DETENIDO EN SECO POR LA TRANCA DE ACERO
-                            if (Close[0] >= trancaPrice || High[0] >= trancaPrice)
+                            // 2. GESTIÓN MIENTRAS LA TRANCA ESTÁ ACTIVA
+                            if (trancaActive)
                             {
-                                if (currentAce == AceType.As4_Cascada50)
+                                string exitSignal = currentAce == AceType.As4_Cascada50 ? "Cascada50_Short" :
+                                                    (currentAce == AceType.As2_SOBB ? "SOBB_Short" :
+                                                    (currentAce == AceType.As1_Zona1_100Bar ? "Z1-100Bar_Short" : "Ratchet_Short"));
+
+                                // A) SPRINT BONUS ALCANZADO (+ $100 USD adicionales conquistados)
+                                if (Close[0] <= trancaBonusPrice || Low[0] <= trancaBonusPrice)
                                 {
-                                    cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                                    if (currentAce == AceType.As4_Cascada50)
+                                    {
+                                        cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                                    }
+
+                                    ExitShort("Exit_Tranca_TP_Bonus", exitSignal);
+                                    double actualGain = (entryPrice - Close[0]) * dollarsPerPoint;
+                                    Print(string.Format("****************************************************************************************\n" +
+                                                        "{0} - [ESCUDO DIARIO v11.0 | ¡PUM, ADIÓS! SPRINT BONUS CORONADO]\n" +
+                                                        "¡GROSERÍA TOTAL! Alcanzó el TP Bonus en {1:F2}. Ganancia de +${2:F2} USD asegurada.\n" +
+                                                        "Escalón {3} superado con creces. ¡Dinero blindado en la caja fuerte!\n" +
+                                                        "****************************************************************************************",
+                                        Time[0], Close[0], actualGain, nextTierTarget));
+                                    return;
                                 }
 
-                                ExitShort("Exit_Tranca_Acero", exitSignal);
-                                double actualGain = (entryPrice - Close[0]) * dollarsPerPoint;
-                                Print(string.Format("****************************************************************************************\n" +
-                                                    "{0} - [ESCUDO DIARIO v10.4 | TRANCA DE ACERO INDESTRUCTIBLE EJECUTADA]\n" +
-                                                    "El mercado intentó retroceder pero chocó contra la Tranca en {1:F2}.\n" +
-                                                    "Trade liquidado con +${2:F2} USD garantizados. ¡Escalón {3} (${4:F2} USD) sellado para siempre!\n" +
-                                                    "****************************************************************************************",
-                                    Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel));
-                                return;
+                                // B) RETROCESO DETENIDO EN SECO POR LA TRANCA DE ADAMANTIUM
+                                // CERO AUTODISPARO: En la misma barra donde se armó solo salimos si Close[0] sube sobre la tranca;
+                                // en barras posteriores evaluamos si High[0] toca o perfora la tranca.
+                                bool retrocesoConfirmadoShort = (Close[0] >= trancaPrice) || (CurrentBar > trancaArmedBar && High[0] >= trancaPrice);
+
+                                if (retrocesoConfirmadoShort)
+                                {
+                                    if (currentAce == AceType.As4_Cascada50)
+                                    {
+                                        cascadaQuarantineEndTime = Time[0].AddMinutes(CascadaQuarantineMinutes);
+                                    }
+
+                                    ExitShort("Exit_Tranca_Acero", exitSignal);
+                                    double actualGain = (entryPrice - Close[0]) * dollarsPerPoint;
+                                    Print(string.Format("****************************************************************************************\n" +
+                                                        "{0} - [ESCUDO DIARIO v11.0 | TRANCA DE ADAMANTIUM INDESTRUCTIBLE EJECUTADA]\n" +
+                                                        "El mercado intentó retroceder pero chocó contra las Garras de Wolverine en {1:F2}.\n" +
+                                                        "Trade liquidado con +${2:F2} USD netos garantizados. ¡Escalón {3} (${4:F2} USD) sellado para siempre!\n" +
+                                                        "****************************************************************************************",
+                                        Time[0], Close[0], actualGain, nextTierTarget, trancaMilestoneLevel));
+                                    return;
+                                }
                             }
                         }
                     }
@@ -2537,6 +2597,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             trancaPrice = 0.0;
             trancaBonusPrice = 0.0;
             trancaMilestoneLevel = 0.0;
+            trancaArmedBar = -1;
 
             highestPriceSinceEntry = 0.0;
             lowestPriceSinceEntry = double.MaxValue;
@@ -2907,6 +2968,21 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0.0, 50.0)]
         [Display(Name = "Tranca Colchón de Comisiones ($)", Description = "Margen de seguridad sobre el piso para garantizar que quede limpio tras comisiones ($10 ES / $1 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 15)]
         public double TrancaSafetyDollars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(20.0, 500.0)]
+        [Display(Name = "Tranca Distancia Mínima Filtro Anti-Asfixia ($)", Description = "Distancia mínima en USD para armar la Tranca. Si falta menos de esto para el escalón, se apaga la tranca para no asfixiar el trade ($125 ES / $12.5 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 16)]
+        public double MinTrancaDistanceDollars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(5.0, 200.0)]
+        [Display(Name = "Tranca Colchón Conquista Adamantium ($)", Description = "Penetración requerida por encima del escalón para armar la Tranca de Adamantium ($35 ES / $3.5 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 17)]
+        public double TrancaConquestBufferDollars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(5.0, 50.0)]
+        [Display(Name = "Tranca Colchón Comisiones y Slippage ($)", Description = "Margen de ganancia neto sobre el escalón para asegurar que el trade cierre adentro del nuevo piso ($15 ES / $1.5 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 18)]
+        public double TrancaCommissionBufferDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 5)]
