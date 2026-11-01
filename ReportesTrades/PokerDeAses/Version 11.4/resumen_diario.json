@@ -1,0 +1,292 @@
+﻿[
+    {
+        "Date":  "09/21/2026",
+        "File":  "PAS_09212026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  266.28,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +283.14, MFE: $462.5 @ 2026-09-21 10:18:32) | Cascada50_Long (SL_Candado_Cascada: -16.86, MFE: $225 @ 2026-09-21 11:45:36)"
+    },
+    {
+        "Date":  "09/22/2026",
+        "File":  "PAS_09222026.xlsx",
+        "TradesCount":  1,
+        "Wins":  0,
+        "Losses":  1,
+        "WinRate":  0,
+        "DayPnL":  -179.36,
+        "Details":  "Cascada50_Short (SL_BandaOpuesta_Cascada: -179.36, MFE: $50 @ 2026-09-22 11:39:05)"
+    },
+    {
+        "Date":  "09/23/2026",
+        "File":  "PAS_09232026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  141.28,
+        "Details":  "Cascada50_Short (SL_Candado_Cascada: +208.14, MFE: $312.5 @ 2026-09-23 10:10:14) | Cascada50_Short (SL_BandaOpuesta_Cascada: -66.86, MFE: $162.5 @ 2026-09-23 11:39:04)"
+    },
+    {
+        "Date":  "09/24/2026",
+        "File":  "PAS_09242026.xlsx",
+        "TradesCount":  1,
+        "Wins":  0,
+        "Losses":  1,
+        "WinRate":  0,
+        "DayPnL":  -650.58,
+        "Details":  "Z1-100Bar_Long (SL_Midline_Zona1: -650.58, MFE: $112.5 @ 2026-09-24 10:08:27)"
+    },
+    {
+        "Date":  "09/25/2026",
+        "File":  "PAS_09252026.xlsx",
+        "TradesCount":  4,
+        "Wins":  2,
+        "Losses":  2,
+        "WinRate":  50,
+        "DayPnL":  620.06,
+        "Details":  "Cascada50_Short (SL_Candado_Cascada: +333.14, MFE: $612.5 @ 2026-09-25 10:04:39) | Cascada50_Long (SL_Candado_Cascada: -4.36, MFE: $250 @ 2026-09-25 11:02:37) | Cascada50_Short (SL_BandaOpuesta_Cascada: -316.86, MFE: $137.5 @ 2026-09-25 11:45:47) | Cascada50_Long (Exit_Tranca_Acero: +608.14, MFE: $662.5 @ 2026-09-25 11:59:33)"
+    },
+    {
+        "Date":  "09/28/2026",
+        "File":  "PAS_09282026.xlsx",
+        "TradesCount":  3,
+        "Wins":  2,
+        "Losses":  1,
+        "WinRate":  66.7,
+        "DayPnL":  674.42,
+        "Details":  "Cascada50_Short (Exit_Tranca_TP_Bonus: +720.64, MFE: $750 @ 2026-09-28 10:39:06) | Z1-100Bar_Long (Z1_Mono_SL: -141.86, MFE: $87.5 @ 2026-09-28 11:11:14) | Cascada50_Long (SL_Candado_Cascada: +95.64, MFE: $312.5 @ 2026-09-28 12:20:36)"
+    },
+    {
+        "Date":  "09/29/2026",
+        "File":  "PAS_09292026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  -58.72,
+        "Details":  "Cascada50_Short (SL_Candado_Cascada: +70.64, MFE: $262.5 @ 2026-09-29 11:05:27) | Cascada50_Short (SL_BandaOpuesta_Cascada: -129.36, MFE: $87.5 @ 2026-09-29 12:03:13)"
+    },
+    {
+        "Date":  "09/30/2026",
+        "File":  "PAS_09302026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  41.28,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +320.64, MFE: $512.5 @ 2026-09-30 10:00:14) | Cascada50_Long (SL_BandaOpuesta_Cascada: -279.36, MFE: $25 @ 2026-09-30 10:54:03)"
+    },
+    {
+        "Date":  "10/01/2026",
+        "File":  "PAS_10012026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  466.28,
+        "Details":  "Cascada50_Short (Exit_Tranca_Acero: +658.14, MFE: $687.5 @ 2026-10-01 10:00:37) | Cascada50_Long (Cortacircuito_Diario_Piso_Exacto: -191.86, MFE: $162.5 @ 2026-10-01 10:39:40)"
+    },
+    {
+        "Date":  "10/02/2026",
+        "File":  "PAS_10022026.xlsx",
+        "TradesCount":  4,
+        "Wins":  3,
+        "Losses":  1,
+        "WinRate":  75,
+        "DayPnL":  178.2,
+        "Details":  "Z1-100Bar_Short (Z1_C1_Tp8: +120.64, MFE: $150 @ 2026-10-02 09:57:10) | Z1-100Bar_Short (Z1_Stop_BE: -383.72, MFE: $300 @ 2026-10-02 09:57:10) | Cascada50_Long (SL_Candado_Cascada: +245.64, MFE: $425 @ 2026-10-02 10:02:06) | Cascada50_Short (SL_Candado_Cascada: +195.64, MFE: $387.5 @ 2026-10-02 11:04:53)"
+    },
+    {
+        "Date":  "10/05/2026",
+        "File":  "PAS_10052026.xlsx",
+        "TradesCount":  1,
+        "Wins":  1,
+        "Losses":  0,
+        "WinRate":  100,
+        "DayPnL":  120.64,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +120.64, MFE: $250 @ 2026-10-05 10:09:11)"
+    },
+    {
+        "Date":  "10/06/2026",
+        "File":  "PAS_10062026.xlsx",
+        "TradesCount":  3,
+        "Wins":  0,
+        "Losses":  3,
+        "WinRate":  0,
+        "DayPnL":  -413.08,
+        "Details":  "Cascada50_Long (Exit_Cascada_CicloTerminado: -4.36, MFE: $175 @ 2026-10-06 10:00:12) | Z1-100Bar_Short (Z1_Mono_SL: -166.86, MFE: $87.5 @ 2026-10-06 10:30:20) | Cascada50_Long (SL_BandaOpuesta_Cascada: -241.86, MFE: $50 @ 2026-10-06 10:42:59)"
+    },
+    {
+        "Date":  "10/07/2026",
+        "File":  "PAS_10072026.xlsx",
+        "TradesCount":  3,
+        "Wins":  1,
+        "Losses":  2,
+        "WinRate":  33.3,
+        "DayPnL":  -25.58,
+        "Details":  "Cascada50_Long (SL_BandaOpuesta_Cascada: -154.36, MFE: $112.5 @ 2026-10-07 11:15:37) | Cascada50_Long (SL_Candado_Cascada: +308.14, MFE: $475 @ 2026-10-07 11:37:15) | Cascada50_Long (SL_BandaOpuesta_Cascada: -179.36, MFE: $25 @ 2026-10-07 12:23:27)"
+    },
+    {
+        "Date":  "10/08/2026",
+        "File":  "PAS_10082026.xlsx",
+        "TradesCount":  3,
+        "Wins":  1,
+        "Losses":  2,
+        "WinRate":  33.3,
+        "DayPnL":  -300.58,
+        "Details":  "SOBB_Short (SOBB_Stop_BE: +20.64, MFE: $125 @ 2026-10-08 10:53:01) | Cascada50_Short (Exit_Cascada_CicloTerminado: -54.36, MFE: $200 @ 2026-10-08 10:53:54) | Cascada50_Long (SL_BandaOpuesta_Cascada: -266.86, MFE: $150 @ 2026-10-08 12:17:18)"
+    },
+    {
+        "Date":  "10/09/2026",
+        "File":  "PAS_10092026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  -158.72,
+        "Details":  "Cascada50_Long (SL_BandaOpuesta_Cascada: -191.86, MFE: $112.5 @ 2026-10-09 10:57:29) | Cascada50_Long (SL_Candado_Cascada: +33.14, MFE: $187.5 @ 2026-10-09 12:24:34)"
+    },
+    {
+        "Date":  "10/12/2026",
+        "File":  "PAS_10122026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  -21.22,
+        "Details":  "Cascada50_Short (Exit_Cascada_CicloTerminado: +20.64, MFE: $175 @ 2026-10-12 10:11:31) | Cascada50_Long (SL_BandaOpuesta_Cascada: -41.86, MFE: $125 @ 2026-10-12 11:55:35)"
+    },
+    {
+        "Date":  "10/13/2026",
+        "File":  "PAS_10132026.xlsx",
+        "TradesCount":  2,
+        "Wins":  0,
+        "Losses":  2,
+        "WinRate":  0,
+        "DayPnL":  -271.22,
+        "Details":  "Cascada50_Short (SL_BandaOpuesta_Cascada: -154.36, MFE: $62.5 @ 2026-10-13 10:06:44) | Cascada50_Short (SL_BandaOpuesta_Cascada: -116.86, MFE: $87.5 @ 2026-10-13 11:31:56)"
+    },
+    {
+        "Date":  "10/14/2026",
+        "File":  "PAS_10142026.xlsx",
+        "TradesCount":  3,
+        "Wins":  0,
+        "Losses":  3,
+        "WinRate":  0,
+        "DayPnL":  -463.08,
+        "Details":  "Cascada50_Short (SL_BandaOpuesta_Cascada: -129.36, MFE: $50 @ 2026-10-14 10:00:11) | Cascada50_Short (SL_BandaOpuesta_Cascada: -166.86, MFE: $62.5 @ 2026-10-14 11:09:09) | Cascada50_Short (SL_BandaOpuesta_Cascada: -166.86, MFE: $37.5 @ 2026-10-14 11:41:40)"
+    },
+    {
+        "Date":  "10/15/2026",
+        "File":  "PAS_10152026.xlsx",
+        "TradesCount":  5,
+        "Wins":  2,
+        "Losses":  3,
+        "WinRate":  40,
+        "DayPnL":  -338.66,
+        "Details":  "Z1-100Bar_Long (Z1_C1_Tp8: +83.14, MFE: $100 @ 2026-10-15 10:03:11) | Z1-100Bar_Long (Z1_Stop_BE: -58.72, MFE: $200 @ 2026-10-15 10:03:11) | Cascada50_Long (SL_Candado_Cascada: +95.64, MFE: $275 @ 2026-10-15 10:04:06) | Cascada50_Long (SL_BandaOpuesta_Cascada: -179.36, MFE: $62.5 @ 2026-10-15 10:44:52) | Cascada50_Long (SL_BandaOpuesta_Cascada: -279.36, MFE: $125 @ 2026-10-15 11:05:13)"
+    },
+    {
+        "Date":  "10/16/2026",
+        "File":  "PAS_10162026.xlsx",
+        "TradesCount":  4,
+        "Wins":  2,
+        "Losses":  2,
+        "WinRate":  50,
+        "DayPnL":  357.56,
+        "Details":  "SOBB_Short (SOBB_SL_Estructural: -279.36, MFE: $0 @ 2026-10-16 10:11:04) | Cascada50_Long (SL_BandaOpuesta_Cascada: -191.86, MFE: $75 @ 2026-10-16 10:39:35) | Cascada50_Short (SL_Candado_Cascada: +483.14, MFE: $750 @ 2026-10-16 11:02:29) | Cascada50_Short (SL_Candado_Cascada: +345.64, MFE: $562.5 @ 2026-10-16 11:58:33)"
+    },
+    {
+        "Date":  "10/19/2026",
+        "File":  "PAS_10192026.xlsx",
+        "TradesCount":  3,
+        "Wins":  3,
+        "Losses":  0,
+        "WinRate":  100,
+        "DayPnL":  936.92,
+        "Details":  "SOBB_Long (SOBB_Tp2_Expansion: +233.14, MFE: $300 @ 2026-10-19 10:13:17) | Cascada50_Long (Exit_Tranca_Acero: +383.14, MFE: $450 @ 2026-10-19 10:14:15) | Cascada50_Long (Exit_Tranca_Acero: +320.64, MFE: $362.5 @ 2026-10-19 11:23:59)"
+    },
+    {
+        "Date":  "10/20/2026",
+        "File":  "PAS_10202026.xlsx",
+        "TradesCount":  5,
+        "Wins":  4,
+        "Losses":  1,
+        "WinRate":  80,
+        "DayPnL":  511.34,
+        "Details":  "Z1-100Bar_Long (Z1_C1_Tp8: +108.14, MFE: $112.5 @ 2026-10-20 09:52:36) | Z1-100Bar_Long (Z1_Stop_BE: +216.28, MFE: $225 @ 2026-10-20 09:52:36) | SOBB_Long (Exit_SOBB_CicloTerminado: +58.14, MFE: $175 @ 2026-10-20 09:53:49) | Cascada50_Long (Exit_Tranca_Acero: +233.14, MFE: $337.5 @ 2026-10-20 10:00:11) | SOBB_Short (Cortacircuito_Diario_Piso_Exacto: -104.36, MFE: $0 @ 2026-10-20 11:11:35)"
+    },
+    {
+        "Date":  "10/21/2026",
+        "File":  "PAS_10212026.xlsx",
+        "TradesCount":  3,
+        "Wins":  2,
+        "Losses":  1,
+        "WinRate":  66.7,
+        "DayPnL":  199.42,
+        "Details":  "Cascada50_Short (SL_Candado_Cascada: +133.14, MFE: $362.5 @ 2026-10-21 10:05:55) | Cascada50_Long (SL_BandaOpuesta_Cascada: -116.86, MFE: $112.5 @ 2026-10-21 10:50:00) | Cascada50_Long (SL_Candado_Cascada: +183.14, MFE: $337.5 @ 2026-10-21 11:30:24)"
+    },
+    {
+        "Date":  "10/22/2026",
+        "File":  "PAS_10222026.xlsx",
+        "TradesCount":  3,
+        "Wins":  3,
+        "Losses":  0,
+        "WinRate":  100,
+        "DayPnL":  361.92,
+        "Details":  "Cascada50_Short (SL_Candado_Cascada: +233.14, MFE: $537.5 @ 2026-10-22 10:11:02) | Cascada50_Long (SL_Candado_Cascada: +70.64, MFE: $337.5 @ 2026-10-22 11:20:35) | Cascada50_Long (SL_Candado_Cascada: +58.14, MFE: $287.5 @ 2026-10-22 11:57:29)"
+    },
+    {
+        "Date":  "10/23/2026",
+        "File":  "PAS_10232026.xlsx",
+        "TradesCount":  2,
+        "Wins":  1,
+        "Losses":  1,
+        "WinRate":  50,
+        "DayPnL":  191.28,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +408.14, MFE: $650 @ 2026-10-23 10:42:48) | Cascada50_Short (Cortacircuito_Diario_Piso_Exacto: -216.86, MFE: $62.5 @ 2026-10-23 12:25:35)"
+    },
+    {
+        "Date":  "10/26/2026",
+        "File":  "PAS_10262026.xlsx",
+        "TradesCount":  3,
+        "Wins":  2,
+        "Losses":  1,
+        "WinRate":  66.7,
+        "DayPnL":  261.92,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +345.64, MFE: $575 @ 2026-10-26 10:14:51) | Cascada50_Long (SL_Candado_Cascada: +145.64, MFE: $300 @ 2026-10-26 10:52:49) | Cascada50_Short (Cortacircuito_Diario_Piso_Exacto: -229.36, MFE: $50 @ 2026-10-26 11:52:27)"
+    },
+    {
+        "Date":  "10/27/2026",
+        "File":  "PAS_10272026.xlsx",
+        "TradesCount":  3,
+        "Wins":  2,
+        "Losses":  1,
+        "WinRate":  66.7,
+        "DayPnL":  86.92,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +108.14, MFE: $375 @ 2026-10-27 10:31:00) | Cascada50_Long (SL_BandaOpuesta_Cascada: -154.36, MFE: $25 @ 2026-10-27 11:20:24) | Cascada50_Long (SL_Candado_Cascada: +133.14, MFE: $337.5 @ 2026-10-27 11:51:02)"
+    },
+    {
+        "Date":  "10/29/2026",
+        "File":  "PAS_10292026.xlsx",
+        "TradesCount":  4,
+        "Wins":  1,
+        "Losses":  3,
+        "WinRate":  25,
+        "DayPnL":  -679.94,
+        "Details":  "Cascada50_Long (SL_Candado_Cascada: +45.64, MFE: $225 @ 2026-10-29 10:02:28) | Cascada50_Short (SL_BandaOpuesta_Cascada: -279.36, MFE: $25 @ 2026-10-29 10:50:09) | SOBB_Short (SOBB_SL_Estructural: -354.36, MFE: $25 @ 2026-10-29 11:51:45) | Cascada50_Short (Cortacircuito_Diario_Piso: -91.86, MFE: $150 @ 2026-10-29 12:14:52)"
+    },
+    {
+        "Date":  "10/30/2026",
+        "File":  "PAS_10302026.xlsx",
+        "TradesCount":  2,
+        "Wins":  2,
+        "Losses":  0,
+        "WinRate":  100,
+        "DayPnL":  691.28,
+        "Details":  "Cascada50_Short (Exit_Tranca_Acero: +620.64, MFE: $712.5 @ 2026-10-30 10:09:58) | Cascada50_Short (SL_Candado_Cascada: +70.64, MFE: $250 @ 2026-10-30 11:41:08)"
+    }
+]
