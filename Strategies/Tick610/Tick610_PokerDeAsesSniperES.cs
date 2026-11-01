@@ -188,7 +188,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "11.2 - Poker de Ases (PAS) [Piso Blindado Hardcore $900 en Modo Dulce & Tranca de Adamantium]";
+                Version                                     = "11.3 - Poker de Ases (PAS) [Escalon 2 Abierto a 1 Cto hacia Modo Dulce & Piso Sagrado $900]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -270,7 +270,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MinTrancaDistanceDollars                    = 125.0;  // Filtro Anti-Asfixia: Mínimo $125 USD (10 ticks ES / $12.5 MES) de pista para armar tranca
                 TrancaConquestBufferDollars                 = 50.0;   // Colchón Conquista Adamantium: Penetración de $50 USD (4 ticks en ES / $5 MES) para validar fuerza real
                 TrancaAnchorDollars                         = 20.0;   // Anclaje de Titanio sobre el Escalón: +$20 USD ($420, $620, $920 en ES / $2 MES)
-                TrancaCommissionBufferDollars               = 15.0;   // Colchón neto que garantiza quedar adentro del nuevo escalón tras comisiones y slippage
             }
             else if (State == State.DataLoaded)
             {
@@ -295,7 +294,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     MinTrancaDistanceDollars = 12.5;
                     TrancaConquestBufferDollars = 5.0;
                     TrancaAnchorDollars = 2.0;
-                    TrancaCommissionBufferDollars = 1.5;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
@@ -1399,29 +1397,36 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return 0;
                 }
 
-                // REGLA DE RESPIRO SALUDABLE (v11.2): Para abrir cualquier posición sobre un piso protegido
-                // (Escalón 1, 2 o Modo Dulce), el margen DEBE permitir al menos 12 ticks de SL saludable (12 tk = $150 ES / $15 MES).
-                // Si el margen disponible es menor, NO se abre la posición para proteger el piso blindado y evitar asfixias.
-                int minHealthyTicksPerContract = 12;
-                double minHealthyDollars = minHealthyTicksPerContract * tickDollarVal;
-
-                if (allowedLossDollars < minHealthyDollars)
+                // REGLA SUPREMA DEL MODO DULCE (v11.3): En Escalón 3 (Modo Dulce $900+),
+                // el piso de $900 es SAGRADO. Para abrir un trade nuevo dentro del Modo Dulce,
+                // el margen por encima del piso DEBE permitir al menos 12 ticks de SL saludable ($150 ES / $15 MES).
+                // Si sobra menos de $150 (ej. $45 USD en $945), NO se abre la posición para blindar el botín.
+                if (currentDailyTier >= 3)
                 {
-                    Print(string.Format("{0} - [ESCUDO PISO BLINDADO v11.2] Margen disponible (${1:F2} USD) insuficiente para 12 ticks de respiro (${2:F2} USD) sin violar el Piso protegido (+${3:F2} USD). Entrada bloqueada para blindar el botín.",
-                        Time[0], allowedLossDollars, minHealthyDollars, currentDailyFloor));
-                    return 0;
+                    int minSweetTicks = 12; // 12 ticks = $150 ES / $15 MES
+                    double minSweetDollars = minSweetTicks * tickDollarVal;
+
+                    if (allowedLossDollars < minSweetDollars)
+                    {
+                        Print(string.Format("{0} - [ESCUDO MODO DULCE BLINDADO v11.3] Margen disponible (${1:F2} USD) insuficiente para 12 ticks de respiro (${2:F2} USD) sin violar el Piso Sagrado (+${3:F2} USD). Entrada bloqueada para blindar la gloria.",
+                            Time[0], allowedLossDollars, minSweetDollars, currentDailyFloor));
+                        return 0;
+                    }
                 }
 
-                // REGLA DE ORO DE ESCALÓN 1: Si ya estamos en ganancias protegidas (Escalón 1: $400 - $599),
-                // se opera con 1 solo contrato. Mientras estemos sobre el piso, se permite operar.
-                if (currentDailyTier == 1)
+                // REGLA DE ORO DE ESCALONES 1 Y 2 (v11.3):
+                // En Escalón 1 ($400-$599, Piso $250) y Escalón 2 ($600-$899, Piso $500),
+                // se permite SIEMPRE operar con 1 contrato protegido mientras estemos por encima del piso,
+                // para que la estrategia pueda dar el salto al siguiente escalón o al Modo Dulce sin trabas.
+                if (currentDailyTier == 1 || currentDailyTier == 2)
                 {
-                    Print(string.Format("{0} - [PAS | ESCALÓN 1 ACTIVO: 1 CONTRATO] PnL actual: ${1:F2} USD (Piso +${2:F2}). Operando con 1 contrato protegido ({3} ticks de margen).",
-                        Time[0], dailyRealizedPnL, currentDailyFloor, (int)Math.Floor(allowedLossDollars / tickDollarVal)));
+                    int currentTicksMargin = (int)Math.Floor(allowedLossDollars / tickDollarVal);
+                    Print(string.Format("{0} - [PAS | ESCALÓN {1} ACTIVO: 1 CONTRATO] PnL actual: ${2:F2} USD (Piso +${3:F2}). Operando con 1 contrato hacia el siguiente nivel ({4} ticks de respiro).",
+                        Time[0], currentDailyTier, dailyRealizedPnL, currentDailyFloor, currentTicksMargin));
                     return 1;
                 }
 
-                // Para Escalón 2 o superior (Modo Dulce): Permitimos 2 o 3 contratos solo si hay margen holgado (mínimo 14 ticks por contrato)
+                // Para Modo Dulce holgado (>= 3 con margen amplio): Permitimos multicontrato si hay margen holgado (mínimo 14 ticks por contrato)
                 int minMulticontractTicks = 14;
 
                 for (int qty = targetContracts; qty >= 2; qty--)
@@ -1440,7 +1445,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Si el margen no alcanza para multicontrato holgado pero supera el respiro mínimo saludable (>= 12 ticks), operamos con 1 contrato:
+                // Si estamos en Modo Dulce con margen >= 12 ticks pero < multicontrato, operamos con 1 contrato:
                 Print(string.Format("{0} - [PAS | DESESCALADO A 1 CONTRATO] Margen disponible: ${1:F2} USD. Posición ajustada a 1 contrato para seguir operando sin romper piso (+${2:F2}).",
                     Time[0], allowedLossDollars, currentDailyFloor));
                 return 1;
@@ -3003,13 +3008,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double TrancaConquestBufferDollars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(5.0, 50.0)]
-        [Display(Name = "Tranca Colchón Comisiones y Slippage ($)", Description = "Margen de ganancia neto sobre el escalón para asegurar que el trade cierre adentro del nuevo piso ($15 ES / $1.5 MES)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 18)]
-        public double TrancaCommissionBufferDollars { get; set; }
-
-        [NinjaScriptProperty]
         [Range(0.0, 100.0)]
-        [Display(Name = "Tranca Anclaje de Titanio sobre Escalón ($)", Description = "Margen de anclaje por encima de cada escalón para sellar la entrada ($20 ES / $2 MES = $420, $620, $920)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 19)]
+        [Display(Name = "Tranca Anclaje de Titanio sobre Escalón ($)", Description = "Margen de anclaje por encima de cada escalón para sellar la entrada ($20 ES / $2 MES = $420, $620, $920)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 18)]
         public double TrancaAnchorDollars { get; set; }
 
         [NinjaScriptProperty]
