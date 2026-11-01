@@ -20,7 +20,7 @@
 | **21/10/2026** | 3 | 2W / 1L (66.7%) | **+$199.42** | **Base Verde** | T1 & T3 con Candado. El corte de las 12:30 PM bloqueó el trade de las 12:39 PM y blindó la ganancia. |
 | **22/10/2026** | 3 | 3W / 0L (100%) | **+$361.92** | **Base Verde** | Concluida a las 12:02 PM. 3 de 3 con Candado. Cero pérdidas. *(Ver nota MFE)*. |
 | **23/10/2026** | 2 | 1W / 1L (50%) | **+$191.28** | **Escalón 1 ($400)** | T1: Cascada Long Candado (+$408.14, MFE $650) conquista Escalón 1. T2: Cascada Short a las 12:25 PM frenado por Cortacircuito a las 12:30 PM (-$216.86). Día y semana cerrados en verde. |
-| **26/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
+| **26/10/2026** | 3 | 2W / 1L (66.7%) | **+$261.92** | **Escalón 1 ($400)** | T1: Cascada Long Candado (+$345.64) \| T2: Cascada Long Candado (+$145.64) tras 30 min de cuarentena, conquista Escalón 1 ($491.28) \| T3: Cortacircuito blindó piso de $250 (-$229.36). Transforma un -$521.80 viejo en victoria. *(Ver nota abajo)*. |
 | **27/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 | **28/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 | **29/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
@@ -28,11 +28,23 @@
 
 ---
 
-## 📈 Resumen Acumulado (Semana 1 Completa)
-* **Días operados:** 5
-* **Días positivos:** **5 de 5 (100% efectividad diaria)**
-* **PnL Total Acumulado:** **+$2,200.88 USD**
-* **Promedio por día:** **+$440.18 USD**
+## 📈 Resumen Acumulado (6 Días Consecutivos)
+* **Días operados:** 6
+* **Días positivos:** **6 de 6 (100% efectividad diaria)**
+* **PnL Total Acumulado:** **+$2,462.80 USD**
+* **Promedio por día:** **+$410.47 USD**
+
+---
+
+## 🧠 Bitácora de Aprendizaje y Casos Tácticos
+
+### 📌 Caso 26/10/2026 - De Perder -$521.80 a Ganar +$261.92 (La Remontada Cuantitativa)
+* **La Prueba Antigua:** 5 trades erráticos con sobreoperación en Cascada (entrando cada 5 minutos sin filtro de saciedad) habían destruido el capital dejándolo en **-$521.80 USD**.
+* **El Comportamiento Quirúrgico en v11.4:**
+  * **Trade 1 (10:14 AM):** Cascada Long entró con solidez (pendiente 0.15) y cobró **+$345.64** con Candado, activando inmediatamente los 30 minutos de cuarentena.
+  * **Trade 2 (10:52 AM):** Exactamente 1 minuto después de expirar la cuarentena, tomó el siguiente impulso y cobró **+$145.64** con Candado. La cuenta tocó **+$491.28**, conquistando el **Escalón 1 ($400)** y armando el piso protegido en **+$250 USD**.
+  * **Trade 3 (11:52 AM):** Tras otra cuarentena de 30 min, se disparó Cascada Short. Al devolverse el precio, el `Cortacircuito_Diario_Piso_Exacto` cerró la posición en 7722.00 (-$229.36) para blindar los **+$250 USD** garantizados.
+* **El Impacto Financiero:** Salimos con **+$261.92 USD** en el bolsillo. Una diferencia colosal a favor de **+$783.72 USD** respecto a la versión anterior gracias a la cuarentena y el piso exacto.
 
 ---
 
