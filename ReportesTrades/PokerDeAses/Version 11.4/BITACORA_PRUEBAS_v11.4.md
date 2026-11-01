@@ -18,7 +18,7 @@
 | **19/10/2026** | 3 | 3W / 0L (100%) | **+$936.92** | **Modo Dulce ($900)** | Concluida a las 11:28 AM. T1: SOBB TP2 (+$233) \| T2: Cascada Tranca (+$383) \| T3: Cascada Tranca (+$320). Modo Dulce blindado. |
 | **20/10/2026** | 5 | 4W / 1L (80%) | **+$511.34** | **Escalón 2 ($600)** | Concluida a las 11:11 AM. T1-T4 impecables (+$615.70). T5: Cortacircuito blindó piso de $500 (-$104.36). |
 | **21/10/2026** | 3 | 2W / 1L (66.7%) | **+$199.42** | **Base Verde** | T1: Cascada Short Candado (+$133.14) \| T2: Cascada Long SL (-$116.86) \| T3: Cascada Long Candado (+$183.14). El corte de las 12:30 PM bloqueó el trade de las 12:39 PM y blindó la ganancia. |
-| **22/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
+| **22/10/2026** | 3 | 3W / 0L (100%) | **+$361.92** | **Base Verde** | Concluida a las 12:02 PM. T1: Cascada Short Candado (+$233.14, MFE $537) \| T2: Cascada Long Candado (+$70.64, MFE $337) \| T3: Cascada Long Candado (+$58.14, MFE $287). 100% efectividad. *(Ver nota MFE abajo)*. |
 | **23/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 | **26/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 | **27/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
@@ -29,10 +29,24 @@
 ---
 
 ## 📈 Resumen Acumulado
-* **Días operados:** 3
-* **Días positivos:** 3 (100%)
-* **PnL Total Acumulado:** **+$1,647.68 USD**
-* **Promedio por día:** **+$549.23 USD**
+* **Días operados:** 4
+* **Días positivos:** 4 (100%)
+* **PnL Total Acumulado:** **+$2,009.60 USD**
+* **Promedio por día:** **+$502.40 USD**
+
+---
+
+## 🧠 Bitácora de Aprendizaje y Casos Tácticos
+
+### 📌 Caso 22/10/2026 - El Costo de Oportunidad del Trailing (MFE vs. Realizado)
+* **Contexto:** 3 de 3 trades ganadores disparados por Cascada y cobrados con el Candado en la banda Keltner 1.75.
+* **El Fenómeno del MFE:** 
+  * Trade 1 llegó a estar en **+$537.50** y cobró **+$233.14** (dejó $304 en la mesa).
+  * Trade 2 llegó a estar en **+$337.50** y cobró **+$70.64** (dejó $266 en la mesa).
+  * Trade 3 llegó a estar en **+$287.50** y cobró **+$58.14** (dejó $229 en la mesa).
+* **Lección de Trading Cuantitativo:** 
+  * El "peaje" que se paga por usar un Candado Trailing en bandas dinámicas es permitir que el mercado respire. Si el mercado revierte bruscamente hacia la banda, el trailing absorbe el retroceso.
+  * **La contraparte:** Ninguno de esos 3 trades se convirtió en pérdida. Los 3 sumaron al bolsillo y nos llevaron a superar los **+$2,000 USD** acumulados en solo 4 días de operativa limpia. Concluyó a las 12:02 PM, dejando la tarde intacta.
 
 ---
 
