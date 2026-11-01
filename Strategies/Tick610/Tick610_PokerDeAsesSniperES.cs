@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 6.0 - Poker de Ases (PAS) [Ratchet Sniper Vertical con EMA200 Fuera de Canal 3.5 & Pendiente Midline, SL Tope 12tk, SOBB Monocontrato & Cortacircuito -$650]
+// VERSIÓN: 11.4 - Poker de Ases (PAS) [Corte de Mediodía 12:30 PM, Cascada Slope 0.15 / Cuarentena 30min, SOBB Slope 0.12]
 //
 // LAS 4 CARTAS DEL POKER (LOS 4 ASES):
 //   1. As 1: [Z1-100Bar] - Ruptura quirúrgica tras >= 100 barras comprimidas en EMA 200 con Canal Grande 3.5 y TTL 25 barras.
@@ -188,7 +188,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "11.3 - Poker de Ases (PAS) [Escalon 2 Abierto a 1 Cto hacia Modo Dulce & Piso Sagrado $900]";
+                Version                                     = "11.4 - Poker de Ases (PAS) [Corte Mediodia 12:30 PM, Cascada 0.15/30m, SOBB 0.12]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -243,12 +243,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaLockTriggerDollars                   = 180.0;  // Umbral de ganancia en USD para activar Candado ($180 ES / $18 MES)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
                 CascadaBigWinThresholdDollars               = 180.0;  // Umbral de ganancia para activar Cuarentena de Saciedad ($180 ES / $18 MES)
-                CascadaQuarantineMinutes                    = 60;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (60 min)
+                CascadaQuarantineMinutes                    = 30;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (30 min)
                 CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
-                CascadaSlopeThreshold                       = 0.20;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.20)
-                SobbSlopeThreshold                          = 0.15;   // Umbral de Pendiente Normalizada LinReg/ATR para SOBB (0.15)
+                CascadaSlopeThreshold                       = 0.15;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.15)
+                SobbSlopeThreshold                          = 0.12;   // Umbral de Pendiente Normalizada LinReg/ATR para SOBB (0.12)
                 Zona1SlopeThreshold                         = 0.15;   // Umbral de Pendiente Normalizada LinReg/ATR para Z1-100Bar (0.15)
 
                 // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Ceñida -$650 USD para 2.5 - 3 Vidas)
@@ -261,8 +261,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 DailyGoal_Piso3                             = 900.0;  // Umbral Modo Dulce: +$900 ES / +$90 MES (Activa Trailing Infinito)
                 DailyTrailingGiveback                       = 150.0;  // Colchón de retroceso permitido del pico ganado ($150 ES / $15 MES)
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
-                UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a la 1:00 PM EST
-                Tier1CutoffTime                             = 130000; // 01:00 PM EST (Hora de corte para Escalón 1)
+                UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a las 12:30 PM EST
+                Tier1CutoffTime                             = 123000; // 12:30 PM EST (Hora de corte de mediodía)
                 UseTrancaUniversal                          = true;   // Activar Tranca de Adamantium Universal en cada escalón
                 TrancaOnlyFromTier2                         = true;   // Pista libre en piso inicial: solo clava tranca desde Escalón 2 ($600+) y Modo Dulce ($900)
                 TrancaBonusDollars                          = 100.0;  // Dólares de Sprint Bonus tras clavar la tranca ($100 ES / $10 MES)
@@ -410,9 +410,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 3.1 CORTACIRCUITO UNIVERSAL A LA 1:00 PM (SOLO ESCALÓN 3 / MODO DULCE PUEDE CONTINUAR HASTA LAS 4:00 PM)
-            // Si son las 01:00 PM EST y no estamos en el último escalón (Modo Dulce Trailing Infinito >= $900),
-            // se apaga la operativa para evitar operar en la tarde picada o eventos de alta volatilidad (FED/FOMC) y blindar las ganancias.
+            // 3.1 CORTACIRCUITO UNIVERSAL A LAS 12:30 PM (SOLO ESCALÓN 3 / MODO DULCE PUEDE CONTINUAR HASTA LAS 4:00 PM)
+            // Si son las 12:30 PM EST y no estamos en el último escalón (Modo Dulce Trailing Infinito >= $900),
+            // se apaga la operativa para evitar operar en la tarde picada o eventos de alta volatilidad (FED/FOMC/Almuerzo) y blindar las ganancias.
             if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && timeNow >= Tier1CutoffTime)
             {
                 if (currentDailyTier < 3)
@@ -420,11 +420,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (Position.MarketPosition == MarketPosition.Flat)
                     {
                         isDailyLocked = true;
-                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LA 1:00 PM (PnL ${0:F2})", dailyRealizedPnL);
+                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LAS 12:30 PM (PnL ${0:F2})", dailyRealizedPnL);
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [ESCUDO DIARIO | CORTE A LA 1:00 PM EST] Hora actual ({1}) alcanzó las 01:00 PM.\n" +
+                                           "{0} - [ESCUDO DIARIO | CORTE A LAS 12:30 PM EST] Hora actual ({1}) alcanzó las 12:30 PM.\n" +
                                            "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
-                                           "No se regala dinero en la tarde sin volumen ni en trampas de la FED. ¡Día cerrado con disciplina!\n" +
+                                           "No se regala dinero en la tarde sin volumen ni en trampas de la FED o almuerzo. ¡Día cerrado con disciplina!\n" +
                                            "****************************************************************************************",
                             Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base")));
                         return;
@@ -2642,16 +2642,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SyncTradesAndStrikes();
                 UpdateDailyPnLAndFloors();
 
-                // Verificación de corte a la 1:00 PM si el trade que acaba de cerrar ocurrió después de la 1:00 PM (Solo Escalón 3 sigue activo)
+                // Verificación de corte a las 12:30 PM si el trade que acaba de cerrar ocurrió después de las 12:30 PM (Solo Escalón 3 sigue activo)
                 if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier < 3)
                 {
                     int timeNow = ToTime(Time[0]);
                     if (timeNow >= Tier1CutoffTime)
                     {
                         isDailyLocked = true;
-                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LA 1:00 PM TRAS CIERRE (PnL ${0:F2})", dailyRealizedPnL);
+                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LAS 12:30 PM TRAS CIERRE (PnL ${0:F2})", dailyRealizedPnL);
                         Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [ESCUDO DIARIO | CORTE A LA 1:00 PM TRAS CIERRE DE TRADE] Trade cerrado después de las 01:00 PM EST ({1}).\n" +
+                                           "{0} - [ESCUDO DIARIO | CORTE A LAS 12:30 PM TRAS CIERRE DE TRADE] Trade cerrado después de las 12:30 PM EST ({1}).\n" +
                                            "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
                                            "****************************************************************************************",
                             Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base")));
@@ -2971,12 +2971,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int MaxConsecutiveLosses { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Victoria Temprana Escalón 1", Description = "Si a la 1:00 PM EST estamos en Escalón 1 ($400-$599), apaga nuevas entradas y asegura la ganancia", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 10)]
+        [Display(Name = "Activar Corte de Mediodía", Description = "Si a las 12:30 PM EST estamos fuera de Modo Dulce (< $900), apaga nuevas entradas y asegura la ganancia", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 10)]
         public bool UseTier1LunchCutoff { get; set; }
 
         [NinjaScriptProperty]
         [Range(100000, 160000)]
-        [Display(Name = "Hora Límite Escalón 1 (HHmmss)", Description = "Hora límite para apagar en Escalón 1 (130000 = 01:00 PM EST)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 11)]
+        [Display(Name = "Hora Límite Mediodía (HHmmss)", Description = "Hora límite de corte para apagar antes del almuerzo (123000 = 12:30 PM EST)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 11)]
         public int Tier1CutoffTime { get; set; }
 
         [NinjaScriptProperty]
@@ -3049,7 +3049,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0.01, 1.0)]
-        [Display(Name = "SOBB Umbral Pendiente Tendencia", Description = "Umbral de Pendiente Normalizada (LinReg 5 / ATR 14) para validar rompimiento con tendencia institucional en SOBB (0.15 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 7)]
+        [Display(Name = "SOBB Umbral Pendiente Tendencia", Description = "Umbral de Pendiente Normalizada (LinReg 5 / ATR 14) para validar rompimiento con tendencia institucional en SOBB (0.12 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 7)]
         public double SobbSlopeThreshold { get; set; }
 
         [NinjaScriptProperty]
@@ -3128,12 +3128,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(10, 240)]
-        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras una victoria (60 minutos por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
+        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras una victoria (30 minutos por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
         public int CascadaQuarantineMinutes { get; set; }
 
         [NinjaScriptProperty]
         [Range(0.05, 1.0)]
-        [Display(Name = "Cascada Umbral Pendiente Rápido", Description = "Umbral de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada (0.20 por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
+        [Display(Name = "Cascada Umbral Pendiente Rápido", Description = "Umbral de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada (0.15 por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
         public double CascadaSlopeThreshold { get; set; }
 
         [NinjaScriptProperty]
