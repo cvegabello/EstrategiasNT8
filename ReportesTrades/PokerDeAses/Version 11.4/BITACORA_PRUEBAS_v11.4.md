@@ -13,14 +13,14 @@
 
 ## 📅 Registro Día a Día
 
-### 🗓️ Semana 1: 05 al 09 de Octubre de 2026
+### 🗓️ Semana 1: 05 al 09 de Octubre de 2026 (Semana de Retroceso: -$777.32 USD)
 | Fecha | Trades | Wins / Losses | PnL Neto (USD) | Escalón Máximo | Salida Principal / Notas |
 | :---: | :---: | :---: | :---: | :---: | :--- |
 | **05/10/2026** | 1 | 1W / 0L (100%) | **+$120.64** | **Base Verde** | Concluida a las 10:14 AM. T1: Cascada Long cobrado con Candado (+$120.64). Francotirador puro (1 solo disparo). |
-| **06/10/2026** | 3 | 0W / 3L (0%) | **-$413.08** | **Base** | Concluida a las 10:48 AM. T1: Cascada Long MFE +$175 (a $5 del Candado), cerró en BE (-$4.36) \| T2: Z1 Short SL (-$166.86) \| T3: Cascada Long SL (-$241.86). *(Ver nota abajo)*. |
-| **07/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
-| **08/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
-| **09/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
+| **06/10/2026** | 3 | 0W / 3L (0%) | **-$413.08** | **Base** | Concluida a las 10:48 AM. T1: Cascada Long MFE +$175 (a $5 del Candado), cerró en BE (-$4.36) \| T2: Z1 Short SL (-$166.86) \| T3: Cascada Long SL (-$241.86). |
+| **07/10/2026** | 3 | 1W / 2L (33.3%) | **-$25.58** | **Base** | T1: Cascada Long SL (-$154.36) \| T2: Cascada Long Candado (+$308.14, MFE $475) \| T3: Cascada Long SL a las 12:23 PM (-$179.36). |
+| **08/10/2026** | 3 | 1W / 2L (33.3%) | **-$300.58** | **Base** | T1: SOBB Short BE (+$20.64) \| T2: Cascada Short Ciclo Terminado (-$54.36, MFE $200) \| T3: Cascada Long SL a las 12:17 PM (-$266.86). |
+| **09/10/2026** | 2 | 1W / 1L (50%) | **-$158.72** | **Base** | T1: Cascada Long SL (-$191.86) \| T2: Cascada Long Candado (+$33.14, MFE $187.50). |
 
 ### 🗓️ Semana 2: 12 al 16 de Octubre de 2026
 | Fecha | Trades | Wins / Losses | PnL Neto (USD) | Escalón Máximo | Salida Principal / Notas |
@@ -51,14 +51,17 @@
 
 ---
 
-## 📈 Resumen Acumulado Consolidado (12 Días de Muestra v11.4)
-* **Días monitoreados:** 12
-* **Días con operativa:** 11 (9 positivos, 2 negativos)
+## 📈 Resumen Acumulado Consolidado (15 Días de Muestra v11.4)
+* **Días monitoreados:** 15 (3 semanas completas probadas)
+* **Días con operativa:** 14 (9 positivos, 5 negativos)
 * **Días neutrales (cero riesgo en chop):** 1 (28/10)
-* **Efectividad en días operados:** **81.8% días ganadores (9 de 11)** 🎯
-* **PnL Total Acumulado:** **+$2,268.62 USD** 💰
-* **Promedio por día monitoreado:** **+$189.05 USD/día**
-* **Promedio por día con operaciones:** **+$206.24 USD/día**
+* **Efectividad en días operados:** **64.3% días ganadores (9 de 14)** 🎯
+* **PnL Semana 1 (05 al 09 Oct):** **-$777.32 USD**
+* **PnL Semana 3 (19 al 23 Oct):** **+$2,200.88 USD**
+* **PnL Semana 4 (26 al 30 Oct):** **+$360.18 USD**
+* **PnL Total Acumulado:** **+$1,783.74 USD** 💰
+* **Promedio por día monitoreado:** **+$118.92 USD/día**
+* **Promedio por día con operaciones:** **+$127.41 USD/día**
 
 ---
 
