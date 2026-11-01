@@ -21,18 +21,18 @@
 | **22/10/2026** | 3 | 3W / 0L (100%) | **+$361.92** | **Base Verde** | Concluida a las 12:02 PM. 3 de 3 con Candado. Cero pérdidas. *(Ver nota MFE)*. |
 | **23/10/2026** | 2 | 1W / 1L (50%) | **+$191.28** | **Escalón 1 ($400)** | T1: Cascada Long Candado (+$408.14, MFE $650) conquista Escalón 1. T2: Cascada Short a las 12:25 PM frenado por Cortacircuito a las 12:30 PM (-$216.86). Día y semana cerrados en verde. |
 | **26/10/2026** | 3 | 2W / 1L (66.7%) | **+$261.92** | **Escalón 1 ($400)** | T1: Cascada Long Candado (+$345.64) \| T2: Cascada Long Candado (+$145.64) tras 30 min de cuarentena, conquista Escalón 1 ($491.28) \| T3: Cortacircuito blindó piso de $250 (-$229.36). Transforma un -$521.80 viejo en victoria. *(Ver nota abajo)*. |
-| **27/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
+| **27/10/2026** | 3 | 2W / 1L (66.7%) | **+$86.92** | **Base Verde** | Concluida a las 12:03 PM. T1: Cascada Long Candado (+$108.14) \| T2: Cascada Long SL (-$154.36) \| T3: Cascada Long Candado (+$133.14). Cierre en verde sólido. |
 | **28/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 | **29/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 | **30/10/2026** | *Pendiente* | - | - | - | *Esperando ejecución en Playback...* |
 
 ---
 
-## 📈 Resumen Acumulado (6 Días Consecutivos)
-* **Días operados:** 6
-* **Días positivos:** **6 de 6 (100% efectividad diaria)**
-* **PnL Total Acumulado:** **+$2,462.80 USD**
-* **Promedio por día:** **+$410.47 USD**
+## 📈 Resumen Acumulado (7 Días Consecutivos)
+* **Días operados:** 7
+* **Días positivos:** **7 de 7 (100% efectividad diaria)**
+* **PnL Total Acumulado:** **+$2,549.72 USD**
+* **Promedio por día:** **+$364.25 USD**
 
 ---
 
