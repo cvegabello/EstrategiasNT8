@@ -25,10 +25,12 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 12.1 - Poker de Ases (PAS) [Cascada & Ratchet Sniper, Depuración Total UI/Logs]
+// VERSIÓN: 12.2 - Poker de Ases (PAS) [Cascada: Ruptura Fresca 10tk & Hiper-Aceleración 0.22]
 //
 // LOS ASES ACTIVOS:
-//   1. As 4: [Cascada]   - El Tren Bala Institucional con Filtro de Persistencia de Pendiente (>= 2 barras consecutivas |m| >= 0.15),
+//   1. As 4: [Cascada]   - El Tren Bala Institucional con Filtro Inteligente de Pendiente Dual:
+//                          - Ruptura Fresca (dentro del canal o a <= 10 ticks de Banda 3.5): Requiere pendiente base |m| >= 0.15 (2b).
+//                          - Sobreextensión (> 10 ticks de Banda 3.5): Requiere Hiper-Aceleración |m| >= 0.22 para evitar trampas de agotamiento.
 //                          Candado con Suelo Mínimo Garantizado en BE + 4 ticks (+$50 USD) al tocar MFE >= $150 USD,
 //                          y Cuarentena de Saciedad 100% Real solo con ganancia neta cobrada en bolsillo >= $180 USD.
 //   2. As 3: [Ratchet]   - Súper-tendencia vertical institucional real (Sniper latente): Requiere OBLIGATORIAMENTE que EMA 200 esté
@@ -159,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v12.1 en 610 Ticks para ES/MES. Cascada Pura y Ratchet Sniper Latente con Interfaz Depurada y Telemetría.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v12.2 en 610 Ticks para ES/MES. Cascada Pura y Ratchet Sniper con Filtro de Ruptura Fresca y Hiper-Aceleración en Sobreextensión.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -180,7 +182,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "12.1 - Poker de Ases (PAS) [Cascada & Ratchet Sniper, Depuración Total UI/Logs]";
+                Version                                     = "12.2 - Poker de Ases (PAS) [Cascada: Ruptura Fresca 10tk & Hiper-Aceleración 0.22]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -239,7 +241,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
-                CascadaSlopeThreshold                       = 0.15;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.15)
+                CascadaSlopeThreshold                       = 0.15;   // Umbral base de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.15)
+                CascadaMaxExtensionTicks                    = 10;     // Tolerancia de Ruptura Fresca: hasta 10 ticks afuera de Banda 3.5 opera con pendiente base (0.15)
+                CascadaOverextensionSlopeThreshold          = 0.22;   // Umbral de Hiper-Aceleración requerido cuando el precio está sobreextendido (> 10 ticks fuera de Banda 3.5)
                 SobbSlopeThreshold                          = 0.12;   // Umbral de Pendiente Normalizada LinReg/ATR para SOBB (0.12)
                 Zona1SlopeThreshold                         = 0.15;   // Umbral de Pendiente Normalizada LinReg/ATR para Z1-100Bar (0.15)
 
@@ -1278,6 +1282,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             double midline    = keltnerBig.Midline[0];
             double upperSmall = keltnerSmall.Upper[0];
             double lowerSmall = keltnerSmall.Lower[0];
+            double upperBig   = keltnerBig.Upper[0];
+            double lowerBig   = keltnerBig.Lower[0];
             double normSlope  = GetNormalizedSlope(keltnerBig.Midline);
 
             // =========================================================================
@@ -1285,33 +1291,47 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 1. Regla de 1 Solo Tiro: no haber disparado ya en este mismo impulso bajista
             // 2. Contexto Macro: EMA 200 por encima de la Línea Media (keltnerBig.Midline)
             // 3. Ubicación: Precio en Zona 4 o 5 (Close <= lowerSmall)
-            // 4. Aceleración: Pendiente Normalizada de Línea Media <= -CascadaSlopeThreshold persistente por >= 2 barras (v12.0)
+            // 4. Aceleración Inteligente v12.2:
+            //    - Ruptura Fresca (dentro del canal o a <= 10 ticks de Lower 3.5): Requiere pendiente base <= -0.15
+            //    - Sobreextensión (> 10 ticks de Lower 3.5): Requiere Hiper-Aceleración <= -0.22 para evitar trampas de agotamiento
             // 5. Vela con intención bajista: Close[0] < Open[0]
             // =========================================================================
             if (!cascadaCycleShortFired)
             {
                 bool macroBajista          = ema200[0] > midline;
                 bool precioEnZonaExpansion = Close[0] <= lowerSmall;
-                bool pendienteRapido       = cascadaConsecutiveSlopeBarsShort >= 2;
                 bool velaBajista           = Close[0] < Open[0];
 
                 if (macroBajista && precioEnZonaExpansion)
                 {
-                    if (pendienteRapido && velaBajista)
+                    // Distancia en ticks por fuera de la banda Lower 3.5 (negativo si está adentro del canal)
+                    double distAfueraTicksShort = (lowerBig - Close[0]) / TickSize;
+                    bool estaSobreextendidoShort = distAfueraTicksShort > CascadaMaxExtensionTicks;
+                    double umbralRequeridoShort = estaSobreextendidoShort ? CascadaOverextensionSlopeThreshold : CascadaSlopeThreshold;
+
+                    // Validación de aceleración: requiere persistencia de al menos 2 barras en pendiente base y cumplir el umbral dinámico
+                    bool persistenciaBase = cascadaConsecutiveSlopeBarsShort >= 2;
+                    bool pendienteDinamicaValida = normSlope <= -umbralRequeridoShort;
+
+                    if (persistenciaBase && pendienteDinamicaValida && velaBajista)
                     {
                         cascadaCycleShortFired = true;
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v12.0 | ¡PUM, ADIÓS! RÁPIDO CORTO DISPARADO] Entrada @ ~{1:F2} en Zona 4/5 | Pendiente: {2:F2} (Confirmada {3} barras) | ATR(14): {4:F2} pts | SL inicial en Línea Media ({5:F2}). ¡Qué grosería de trade!",
-                            Time[0], Close[0], normSlope, cascadaConsecutiveSlopeBarsShort, atr14 != null ? atr14[0] : 0.0, midline));
+                        Print(string.Format("{0} - [PAS v12.2 | ¡PUM, ADIÓS! RÁPIDO CORTO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Lower 3.5: {3:F0} tk ({4}) | Pendiente: {5:F2} (Req: -{6:F2}, {7}b) | ATR(14): {8:F2} pts | SL inicial en Línea Media ({9:F2}). ¡Qué grosería de trade!",
+                            Time[0], Close[0], (Close[0] < lowerBig ? "5 (Afuera)" : "4 (Expansión)"), distAfueraTicksShort,
+                            (estaSobreextendidoShort ? "Hiper-Aceleración" : "Ruptura Fresca"),
+                            normSlope, umbralRequeridoShort, cascadaConsecutiveSlopeBarsShort, atr14 != null ? atr14[0] : 0.0, midline));
                         return;
                     }
-                    else if (!pendienteRapido)
+                    else if (persistenciaBase && estaSobreextendidoShort && !pendienteDinamicaValida)
                     {
-                        if (normSlope <= -CascadaSlopeThreshold)
-                        {
-                            Print(string.Format("{0} - [PAS v12.0 | CORTO CASCADA FILTRADO - BARRA 1] Pendiente en {1:F2} tocó umbral (-{2:F2}), pero requiere 2 barras consecutivas (Actual: {3}b). Esperando confirmación para evitar trampas...",
-                                Time[0], normSlope, CascadaSlopeThreshold, cascadaConsecutiveSlopeBarsShort));
-                        }
+                        Print(string.Format("{0} - [PAS v12.2 | CORTO FILTRADO - SOBREEXTENSIÓN] Precio a {1:F0} ticks afuera de Lower 3.5 (Límite Fresco: {2} tk). Pendiente actual ({3:F2}) no alcanza Hiper-Aceleración requerida (-{4:F2}). ¡Trampa de agotamiento evitada!",
+                            Time[0], distAfueraTicksShort, CascadaMaxExtensionTicks, normSlope, CascadaOverextensionSlopeThreshold));
+                    }
+                    else if (!persistenciaBase && normSlope <= -umbralRequeridoShort)
+                    {
+                        Print(string.Format("{0} - [PAS v12.2 | CORTO CASCADA FILTRADO - BARRA 1] Pendiente en {1:F2} tocó umbral (-{2:F2}), pero requiere 2 barras consecutivas (Actual: {3}b). Esperando confirmación para evitar trampas...",
+                            Time[0], normSlope, umbralRequeridoShort, cascadaConsecutiveSlopeBarsShort));
                     }
                 }
             }
@@ -1321,33 +1341,47 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 1. Regla de 1 Solo Tiro: no haber disparado ya en este mismo impulso alcista
             // 2. Contexto Macro: EMA 200 por debajo de la Línea Media (keltnerBig.Midline)
             // 3. Ubicación: Precio en Zona 0 o 1 (Close >= upperSmall)
-            // 4. Aceleración: Pendiente Normalizada de Línea Media >= CascadaSlopeThreshold persistente por >= 2 barras (v12.0)
+            // 4. Aceleración Inteligente v12.2:
+            //    - Ruptura Fresca (dentro del canal o a <= 10 ticks de Upper 3.5): Requiere pendiente base >= +0.15
+            //    - Sobreextensión (> 10 ticks de Upper 3.5): Requiere Hiper-Aceleración >= +0.22 para evitar trampas de agotamiento
             // 5. Vela con intención alcista: Close[0] > Open[0]
             // =========================================================================
             if (!cascadaCycleLongFired)
             {
                 bool macroAlcista          = ema200[0] < midline;
                 bool precioEnZonaExpansion = Close[0] >= upperSmall;
-                bool pendienteRapido       = cascadaConsecutiveSlopeBarsLong >= 2;
                 bool velaAlcista           = Close[0] > Open[0];
 
                 if (macroAlcista && precioEnZonaExpansion)
                 {
-                    if (pendienteRapido && velaAlcista)
+                    // Distancia en ticks por fuera de la banda Upper 3.5 (negativo si está adentro del canal)
+                    double distAfueraTicksLong = (Close[0] - upperBig) / TickSize;
+                    bool estaSobreextendidoLong = distAfueraTicksLong > CascadaMaxExtensionTicks;
+                    double umbralRequeridoLong = estaSobreextendidoLong ? CascadaOverextensionSlopeThreshold : CascadaSlopeThreshold;
+
+                    // Validación de aceleración: requiere persistencia de al menos 2 barras en pendiente base y cumplir el umbral dinámico
+                    bool persistenciaBase = cascadaConsecutiveSlopeBarsLong >= 2;
+                    bool pendienteDinamicaValida = normSlope >= umbralRequeridoLong;
+
+                    if (persistenciaBase && pendienteDinamicaValida && velaAlcista)
                     {
                         cascadaCycleLongFired = true;
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v12.0 | ¡PUM, ADIÓS! RÁPIDO LARGO DISPARADO] Entrada @ ~{1:F2} en Zona 0/1 | Pendiente: +{2:F2} (Confirmada {3} barras) | ATR(14): {4:F2} pts | SL inicial en Línea Media ({5:F2}). ¡Qué grosería de trade!",
-                            Time[0], Close[0], normSlope, cascadaConsecutiveSlopeBarsLong, atr14 != null ? atr14[0] : 0.0, midline));
+                        Print(string.Format("{0} - [PAS v12.2 | ¡PUM, ADIÓS! RÁPIDO LARGO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Upper 3.5: {3:F0} tk ({4}) | Pendiente: +{5:F2} (Req: +{6:F2}, {7}b) | ATR(14): {8:F2} pts | SL inicial en Línea Media ({9:F2}). ¡Qué grosería de trade!",
+                            Time[0], Close[0], (Close[0] > upperBig ? "0 (Afuera)" : "1 (Expansión)"), distAfueraTicksLong,
+                            (estaSobreextendidoLong ? "Hiper-Aceleración" : "Ruptura Fresca"),
+                            normSlope, umbralRequeridoLong, cascadaConsecutiveSlopeBarsLong, atr14 != null ? atr14[0] : 0.0, midline));
                         return;
                     }
-                    else if (!pendienteRapido)
+                    else if (persistenciaBase && estaSobreextendidoLong && !pendienteDinamicaValida)
                     {
-                        if (normSlope >= CascadaSlopeThreshold)
-                        {
-                            Print(string.Format("{0} - [PAS v12.0 | LARGO CASCADA FILTRADO - BARRA 1] Pendiente en +{1:F2} tocó umbral (+{2:F2}), pero requiere 2 barras consecutivas (Actual: {3}b). Esperando confirmación para evitar trampas...",
-                                Time[0], normSlope, CascadaSlopeThreshold, cascadaConsecutiveSlopeBarsLong));
-                        }
+                        Print(string.Format("{0} - [PAS v12.2 | LARGO FILTRADO - SOBREEXTENSIÓN] Precio a {1:F0} ticks afuera de Upper 3.5 (Límite Fresco: {2} tk). Pendiente actual (+{3:F2}) no alcanza Hiper-Aceleración requerida (+{4:F2}). ¡Trampa de techo evitada!",
+                            Time[0], distAfueraTicksLong, CascadaMaxExtensionTicks, normSlope, CascadaOverextensionSlopeThreshold));
+                    }
+                    else if (!persistenciaBase && normSlope >= umbralRequeridoLong)
+                    {
+                        Print(string.Format("{0} - [PAS v12.2 | LARGO CASCADA FILTRADO - BARRA 1] Pendiente en +{1:F2} tocó umbral (+{2:F2}), pero requiere 2 barras consecutivas (Actual: {3}b). Esperando confirmación para evitar trampas...",
+                            Time[0], normSlope, umbralRequeridoLong, cascadaConsecutiveSlopeBarsLong));
                     }
                 }
             }
@@ -2051,25 +2085,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                 }
-                // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO SUELO $50 Y FIN DE CICLO v12.0) ---
+                // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO SUELO $50 Y FIN DE CICLO v12.2) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
                     double currentFavorableTicks = (High[0] - entryPrice) / TickSize;
                     double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
                     double effectiveLockTrigger  = CascadaLockTriggerDollars * instrumentMultiplier;
 
-                    // TELEMETRÍA PROVISIONAL EN VIVO (v12.0): Pendiente y Estado en cada barra activa
+                    // TELEMETRÍA PROVISIONAL EN VIVO (v12.2): Pendiente y Estado en cada barra activa
                     double normMidSlope = GetNormalizedSlope(keltnerBig.Midline);
                     double floatingGainTicks = (Close[0] - entryPrice) / TickSize;
                     double floatingProfitDollars = floatingGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
-                    Print(string.Format("{0} - [PAS v12.0 | CASCADA ACTIVA - LARGO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
+                    Print(string.Format("{0} - [PAS v12.2 | CASCADA ACTIVA - LARGO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
                         Time[0], floatingProfitDollars, floatingGainTicks, peakGainTicks, normMidSlope, isCascadaLockActive ? "ACTIVO (Suelo BE+4tk)" : "OFF"));
 
                     // CANDADO OPCIÓN A: Al superar MFE >= $150 USD (+12 ticks en ES / $15 en MES), el Candado se arma
                     if (!isCascadaLockActive && currentProfitDollars >= effectiveLockTrigger)
                     {
                         isCascadaLockActive = true;
-                        Print(string.Format("{0} - [PAS v12.0 | CANDADO ACTIVADO - LARGO] MFE pico alcanzó {1:C2} (+{2:F1} tks). Suelo Mínimo Garantizado en BE +4tk (+${3:F2} USD) y Trailing en Upper 1.75 -1tk.",
+                        Print(string.Format("{0} - [PAS v12.2 | CANDADO ACTIVADO - LARGO] MFE pico alcanzó {1:C2} (+{2:F1} tks). Suelo Mínimo Garantizado en BE +4tk (+${3:F2} USD) y Trailing en Upper 1.75 -1tk.",
                             Time[0], currentProfitDollars, currentFavorableTicks, 4 * TickSize * Instrument.MasterInstrument.PointValue * instrumentMultiplier));
                     }
 
@@ -2501,25 +2535,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                 }
-                // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO SUELO $50 Y FIN DE CICLO v12.0) ---
+                // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO SUELO $50 Y FIN DE CICLO v12.2) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
                     double currentFavorableTicks = (entryPrice - Low[0]) / TickSize;
                     double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
                     double effectiveLockTrigger  = CascadaLockTriggerDollars * instrumentMultiplier;
 
-                    // TELEMETRÍA PROVISIONAL EN VIVO (v12.0): Pendiente y Estado en cada barra activa
+                    // TELEMETRÍA PROVISIONAL EN VIVO (v12.2): Pendiente y Estado en cada barra activa
                     double normMidSlopeShort = GetNormalizedSlope(keltnerBig.Midline);
                     double floatingGainTicksShort = (entryPrice - Close[0]) / TickSize;
                     double floatingProfitDollarsShort = floatingGainTicksShort * (Instrument.MasterInstrument.PointValue * TickSize);
-                    Print(string.Format("{0} - [PAS v12.0 | CASCADA ACTIVA - CORTO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
+                    Print(string.Format("{0} - [PAS v12.2 | CASCADA ACTIVA - CORTO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
                         Time[0], floatingProfitDollarsShort, floatingGainTicksShort, peakGainTicks, normMidSlopeShort, isCascadaLockActive ? "ACTIVO (Suelo BE+4tk)" : "OFF"));
 
                     // CANDADO OPCIÓN A: Al superar MFE >= $150 USD (+12 ticks en ES / $15 en MES), el Candado se arma
                     if (!isCascadaLockActive && currentProfitDollars >= effectiveLockTrigger)
                     {
                         isCascadaLockActive = true;
-                        Print(string.Format("{0} - [PAS v12.0 | CANDADO ACTIVADO - CORTO] MFE pico alcanzó {1:C2} (+{2:F1} tks). Suelo Mínimo Garantizado en BE -4tk (+${3:F2} USD) y Trailing en Lower 1.75 +1tk.",
+                        Print(string.Format("{0} - [PAS v12.2 | CANDADO ACTIVADO - CORTO] MFE pico alcanzó {1:C2} (+{2:F1} tks). Suelo Mínimo Garantizado en BE -4tk (+${3:F2} USD) y Trailing en Lower 1.75 +1tk.",
                             Time[0], currentProfitDollars, currentFavorableTicks, 4 * TickSize * Instrument.MasterInstrument.PointValue * instrumentMultiplier));
                     }
 
@@ -2534,7 +2568,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitShort("SL_Candado_Cascada", "Cascada50_Short");
                             double closedProfit = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v12.0 | CORTO COBRADO CON CANDADO] Precio perforó Candado ({1:F2}) | Salida a Mercado @ ~{2:F2} (PnL estimado: {3:C2} | Suelo BE-4tk: {4:F2}).",
+                            Print(string.Format("{0} - [PAS v12.2 | CORTO COBRADO CON CANDADO] Precio perforó Candado ({1:F2}) | Salida a Mercado @ ~{2:F2} (PnL estimado: {3:C2} | Suelo BE-4tk: {4:F2}).",
                                 Time[0], lockSl, Close[0], closedProfit, floorSl));
                             return;
                         }
@@ -2670,13 +2704,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         cascadaHasWonToday = true;
 
-                        // CUARENTENA DE SACIEDAD 100% REAL (v12.0): Solo si la ganancia NETA EN BOLSILLO >= $180 USD ($18 MES)
+                        // CUARENTENA DE SACIEDAD 100% REAL (v12.2): Solo si la ganancia NETA EN BOLSILLO >= $180 USD ($18 MES)
                         double effectiveBigWinThreshold = CascadaBigWinThresholdDollars * instrumentMultiplier;
                         if (netProfit >= effectiveBigWinThreshold)
                         {
                             cascadaQuarantineEndTime = trade.Exit.Time.AddMinutes(CascadaQuarantineMinutes);
                             Print(string.Format("****************************************************************************************\n" +
-                                                "{0} - [PAS v12.0 - Cascada | ¡QUIETO EN PRIMERA! CUARENTENA DE SACIEDAD ACTIVADA]\n" +
+                                                "{0} - [PAS v12.2 - Cascada | ¡QUIETO EN PRIMERA! CUARENTENA DE SACIEDAD ACTIVADA]\n" +
                                                 "¡Qué grosería de trade! Ganamos +{1:C2} netos en el bolsillo (>= {2:C2} meta de saciedad).\n" +
                                                 "Gatillo de Cascada congelado por {3} minutos (hasta las {4:HH:mm:ss} EST). ¡A cuidar el botín real!\n" +
                                                 "****************************************************************************************",
@@ -3057,7 +3091,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         [XmlIgnore]
         public double Zona1SlopeThreshold { get; set; }
 
-        // === ASES ACTIVOS EN v12.1 ===
+        // === ASES ACTIVOS EN v12.2 ===
         [NinjaScriptProperty]
         [Display(Name = "Cascada Hora Inicio (HHMMSS)", Description = "Hora mínima para disparar Cascada (10:00 AM = 100000 para evitar trampas de pre-mercado)", GroupName = "5. As 4: Cascada Surfer", Order = 0)]
         public int CascadaStartTime { get; set; }
@@ -3104,22 +3138,32 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0.05, 1.0)]
-        [Display(Name = "Cascada Umbral Pendiente Rápido", Description = "Umbral de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada (0.15 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 9)]
+        [Display(Name = "Cascada Umbral Pendiente Base", Description = "Umbral base de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada dentro del canal o en ruptura fresca (0.15 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 9)]
         public double CascadaSlopeThreshold { get; set; }
 
         [NinjaScriptProperty]
+        [Range(0, 50)]
+        [Display(Name = "Cascada Tolerancia Ruptura Fresca (Ticks)", Description = "Margen máximo de ticks fuera de la Banda 3.5 donde se considera Ruptura Fresca (opera con pendiente base 0.15). Si supera este margen, se considera sobreextendido.", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
+        public int CascadaMaxExtensionTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.15, 0.50)]
+        [Display(Name = "Cascada Umbral Hiper-Aceleración", Description = "Pendiente normalizada requerida cuando el precio supera la tolerancia de ruptura fresca (> 10 ticks fuera de Banda 3.5) para evitar trampas de agotamiento (0.22 por defecto).", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
+        public double CascadaOverextensionSlopeThreshold { get; set; }
+
+        [NinjaScriptProperty]
         [Range(4, 30)]
-        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 12)]
         public int CascadaTp1Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(8, 50)]
-        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 13)]
         public int CascadaTp2Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 12)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 14)]
         public int CascadaChokeTicks { get; set; }
 
         [NinjaScriptProperty]
