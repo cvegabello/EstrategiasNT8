@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 12.0 - Poker de Ases (PAS) [Cascada & Ratchet Sniper, Corte 12:00 PM, Candado Suelo $50, Cuarentena Real $180, Pendiente 2b]
+// VERSIÓN: 12.1 - Poker de Ases (PAS) [Cascada & Ratchet Sniper, Depuración Total UI/Logs]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Filtro de Persistencia de Pendiente (>= 2 barras consecutivas |m| >= 0.15),
@@ -159,7 +159,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v12.0 en 610 Ticks para ES/MES. Cascada Pura con Persistencia de Pendiente (2b) y Candado Suelo $50, Ratchet Sniper Latente, Corte de Mediodía 12:00 PM EST, Cuarentena Real $180 y Escudo de Cuenta.";
+                Description                                 = @"Estrategia Institucional Poker de Ases Sniper (PAS) v12.1 en 610 Ticks para ES/MES. Cascada Pura y Ratchet Sniper Latente con Interfaz Depurada y Telemetría.";
                 Name                                        = "Tick610_PokerDeAsesSniperES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -180,7 +180,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "12.0 - Poker de Ases (PAS) [Cascada & Ratchet Sniper, Corte 12:00 PM, Candado Suelo $50, Cuarentena Real $180, Pendiente 2b]";
+                Version                                     = "12.1 - Poker de Ases (PAS) [Cascada & Ratchet Sniper, Depuración Total UI/Logs]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -620,15 +620,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // 2. Activación del Cronómetro de 40 Barras:
-            // Al darse el cruce alcista (TEMA 9 cruza hacia arriba de EMA 200) tras haber acumulado >= 100 barras
+            // Al darse el cruce alcista (TEMA 9 cruza hacia arriba de EMA 200) tras haber acumular >= 100 barras
             if (z1LongArmed && !z1WaitingForMidlineLong && tema9[0] > ema200[0])
             {
                 z1WaitingForMidlineLong = true;
                 z1MidlineCountdownLong = 0;
                 z1LongArmed = false;
                 barsBelowEmaWithoutCross = 0;
-                Print(string.Format("{0} - [PAS - Z1-100B | CRUCE ALCISTA DETECTADO] TEMA 9 ({1:F2}) cruzó hacia arriba de EMA 200 ({2:F2}) tras acumular 100 barras. ¡CRONÓMETRO DE 40 BARRAS ACTIVADO buscando toque de Línea Media!",
-                    Time[0], tema9[0], ema200[0]));
             }
 
             // 3. Monitoreo durante las 40 Barras de Largo:
@@ -641,16 +639,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     z1WaitingForMidlineLong = false;
                     z1MidlineCountdownLong = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
-                        Time[0], Z1MaxBarsToMidline));
                 }
                 // B) Si la TEMA 9 hace un gancho falso real y penetra por debajo de la EMA 200 por >= 1 tick (0.25 pts):
                 else if ((ema200[0] - tema9[0]) >= (1.0 * TickSize))
                 {
                     z1WaitingForMidlineLong = false;
                     z1MidlineCountdownLong = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | LARGO ABORTADO] Gancho falso real: TEMA 9 ({1:F2}) penetró {2:F2} ticks por debajo de EMA 200 ({3:F2}) durante la espera. Cronómetro cancelado.",
-                        Time[0], tema9[0], (ema200[0] - tema9[0]) / TickSize, ema200[0]));
                 }
             }
 
@@ -667,9 +661,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     z1ShortArmed = true;
                 }
-                // Acumulación silenciosa (Z1 inactivo en v12.0)
-                // if (timeNow >= StartTime && timeNow <= ForceCloseTime && barsAboveEmaWithoutCross % 25 == 0)
-                //     Print(string.Format("{0} - [PAS - Z1-100B | CORTO ACUMULANDO] TEMA9 > EMA200 por {1}/{2} barras | Armed: {3}", Time[0], barsAboveEmaWithoutCross, MinBarsZona1, z1ShortArmed));
             }
             else if (!z1WaitingForMidlineShort)
             {
@@ -686,8 +677,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 z1MidlineCountdownShort = 0;
                 z1ShortArmed = false;
                 barsAboveEmaWithoutCross = 0;
-                Print(string.Format("{0} - [PAS - Z1-100B | CRUCE BAJISTA DETECTADO] TEMA 9 ({1:F2}) cruzó hacia abajo de EMA 200 ({2:F2}) tras acumular 100 barras. ¡CRONÓMETRO DE 40 BARRAS ACTIVADO buscando toque de Línea Media!",
-                    Time[0], tema9[0], ema200[0]));
             }
 
             // 3. Monitoreo durante las 40 Barras de Corto:
@@ -699,16 +688,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     z1WaitingForMidlineShort = false;
                     z1MidlineCountdownShort = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO EXPIRADO] Se cumplieron {1} barras tras el cruce sin que EMA 200 tocara la Línea Media. Setup cancelado.",
-                        Time[0], Z1MaxBarsToMidline));
                 }
                 // B) Si la TEMA 9 hace un gancho falso real y penetra por encima de la EMA 200 por >= 1 tick (0.25 pts):
                 else if ((tema9[0] - ema200[0]) >= (1.0 * TickSize))
                 {
                     z1WaitingForMidlineShort = false;
                     z1MidlineCountdownShort = 0;
-                    Print(string.Format("{0} - [PAS - Z1-100B | CORTO ABORTADO] Gancho falso real: TEMA 9 ({1:F2}) penetró {2:F2} ticks por encima de EMA 200 ({3:F2}) durante la espera. Cronómetro cancelado.",
-                        Time[0], tema9[0], (tema9[0] - ema200[0]) / TickSize, ema200[0]));
                 }
             }
 
@@ -3011,219 +2996,206 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "Tranca Anclaje de Titanio sobre Escalón ($)", Description = "Margen de anclaje por encima de cada escalón para sellar la entrada ($20 ES / $2 MES = $420, $620, $920)", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 18)]
         public double TrancaAnchorDollars { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(2, 5)]
-        [Display(Name = "SOBB Barras Consecutivas Requeridas", Description = "Número de barras consecutivas 100% afuera requeridas para evaluar confirmación (2 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 0)]
+        // === PARÁMETROS RETIRADOS EN v12.1 (SOBB Y Z1 OCULTOS DE LA UI) ===
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbRequiredFloatingBars { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(2, 6)]
-        [Display(Name = "SOBB Ventana Máxima Barras Afuera", Description = "Ventana máxima de barras afuera para confirmar rompimiento antes de cancelar (3 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 1)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbMaxFloatingBarsWindow { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(4, 50)]
-        [Display(Name = "SOBB TP1 Asegurador (Ticks)", Description = "Ticks para liquidar C1 Asegurador o pasar a BE (+10 ticks = $125 ES / $12.50 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 2)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbTp1Ticks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(8, 100)]
-        [Display(Name = "SOBB TP2 Expansión (Ticks)", Description = "Ticks para liquidar en zona de expansión (+20 ticks = $250 ES / $25 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 3)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbTp2Ticks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(10, 50)]
-        [Display(Name = "SOBB SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida para el SL Estructural (24 ticks = 6 pts = $300 ES / $30 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 4)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbMaxSlTicks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(10, 200)]
-        [Display(Name = "SOBB C3 Umbral Ahogo (Ticks)", Description = "Ticks para activar Modo Ahogo para C3 Runner (+30 ticks = $375 ES / $37.50 MES)", GroupName = "5. As 2: SOBB (Escalones)", Order = 5)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbChokeThresholdTicks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(2, 20)]
-        [Display(Name = "SOBB C3 Distancia Ahogo (Ticks)", Description = "Ticks de separación del High/Low para el trailing del Runner", GroupName = "5. As 2: SOBB (Escalones)", Order = 6)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int SobbChokeTicks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(0.01, 1.0)]
-        [Display(Name = "SOBB Umbral Pendiente Tendencia", Description = "Umbral de Pendiente Normalizada (LinReg 5 / ATR 14) para validar rompimiento con tendencia institucional en SOBB (0.12 por defecto)", GroupName = "5. As 2: SOBB (Escalones)", Order = 7)]
+        [Browsable(false)]
+        [XmlIgnore]
         public double SobbSlopeThreshold { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(10, 300)]
-        [Display(Name = "Z1 Barras Mínimas", Description = "Mínimo de barras comprimidas sin cruzar EMA 200", GroupName = "6. As 1: Zona 1", Order = 1)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int MinBarsZona1 { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(10, 100)]
-        [Display(Name = "Z1 Ventana Máx a Línea Media (Barras)", Description = "Ventana máxima de barras tras cruce TEMA para que EMA 200 toque la Línea Media (40 barras por defecto)", GroupName = "6. As 1: Zona 1", Order = 2)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int Z1MaxBarsToMidline { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(2, 30)]
-        [Display(Name = "Z1 Máx Ticks en Zona 0", Description = "Tolerancia máxima de ticks por encima/debajo de Banda 3.5 en Zona 0 (10 ticks por defecto)", GroupName = "6. As 1: Zona 1", Order = 3)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int Z1MaxZone0Ticks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(4, 30)]
-        [Display(Name = "Z1 C1 TP (Ticks)", Description = "Target de salida de C1 y activación de BE (8 ticks = $100 ES / $10 MES)", GroupName = "6. As 1: Zona 1", Order = 4)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int Zone1Tp1Ticks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(8, 50)]
-        [Display(Name = "Z1 C2 TP (Ticks)", Description = "Target de salida de C2 (16 ticks = $200 ES / $20 MES)", GroupName = "6. As 1: Zona 1", Order = 5)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int Zone1Tp2Ticks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(2, 20)]
-        [Display(Name = "Z1 C3 Ahogo (Ticks)", Description = "Distancia ceñida para el trailing del C3 Runner (8 ticks)", GroupName = "6. As 1: Zona 1", Order = 6)]
+        [Browsable(false)]
+        [XmlIgnore]
         public int Zone1ChokeTicks { get; set; }
 
-        [NinjaScriptProperty]
-        [Range(0.01, 1.0)]
-        [Display(Name = "Z1 Umbral Pendiente Tendencia", Description = "Umbral de Pendiente Normalizada (LinReg 5 / ATR 14) para validar toque a Línea Media con tendencia institucional en Z1-100Bar (0.15 por defecto)", GroupName = "6. As 1: Zona 1", Order = 7)]
+        [Browsable(false)]
+        [XmlIgnore]
         public double Zona1SlopeThreshold { get; set; }
 
+        // === ASES ACTIVOS EN v12.1 ===
         [NinjaScriptProperty]
-        [Display(Name = "Cascada Hora Inicio (HHMMSS)", Description = "Hora mínima para disparar Cascada (10:00 AM = 100000 para evitar trampas de pre-mercado)", GroupName = "7. As 4: Cascada Surfer", Order = 0)]
+        [Display(Name = "Cascada Hora Inicio (HHMMSS)", Description = "Hora mínima para disparar Cascada (10:00 AM = 100000 para evitar trampas de pre-mercado)", GroupName = "5. As 4: Cascada Surfer", Order = 0)]
         public int CascadaStartTime { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 3)]
-        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (1 contrato)", GroupName = "7. As 4: Cascada Surfer", Order = 1)]
+        [Display(Name = "Cascada Contratos Modo Exploratorio", Description = "Contratos de Cascada en modo exploratorio (1 contrato)", GroupName = "5. As 4: Cascada Surfer", Order = 1)]
         public int CascadaFirstEntryContracts { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 200)]
-        [Display(Name = "Cascada Barras Mínimas", Description = "Barras con EMA 200 separada de Banda 3.5 (25 por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 1)]
+        [Display(Name = "Cascada Barras Mínimas", Description = "Barras con EMA 200 separada de Banda 3.5 (25 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 2)]
         public int CascadaMinBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Cascada Separación Ticks", GroupName = "7. As 4: Cascada Surfer", Order = 2)]
+        [Display(Name = "Cascada Separación Ticks", GroupName = "5. As 4: Cascada Surfer", Order = 3)]
         public int CascadaSeparationTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "7. As 4: Cascada Surfer", Order = 3)]
+        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "5. As 4: Cascada Surfer", Order = 4)]
         public int CascadaMinSlopeTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(20.0, 500.0)]
-        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($180 ES / $18 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 4)]
+        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($150 ES = 12 ticks)", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
         public double CascadaLockTriggerDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(6, 40)]
-        [Display(Name = "Cascada SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 5)]
+        [Display(Name = "Cascada SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)", GroupName = "5. As 4: Cascada Surfer", Order = 6)]
         public int CascadaMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(20.0, 3000.0)]
-        [Display(Name = "Cascada Umbral Súper Win (USD)", Description = "Ganancia mínima en USD para activar la Cuarentena de Saciedad ($180 ES / $18 MES)", GroupName = "7. As 4: Cascada Surfer", Order = 6)]
+        [Display(Name = "Cascada Umbral Súper Win (USD)", Description = "Ganancia mínima neta en USD para activar la Cuarentena de Saciedad ($180 ES / $18 MES)", GroupName = "5. As 4: Cascada Surfer", Order = 7)]
         public double CascadaBigWinThresholdDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 240)]
-        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras una victoria (30 minutos por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 7)]
+        [Display(Name = "Cascada Cuarentena (Minutos)", Description = "Minutos de congelamiento de Cascada tras una victoria (30 minutos por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 8)]
         public int CascadaQuarantineMinutes { get; set; }
 
         [NinjaScriptProperty]
         [Range(0.05, 1.0)]
-        [Display(Name = "Cascada Umbral Pendiente Rápido", Description = "Umbral de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada (0.15 por defecto)", GroupName = "7. As 4: Cascada Surfer", Order = 8)]
+        [Display(Name = "Cascada Umbral Pendiente Rápido", Description = "Umbral de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada (0.15 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 9)]
         public double CascadaSlopeThreshold { get; set; }
 
         [NinjaScriptProperty]
         [Range(4, 30)]
-        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 9)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
         public int CascadaTp1Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(8, 50)]
-        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 10)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
         public int CascadaTp2Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "7. As 4: Cascada Surfer", Order = 11)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 12)]
         public int CascadaChokeTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 50)]
-        [Display(Name = "Período TEMA", GroupName = "8. Indicadores", Order = 1)]
-        public int TemaPeriod { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(20, 500)]
-        [Display(Name = "Período EMA 200", GroupName = "8. Indicadores", Order = 2)]
-        public int EmaPeriod { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(10, 200)]
-        [Display(Name = "Período Keltner", GroupName = "8. Indicadores", Order = 3)]
-        public int KeltnerPeriod { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1.0, 6.0)]
-        [Display(Name = "Multiplicador Keltner Grande", GroupName = "8. Indicadores", Order = 4)]
-        public double KeltnerBigMult { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(0.5, 3.0)]
-        [Display(Name = "Multiplicador Keltner Pequeño", GroupName = "8. Indicadores", Order = 5)]
-        public double KeltnerSmallMult { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(0.5, 10.0)]
-        [Display(Name = "Mínimo Cruce TEMA (Ticks)", GroupName = "8. Indicadores", Order = 6)]
-        public double MinCrossTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, 10)]
-        [Display(Name = "Offset Stop Loss (Ticks)", GroupName = "8. Indicadores", Order = 7)]
-        public int SlOffsetTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(2, 20)]
-        [Display(Name = "Colchón Mínimo Seguridad SL (Ticks)", GroupName = "8. Indicadores", Order = 8)]
-        public int MinSafetySlTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(5, 50)]
-        [Display(Name = "Ratchet Lookback Barras", Description = "Barras sin tocar EMA 200", GroupName = "9. As 3: Ratchet", Order = 1)]
+        [Display(Name = "Ratchet Lookback Barras", Description = "Barras sin tocar EMA 200", GroupName = "6. As 3: Ratchet", Order = 1)]
         public int RatchetLookbackBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 30)]
-        [Display(Name = "Ratchet Countdown Barras", Description = "Ventana máxima para cruzar Línea Media", GroupName = "9. As 3: Ratchet", Order = 2)]
+        [Display(Name = "Ratchet Countdown Barras", Description = "Ventana máxima para cruzar Línea Media", GroupName = "6. As 3: Ratchet", Order = 2)]
         public int RatchetCountdownBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Ratchet Tolerancia Gancho TEMA (Ticks)", Description = "Tolerancia para tocar banda en el gancho", GroupName = "9. As 3: Ratchet", Order = 3)]
+        [Display(Name = "Ratchet Tolerancia Gancho TEMA (Ticks)", Description = "Tolerancia para tocar banda en el gancho", GroupName = "6. As 3: Ratchet", Order = 3)]
         public int RatchetTemaTolTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 50)]
-        [Display(Name = "Ratchet BreakEven Ticks", Description = "Ticks para liquidar C1 y armar BE (+22 ticks)", GroupName = "9. As 3: Ratchet", Order = 4)]
+        [Display(Name = "Ratchet BreakEven Ticks", Description = "Ticks para liquidar C1 y armar BE (+22 ticks)", GroupName = "6. As 3: Ratchet", Order = 4)]
         public int RatchetBreakEvenTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(20, 150)]
-        [Display(Name = "Ratchet Choke Threshold Ticks", Description = "Ticks para activar Fase 3 Choke (72 ticks = $900 ES / $90 MES)", GroupName = "9. As 3: Ratchet", Order = 5)]
+        [Display(Name = "Ratchet Choke Threshold Ticks", Description = "Ticks para activar Fase 3 Choke (72 ticks = $900 ES / $90 MES)", GroupName = "6. As 3: Ratchet", Order = 5)]
         public int RatchetChokeThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "Ratchet Chicle Trailing (Ticks)", Description = "Distancia ceñida del Chicle Parabólico para C3 Runner", GroupName = "9. As 3: Ratchet", Order = 6)]
+        [Display(Name = "Ratchet Chicle Trailing (Ticks)", Description = "Distancia ceñida del Chicle Parabólico para C3 Runner", GroupName = "6. As 3: Ratchet", Order = 6)]
         public int RatchetChicleTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(6, 30)]
-        [Display(Name = "Ratchet SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida inicial para Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)", GroupName = "9. As 3: Ratchet", Order = 7)]
+        [Display(Name = "Ratchet SL Máximo de Seguridad (Ticks)", Description = "Tope máximo de pérdida inicial para Ratchet (12 ticks = $450 ES / $45 MES en 3 contratos)", GroupName = "6. As 3: Ratchet", Order = 7)]
         public int RatchetMaxSlTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(5, 50)]
+        [Display(Name = "Período TEMA", GroupName = "7. Indicadores Macro", Order = 1)]
+        public int TemaPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(20, 500)]
+        [Display(Name = "Período EMA 200", GroupName = "7. Indicadores Macro", Order = 2)]
+        public int EmaPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(10, 200)]
+        [Display(Name = "Período Keltner", GroupName = "7. Indicadores Macro", Order = 3)]
+        public int KeltnerPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1.0, 6.0)]
+        [Display(Name = "Multiplicador Keltner Grande", GroupName = "7. Indicadores Macro", Order = 4)]
+        public double KeltnerBigMult { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.5, 3.0)]
+        [Display(Name = "Multiplicador Keltner Pequeño", GroupName = "7. Indicadores Macro", Order = 5)]
+        public double KeltnerSmallMult { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.5, 10.0)]
+        [Display(Name = "Mínimo Cruce TEMA (Ticks)", GroupName = "7. Indicadores Macro", Order = 6)]
+        public double MinCrossTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name = "Offset Stop Loss (Ticks)", GroupName = "7. Indicadores Macro", Order = 7)]
+        public int SlOffsetTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 20)]
+        [Display(Name = "Colchón Mínimo Seguridad SL (Ticks)", GroupName = "7. Indicadores Macro", Order = 8)]
+        public int MinSafetySlTicks { get; set; }
         #endregion
     }
 }
