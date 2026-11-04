@@ -1,14 +1,13 @@
-# 📊 Bitácora Oficial de Playback - Poker de Ases Sniper v13.0
+# 📊 Bitácora Oficial de Playback - Poker de Ases Sniper v13.2
 
-* **Estrategia:** `Tick610_PokerDeAsesSniperES` (v13.0)
+* **Estrategia:** `Tick610_PokerDeAsesSniperES` (v13.2)
 * **Instrumento:** ES 12-26 / MES (Futuros S&P 500)
 * **Gráfica:** 610 Ticks
 * **Horario:** RTH (09:50 AM - 12:00 PM EST Corte de Mediodía / 04:00 PM EST Modo Dulce)
-* **Innovación Clave v13.0:**
-  * **Cascada Entrada Pura:** Disparo rápido con Pendiente Normalizada $|m| \ge 0.15$ persistente por 2 barras (sin retrasos de distancia).
-  * **Gestión Asimétrica de Stop Loss en Cascada:**
-    * Si entra adentro o a `< 8` ticks fuera de Banda 3.5: Tratada como ruptura fresca con SL estructural en Línea Media.
-    * Si entra en sobreextensión exterior $\ge 8$ ticks fuera de Banda 3.5: SL ceñido en Banda 3.5 (Ruptura Fallida), limitando el riesgo a solo 6-8 ticks (~$75 a $100 USD) para evitar que una trampa de agotamiento active el Cortacircuito.
+* **Innovaciones Clave v13.2:**
+  * **Cascada Entrada Pura 0.15:** Disparo rápido con Pendiente Normalizada $|m| \ge 0.15$ persistente por 2 barras (sin retrasos de distancia).
+  * **SL de Oxígeno Configurable en Sobreextensión:** 12 ticks ($150 USD) para tolerar sacudidas de mecha en Banda 3.5.
+  * **Escudo Anti-Asfixia en Escalones 1 y 2:** Pista libre con SL de oxígeno completo mientras la cuenta esté por encima del piso; la protección de piso se evalúa tras el cierre del trade, evitando cortocircuitar rallies campeones.
   * **Candado Garantizado:** Suelo mínimo en Breakeven +4 ticks (+$50 USD) al tocar MFE $\ge \$150$ USD.
   * **Escudos Diarios:** Cortacircuito -$650 USD, Escalón 1 (+$400 / Piso +$250), Escalón 2 (+$600 / Piso +$500), Modo Dulce (+$900 / Trailing Infinito $150).
 
