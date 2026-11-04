@@ -16,14 +16,14 @@
 
 ## 📈 Resumen Ejecutivo Consolidado
 
-| Métrica Consolidada | Resultado v13.0 |
+| Métrica Consolidada | Resultado v13.1 |
 | :--- | :--- |
-| **Días Totales Auditados** | *En curso...* |
-| **Días Ganadores vs Perdedores** | - |
-| **Total Trades Disparados** | - |
-| **Winrate de Trades** | - |
-| **PnL Total Neto Acumulado** | - |
-| **Profit Factor** | - |
+| **Días Totales Auditados** | **2 días** (25/09/2026 y 02/11/2026) |
+| **Días Ganadores vs Perdedores** | **2 Ganadores (100%)** / 0 Perdedores |
+| **Total Trades Disparados** | **6 trades** (5 Wins / 1 Loss) |
+| **Winrate de Trades** | **83.3%** 🎯 |
+| **PnL Total Neto Acumulado** | **+$1,298.84 USD** 💰 |
+| **Profit Factor** | **9.88** |
 
 ---
 
@@ -31,7 +31,8 @@
 
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto | Resumen de Operaciones y Observaciones |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **25/09/2026** | | | | | | *Trade benchmark: Corto 11:45 AM (SL en Banda 3.5) y Largo 11:59 AM* |
+| **25/09/2026** | 4 | 3W / 1L (75%) | +$687.50 | $17.44 | **+$670.06** | 🟢 **Benchmark Superado:** Corto 11:45 AM controlado (-$141.86) protegió Cortacircuito y permitió agarrar el rally de las 11:59 AM (+$283.14). |
+| **02/11/2026** | 2 | 2W / 0L (100%) | +$637.50 | $8.72 | **+$628.78** | 🟢 **Triunfo del SL Oxígeno 12tk:** Trade 1 resistió MAE de 10 ticks ($125) y corrió hasta la Tranca de Acero (+ $570.64). Trade 2 Candado (+ $58.14). |
 
 ---
 
