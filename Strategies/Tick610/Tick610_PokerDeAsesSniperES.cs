@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 13.2 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & Escudo Anti-Asfixia en Pisos 1 y 2]
+// VERSIÓN: 13.3 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15, Escudo Anti-Asfixia & Segundo Boleto Quirúrgico en Zona Exterior]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura (|m| >= 0.15 por 2 barras)
@@ -33,6 +33,8 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //                          - Entrada en canal o a < 8 ticks de Banda 3.5 (Ruptura fresca tratada como adentro): SL en Línea Media.
 //                          - Entrada en sobreextensión (>= 8 ticks de Banda 3.5): SL con Oxígeno Configurable (12 ticks = 3.0 pts / -$150 ES por defecto)
 //                            para tolerar sacudidas de mecha en Banda 3.5 sin salirse del rally.
+//                          - Segundo Boleto Quirúrgico (v13.3): Si el 1er tiro sale vivo en el Suelo Mínimo del Candado (BE+4tk, <= $65 USD)
+//                            por un micro-respiro pero el precio sigue en cascada afuera de Banda 3.5 con pendiente firme, habilita 1 único re-enganche.
 //                          Candado con Suelo Mínimo Garantizado en BE + 4 ticks (+$50 USD) al tocar MFE >= $150 USD,
 //                          y Cuarentena de Saciedad 100% Real solo con ganancia neta cobrada en bolsillo >= $180 USD.
 //   2. As 3: [Ratchet]   - Súper-tendencia vertical institucional real (Sniper latente): Requiere OBLIGATORIAMENTE que EMA 200 esté
@@ -116,6 +118,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int cascadaConsecutiveSlopeBarsShort = 0; // Barras consecutivas con Pendiente Normalizada <= -0.15 (v12.0)
         private bool cascadaEnteredOutside           = false; // Bandera: trade de Cascada disparó en sobreextensión fuera de Banda 3.5 (> CascadaOutsideThresholdTicks)
         private double cascadaOutsideInitialSl       = 0.0;   // Precio de SL inicial anclado en la Banda 3.5 para salida rápida en ruptura fallida
+        private bool cascadaSecondChanceLongAvailable  = false; // Bandera v13.3: Habilita 1 único Segundo Boleto en Largo tras salida en Suelo de Candado (BE+4tk)
+        private bool cascadaSecondChanceShortAvailable = false; // Bandera v13.3: Habilita 1 único Segundo Boleto en Corto tras salida en Suelo de Candado (BE+4tk)
+        private bool cascadaSecondChanceLongUsed       = false; // Bandera v13.3: Garantiza máximo 1 Segundo Boleto por ciclo alcista
+        private bool cascadaSecondChanceShortUsed      = false; // Bandera v13.3: Garantiza máximo 1 Segundo Boleto por ciclo bajista
 
         // Tracking de MFE/MAE de la posición activa
         private double entryPriceGlobal = 0.0;
@@ -186,7 +192,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "13.2 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & Escudo Anti-Asfixia en Pisos 1 y 2]";
+                Version                                     = "13.3 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15, Escudo Anti-Asfixia & 2do Boleto Quirúrgico]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -379,6 +385,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 cascadaQuarantineEndTime = DateTime.MinValue;
                 cascadaCycleLongFired = false;
                 cascadaCycleShortFired = false;
+                cascadaSecondChanceLongAvailable = false;
+                cascadaSecondChanceShortAvailable = false;
+                cascadaSecondChanceLongUsed = false;
+                cascadaSecondChanceShortUsed = false;
                 cascadaConsecutiveSlopeBarsLong = 0;
                 cascadaConsecutiveSlopeBarsShort = 0;
                 sobbArmedLong = false;
@@ -553,13 +563,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
                 // Reseteo estructural estricto del ciclo de Cascada (SOLO cuando el precio descansa físicamente en la Línea Media)
-                if (cascadaCycleLongFired && Low[0] <= keltnerBig.Midline[0])
+                if ((cascadaCycleLongFired || cascadaSecondChanceLongAvailable || cascadaSecondChanceLongUsed) && Low[0] <= keltnerBig.Midline[0])
                 {
                     cascadaCycleLongFired = false;
+                    cascadaSecondChanceLongAvailable = false;
+                    cascadaSecondChanceLongUsed = false;
                 }
-                if (cascadaCycleShortFired && High[0] >= keltnerBig.Midline[0])
+                if ((cascadaCycleShortFired || cascadaSecondChanceShortAvailable || cascadaSecondChanceShortUsed) && High[0] >= keltnerBig.Midline[0])
                 {
                     cascadaCycleShortFired = false;
+                    cascadaSecondChanceShortAvailable = false;
+                    cascadaSecondChanceShortUsed = false;
                 }
 
                 // GESTIÓN DE RIESGO INTELIGENTE: Verificamos si existe margen para operar al menos 1 contrato con Stop saludable
@@ -1295,17 +1309,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             double normSlope  = GetNormalizedSlope(keltnerBig.Midline);
 
             // =========================================================================
-            // DISPARO CORTO: Rápido de Río Bajista (v13.0 Entrada Pura 0.15)
-            // 1. Regla de 1 Solo Tiro: no haber disparado ya en este mismo impulso bajista
+            // DISPARO CORTO: Rápido de Río Bajista (v13.0 Entrada Pura 0.15 + v13.3 2do Boleto Quirúrgico)
+            // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto Quirúrgico (solo si Tiro 1 salió en Suelo Candado BE+4tk y sigue afuera de Banda 3.5)
             // 2. Contexto Macro: EMA 200 por encima de la Línea Media (keltnerBig.Midline)
-            // 3. Ubicación: Precio en Zona 4 o 5 (Close <= lowerSmall)
+            // 3. Ubicación: Tiro 1 en Zona 4 o 5 (Close <= lowerSmall); Tiro 2 estrictamente afuera en Zona 5 (Close < lowerBig)
             // 4. Aceleración Pura v13.0: Pendiente Normalizada <= -CascadaSlopeThreshold (-0.15) persistente por >= 2 barras
             // 5. Vela con intención bajista: Close[0] < Open[0]
             // =========================================================================
-            if (!cascadaCycleShortFired)
+            if (cascadaSecondChanceShortAvailable && Close[0] > lowerSmall)
+            {
+                // Si el precio se metió de regreso al canal tras el Candado, desarmamos el 2do boleto para no operar giros
+                cascadaSecondChanceShortAvailable = false;
+            }
+
+            bool isShortFirstTicket  = !cascadaCycleShortFired;
+            bool isShortSecondTicket = cascadaCycleShortFired && cascadaSecondChanceShortAvailable && !cascadaSecondChanceShortUsed;
+
+            if (isShortFirstTicket || isShortSecondTicket)
             {
                 bool macroBajista          = ema200[0] > midline;
-                bool precioEnZonaExpansion = Close[0] <= lowerSmall;
+                bool precioEnZonaExpansion = isShortFirstTicket ? (Close[0] <= lowerSmall) : (Close[0] < lowerBig);
                 bool pendienteRapido       = cascadaConsecutiveSlopeBarsShort >= 2;
                 bool velaBajista           = Close[0] < Open[0];
 
@@ -1314,6 +1337,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (pendienteRapido && velaBajista)
                     {
                         cascadaCycleShortFired = true;
+                        if (isShortSecondTicket)
+                        {
+                            cascadaSecondChanceShortAvailable = false;
+                            cascadaSecondChanceShortUsed = true;
+                        }
 
                         // Detección de Sobreextensión Exterior al Disparo:
                         double ticksAfueraLower = (lowerBig - Close[0]) / TickSize;
@@ -1321,11 +1349,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                         cascadaOutsideInitialSl = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaOutsideSlTicks * TickSize));
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v13.1 | ¡PUM, ADIÓS! RÁPIDO CORTO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Lower 3.5: {3:F0} tk ({4}) | Pendiente: {5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
+                        Print(string.Format("{0} - [PAS v13.3 | ¡PUM, ADIÓS! {9} CORTO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Lower 3.5: {3:F0} tk ({4}) | Pendiente: {5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
                             Time[0], Close[0], (Close[0] < lowerBig ? "5 (Afuera)" : "4 (Expansión)"), ticksAfueraLower,
                             (cascadaEnteredOutside ? string.Format("Sobreextensión >={0}tk -> SL Oxígeno {1}tk", CascadaOutsideThresholdTicks, CascadaOutsideSlTicks) : "Canal/Ruptura Fresca -> SL Línea Media"),
                             normSlope, cascadaConsecutiveSlopeBarsShort, atr14 != null ? atr14[0] : 0.0,
-                            (cascadaEnteredOutside ? string.Format("Oxígeno {0}tk ({1:F2})", CascadaOutsideSlTicks, cascadaOutsideInitialSl) : string.Format("Línea Media ({0:F2})", midline))));
+                            (cascadaEnteredOutside ? string.Format("Oxígeno {0}tk ({1:F2})", CascadaOutsideSlTicks, cascadaOutsideInitialSl) : string.Format("Línea Media ({0:F2})", midline)),
+                            (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO" : "RÁPIDO")));
                         return;
                     }
                     else if (!pendienteRapido)
@@ -1340,17 +1369,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // =========================================================================
-            // DISPARO LARGO: Rápido de Río Alcista (v13.0 Entrada Pura 0.15)
-            // 1. Regla de 1 Solo Tiro: no haber disparado ya en este mismo impulso alcista
+            // DISPARO LARGO: Rápido de Río Alcista (v13.0 Entrada Pura 0.15 + v13.3 2do Boleto Quirúrgico)
+            // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto Quirúrgico (solo si Tiro 1 salió en Suelo Candado BE+4tk y sigue afuera de Banda 3.5)
             // 2. Contexto Macro: EMA 200 por debajo de la Línea Media (keltnerBig.Midline)
-            // 3. Ubicación: Precio en Zona 0 o 1 (Close >= upperSmall)
+            // 3. Ubicación: Tiro 1 en Zona 0 o 1 (Close >= upperSmall); Tiro 2 estrictamente afuera en Zona 0 (Close > upperBig)
             // 4. Aceleración Pura v13.0: Pendiente Normalizada >= CascadaSlopeThreshold (+0.15) persistente por >= 2 barras
             // 5. Vela con intención alcista: Close[0] > Open[0]
             // =========================================================================
-            if (!cascadaCycleLongFired)
+            if (cascadaSecondChanceLongAvailable && Close[0] < upperSmall)
+            {
+                // Si el precio se metió de regreso al canal tras el Candado, desarmamos el 2do boleto para no operar giros
+                cascadaSecondChanceLongAvailable = false;
+            }
+
+            bool isLongFirstTicket  = !cascadaCycleLongFired;
+            bool isLongSecondTicket = cascadaCycleLongFired && cascadaSecondChanceLongAvailable && !cascadaSecondChanceLongUsed;
+
+            if (isLongFirstTicket || isLongSecondTicket)
             {
                 bool macroAlcista          = ema200[0] < midline;
-                bool precioEnZonaExpansion = Close[0] >= upperSmall;
+                bool precioEnZonaExpansion = isLongFirstTicket ? (Close[0] >= upperSmall) : (Close[0] > upperBig);
                 bool pendienteRapido       = cascadaConsecutiveSlopeBarsLong >= 2;
                 bool velaAlcista           = Close[0] > Open[0];
 
@@ -1359,6 +1397,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (pendienteRapido && velaAlcista)
                     {
                         cascadaCycleLongFired = true;
+                        if (isLongSecondTicket)
+                        {
+                            cascadaSecondChanceLongAvailable = false;
+                            cascadaSecondChanceLongUsed = true;
+                        }
 
                         // Detección de Sobreextensión Exterior al Disparo:
                         double ticksAfueraUpper = (Close[0] - upperBig) / TickSize;
@@ -1366,11 +1409,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                         cascadaOutsideInitialSl = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaOutsideSlTicks * TickSize));
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v13.1 | ¡PUM, ADIÓS! RÁPIDO LARGO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Upper 3.5: {3:F0} tk ({4}) | Pendiente: +{5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
+                        Print(string.Format("{0} - [PAS v13.3 | ¡PUM, ADIÓS! {9} LARGO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Upper 3.5: {3:F0} tk ({4}) | Pendiente: +{5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
                             Time[0], Close[0], (Close[0] > upperBig ? "0 (Afuera)" : "1 (Expansión)"), ticksAfueraUpper,
                             (cascadaEnteredOutside ? string.Format("Sobreextensión >={0}tk -> SL Oxígeno {1}tk", CascadaOutsideThresholdTicks, CascadaOutsideSlTicks) : "Canal/Ruptura Fresca -> SL Línea Media"),
                             normSlope, cascadaConsecutiveSlopeBarsLong, atr14 != null ? atr14[0] : 0.0,
-                            (cascadaEnteredOutside ? string.Format("Oxígeno {0}tk ({1:F2})", CascadaOutsideSlTicks, cascadaOutsideInitialSl) : string.Format("Línea Media ({0:F2})", midline))));
+                            (cascadaEnteredOutside ? string.Format("Oxígeno {0}tk ({1:F2})", CascadaOutsideSlTicks, cascadaOutsideInitialSl) : string.Format("Línea Media ({0:F2})", midline)),
+                            (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO" : "RÁPIDO")));
                         return;
                     }
                     else if (!pendienteRapido)
@@ -2762,6 +2806,28 @@ namespace NinjaTrader.NinjaScript.Strategies
                                                 "Gatillo de Cascada congelado por {3} minutos (hasta las {4:HH:mm:ss} EST). ¡A cuidar el botín real!\n" +
                                                 "****************************************************************************************",
                                 trade.Exit.Time, netProfit, effectiveBigWinThreshold, CascadaQuarantineMinutes, cascadaQuarantineEndTime));
+                        }
+                        else if (trade.Exit != null && trade.Exit.Name == "SL_Candado_Cascada")
+                        {
+                            // SEGUNDO BOLETO QUIRÚRGICO (v13.3):
+                            // Si el 1er tiro de Cascada salió vivo en el Suelo Mínimo del Candado (BE + 4tk, ganancia <= $65 ES / $6.5 MES),
+                            // habilitamos 1 único Segundo Boleto por si la cascada sigue viva por fuera de Banda 3.5 (Zona 0 / Zona 5).
+                            double maxSmallCandadoProfit = 65.0 * instrumentMultiplier;
+                            if (netProfit <= maxSmallCandadoProfit)
+                            {
+                                if (trade.Entry.MarketPosition == MarketPosition.Long && !cascadaSecondChanceLongUsed)
+                                {
+                                    cascadaSecondChanceLongAvailable = true;
+                                    Print(string.Format("{0} - [PAS v13.3 - Cascada | 2DO BOLETO HABILITADO - LARGO] Tiro 1 cobró +{1:C2} en Suelo Candado (<= {2:C2}). Si el rápido sigue vivo afuera de Upper 3.5 con pendiente >= {3:F2}, tiene 1 segundo intento.",
+                                        trade.Exit.Time, netProfit, maxSmallCandadoProfit, CascadaSlopeThreshold));
+                                }
+                                else if (trade.Entry.MarketPosition == MarketPosition.Short && !cascadaSecondChanceShortUsed)
+                                {
+                                    cascadaSecondChanceShortAvailable = true;
+                                    Print(string.Format("{0} - [PAS v13.3 - Cascada | 2DO BOLETO HABILITADO - CORTO] Tiro 1 cobró +{1:C2} en Suelo Candado (<= {2:C2}). Si el rápido sigue vivo afuera de Lower 3.5 con pendiente <= -{3:F2}, tiene 1 segundo intento.",
+                                        trade.Exit.Time, netProfit, maxSmallCandadoProfit, CascadaSlopeThreshold));
+                                }
+                            }
                         }
                     }
 
