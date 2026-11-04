@@ -17,11 +17,11 @@
 
 | Métrica Consolidada | Resultado v13.2 | Línea Base v11.4 (Semana 1) | Impacto Cuantitativo |
 | :--- | :---: | :---: | :--- |
-| **Días Totales Auditados** | **5 días** (Semana 1) + 2 días Nov | 5 días (Semana 1) | Muestra idéntica |
+| **Días Totales Auditados** | **5 días** (Semana 1) + 3 días Nov | 5 días (Semana 1) | Muestra idéntica en Semana 1 |
 | **PnL Neto Semana 1 (21-25 Sep)**| **+$510.18 USD** 💰 | **+$197.68 USD** | **+$312.50 USD (+158% más ganancia)** 🚀 |
 | **Winrate de Trades (Semana 1)** | **58.3% (7W / 5L)** | **40.0% (4W / 6L)** | **+18.3% de efectividad** 🎯 |
 | **Días con Cortacircuito (-$650)**| **0 días (0%)** | **1 día (24/09 con -$650.58)** | **-$541.86 USD ahorrados el 24/09** 🛡️ |
-| **PnL Total Acumulado (7 días)** | **+$1,059.60 USD** 💰 | - | 7 días auditados con 13.2 |
+| **PnL Total Acumulado (8 días)** | **+$1,237.80 USD** 💰 | - | 8 días auditados con v13.2 (+$727.62 en Nov) |
 
 ---
 
@@ -44,3 +44,5 @@
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
 | **02/11/2026** | 2 | 2W / 0L (100%) | +$637.50 | $8.72 | **+$628.78** | 🟢 **Triunfo del SL Oxígeno 12tk:** T1 resistió MAE 10tk ($125) y corrió a Tranca de Acero (+ $570.64). T2 Candado (+ $58.14). |
 | **03/11/2026** | 1 | 0W / 1L (0%) | -$75.00 | $4.36 | **-$79.36** | 🔴 **Disciplina Total en Rango:** Toda la mañana lateral ignorada (0 sobreoperativa). Raspón mínimo de -$79 USD. |
+| **04/11/2026** | 5 | 3W / 2L (60.0%) | +$200.00 | $21.80 | **+$178.20** | 🟢 **Remontada Épica desde -$400.58:** T2 (+ $95.64) y T4 (+ $45.64) amortiguaron el drawdown con Candado. T5 (`Cascada50_Long`) clavó un rally de 42 barras (+ $533.14 con solo 1 tick de MAE) volteando el día a verde. |
+| **TOTAL NOV** | **8** | **5W / 3L (62.5%)** | **+$762.50** | **$34.88** | **+$727.62** | 🚀 **3 DÍAS SEGUIDOS DEMOSTRANDO ASIMETRÍA Y DEFENSA** |
