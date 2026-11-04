@@ -16,14 +16,14 @@
 
 ## 📈 Resumen Ejecutivo Consolidado
 
-| Métrica Consolidada | Resultado v13.1 |
+| Métrica Consolidada | Resultado v13.2 |
 | :--- | :--- |
 | **Días Totales Auditados** | **3 días** (25/09/2026, 02/11/2026 y 03/11/2026) |
 | **Días Ganadores vs Perdedores** | **2 Ganadores (66.7%)** / 1 Perdedor Leve |
 | **Total Trades Disparados** | **7 trades** (5 Wins / 2 Losses) |
 | **Winrate de Trades** | **71.4%** 🎯 |
-| **PnL Total Neto Acumulado** | **+$1,219.48 USD** 💰 |
-| **Profit Factor** | **5.51** |
+| **PnL Total Neto Acumulado** | **+$1,256.98 USD** 💰 |
+| **Profit Factor** | **6.11** 🚀 |
 
 ---
 
@@ -31,7 +31,7 @@
 
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto | Resumen de Operaciones y Observaciones |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **25/09/2026** | 4 | 3W / 1L (75%) | +$687.50 | $17.44 | **+$670.06** | 🟢 **Benchmark Superado:** Corto 11:45 AM controlado (-$141.86) protegió Cortacircuito y permitió agarrar el rally de las 11:59 AM (+$283.14). |
+| **25/09/2026** | 4 | 3W / 1L (75%) | +$725.00 | $17.44 | **+$707.56** | 🟢 **Victoria Absoluta v13.2:** Escudo Anti-Asfixia permitió aguantar MAE de 4 ticks ($50) en Trade 4, cabalgando 21 barras hasta clavar la Tranca TP Bonus (+ $433.14). |
 | **02/11/2026** | 2 | 2W / 0L (100%) | +$637.50 | $8.72 | **+$628.78** | 🟢 **Triunfo del SL Oxígeno 12tk:** Trade 1 resistió MAE de 10 ticks ($125) y corrió hasta la Tranca de Acero (+ $570.64). Trade 2 Candado (+ $58.14). |
 | **03/11/2026** | 1 | 0W / 1L (0%) | -$75.00 | $4.36 | **-$79.36** | 🔴 **Disciplina Total en Rango:** Toda la mañana lateral ignorada (0 sobreoperativa). Disparó 1 solo tiro en amague de pendiente (10:59 AM) y salió por SL estructural con raspón mínimo de -$79 USD. |
 
