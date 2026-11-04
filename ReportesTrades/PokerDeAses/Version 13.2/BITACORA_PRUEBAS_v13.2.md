@@ -13,28 +13,34 @@
 
 ---
 
-## 📈 Resumen Ejecutivo Consolidado
+## 📈 Resumen Ejecutivo Consolidado (Muestra Auditada v13.2)
 
-| Métrica Consolidada | Resultado v13.2 |
-| :--- | :--- |
-| **Días Totales Auditados** | **3 días** (25/09/2026, 02/11/2026 y 03/11/2026) |
-| **Días Ganadores vs Perdedores** | **2 Ganadores (66.7%)** / 1 Perdedor Leve |
-| **Total Trades Disparados** | **7 trades** (5 Wins / 2 Losses) |
-| **Winrate de Trades** | **71.4%** 🎯 |
-| **PnL Total Neto Acumulado** | **+$1,256.98 USD** 💰 |
-| **Profit Factor** | **6.11** 🚀 |
+| Métrica Consolidada | Resultado v13.2 | Línea Base v11.4 (Semana 1) | Impacto Cuantitativo |
+| :--- | :---: | :---: | :--- |
+| **Días Totales Auditados** | **5 días** (Semana 1) + 2 días Nov | 5 días (Semana 1) | Muestra idéntica |
+| **PnL Neto Semana 1 (21-25 Sep)**| **+$510.18 USD** 💰 | **+$197.68 USD** | **+$312.50 USD (+158% más ganancia)** 🚀 |
+| **Winrate de Trades (Semana 1)** | **58.3% (7W / 5L)** | **40.0% (4W / 6L)** | **+18.3% de efectividad** 🎯 |
+| **Días con Cortacircuito (-$650)**| **0 días (0%)** | **1 día (24/09 con -$650.58)** | **-$541.86 USD ahorrados el 24/09** 🛡️ |
+| **PnL Total Acumulado (7 días)** | **+$1,059.60 USD** 💰 | - | 7 días auditados con 13.2 |
 
 ---
 
-## 📅 Registro Detallado Día a Día
+## 🗓️ Desglose Semanal: Semana 1 (21 al 25 de Septiembre de 2026)
+
+| Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto v13.2 | PnL v11.4 | Comparativa y Observaciones Tácticas |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **21/09/2026** | 2 | 2W / 0L (100%) | +$337.50 | $8.72 | **+$328.78** | +$266.28 | 🟢 **+$62.50 más:** T1 Candado (+ $270.64) y T2 Candado (+ $58.14). Ambos cerrados con ganancia. |
+| **22/09/2026** | 1 | 0W / 1L (0%) | -$162.50 | $4.36 | **-$166.86** | -$179.36 | 🟢 **+$12.50 mejor:** 1 solo trade controlado por SL Banda Opuesta. Disciplina total. |
+| **23/09/2026** | 3 | 1W / 2L (33.3%) | -$237.50 | $13.08 | **-$250.58** | +$141.28 | 🔴 T1 Candado (+ $120.64). T2 y T3 frenados por SL estructural. Pérdida contenida a -$250. |
+| **24/09/2026** | 2 | 1W / 1L (50%) | -$100.00 | $8.72 | **-$108.72** | **-$650.58** | 🟢 **LA GRAN VICTORIA DE LA SEMANA (+ $541.86):** En v11.4 Z1-100Bar causó Cortacircuito (-$650). En v13.2 Cascada amortiguó el día con T1 Candado (+ $58.14) y T2 SL Oxígeno (-$166.86). |
+| **25/09/2026** | 4 | 3W / 1L (75%) | +$725.00 | $17.44 | **+$707.56** | +$620.06 | 🟢 **+$87.50 más:** Escudo Anti-Asfixia permitió a T4 aguantar MAE 4tk y clavar Tranca TP Bonus (+ $433.14). |
+| **TOTAL S1** | **12** | **7W / 5L (58.3%)** | **+$562.50** | **$52.32** | **+$510.18** | **+$197.68** | 🚀 **PROFIT NETO CASI SE TRIPLICÓ (+158%)** |
+
+---
+
+## 📅 Pruebas Adicionales Auditadas (Noviembre 2026)
 
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto | Resumen de Operaciones y Observaciones |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **25/09/2026** | 4 | 3W / 1L (75%) | +$725.00 | $17.44 | **+$707.56** | 🟢 **Victoria Absoluta v13.2:** Escudo Anti-Asfixia permitió aguantar MAE de 4 ticks ($50) en Trade 4, cabalgando 21 barras hasta clavar la Tranca TP Bonus (+ $433.14). |
-| **02/11/2026** | 2 | 2W / 0L (100%) | +$637.50 | $8.72 | **+$628.78** | 🟢 **Triunfo del SL Oxígeno 12tk:** Trade 1 resistió MAE de 10 ticks ($125) y corrió hasta la Tranca de Acero (+ $570.64). Trade 2 Candado (+ $58.14). |
-| **03/11/2026** | 1 | 0W / 1L (0%) | -$75.00 | $4.36 | **-$79.36** | 🔴 **Disciplina Total en Rango:** Toda la mañana lateral ignorada (0 sobreoperativa). Disparó 1 solo tiro en amague de pendiente (10:59 AM) y salió por SL estructural con raspón mínimo de -$79 USD. |
-
----
-
-## 📁 Archivos de Respaldo en esta Carpeta:
-* Exportar reportes diarios de NinjaTrader en formato Excel como `PAS_MMDDYYYY.xlsx` (ej. `PAS_09252026.xlsx`) directamente en esta carpeta.
+| **02/11/2026** | 2 | 2W / 0L (100%) | +$637.50 | $8.72 | **+$628.78** | 🟢 **Triunfo del SL Oxígeno 12tk:** T1 resistió MAE 10tk ($125) y corrió a Tranca de Acero (+ $570.64). T2 Candado (+ $58.14). |
+| **03/11/2026** | 1 | 0W / 1L (0%) | -$75.00 | $4.36 | **-$79.36** | 🔴 **Disciplina Total en Rango:** Toda la mañana lateral ignorada (0 sobreoperativa). Raspón mínimo de -$79 USD. |
