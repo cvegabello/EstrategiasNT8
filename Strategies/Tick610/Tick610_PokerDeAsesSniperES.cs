@@ -25,13 +25,14 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 13.0 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & SL Ceñido en Banda 3.5 en Sobreextensión]
+// VERSIÓN: 13.1 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & SL Oxígeno 12tk en Sobreextensión]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura (|m| >= 0.15 por 2 barras)
-//                          y Gestión Asimétrica de Stop Loss:
-//                          - Entrada en canal o a <= 6 ticks de Banda 3.5 (Ruptura fresca tratada como adentro): SL en Línea Media.
-//                          - Entrada en sobreextensión (> 6 ticks de Banda 3.5): SL Ceñido en Banda 3.5 (salida rápida en Ruptura Fallida, ~6-8 ticks).
+//                          y Gestión Asimétrica de Stop Loss con Oxígeno Configurable:
+//                          - Entrada en canal o a < 8 ticks de Banda 3.5 (Ruptura fresca tratada como adentro): SL en Línea Media.
+//                          - Entrada en sobreextensión (>= 8 ticks de Banda 3.5): SL con Oxígeno Configurable (12 ticks = 3.0 pts / -$150 ES por defecto)
+//                            para tolerar sacudidas de mecha en Banda 3.5 sin salirse del rally.
 //                          Candado con Suelo Mínimo Garantizado en BE + 4 ticks (+$50 USD) al tocar MFE >= $150 USD,
 //                          y Cuarentena de Saciedad 100% Real solo con ganancia neta cobrada en bolsillo >= $180 USD.
 //   2. As 3: [Ratchet]   - Súper-tendencia vertical institucional real (Sniper latente): Requiere OBLIGATORIAMENTE que EMA 200 esté
@@ -185,7 +186,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "13.0 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & SL Ceñido en Banda 3.5]";
+                Version                                     = "13.1 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & SL Oxígeno 12tk en Sobreextensión]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -245,7 +246,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
                 CascadaSlopeThreshold                       = 0.15;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.15 puro para todo el mundo)
-                CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Ceñido en Banda 3.5; < 8 ticks tratada como adentro con SL Línea Media)
+                CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Oxígeno en Sobreextensión; < 8 ticks tratada como adentro con SL Línea Media)
+                CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$150 ES / -$15 MES)
                 SobbSlopeThreshold                          = 0.12;   // Umbral de Pendiente Normalizada LinReg/ATR para SOBB (0.12)
                 Zona1SlopeThreshold                         = 0.15;   // Umbral de Pendiente Normalizada LinReg/ATR para Z1-100Bar (0.15)
 
@@ -1312,14 +1314,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // Detección de Sobreextensión Exterior al Disparo:
                         double ticksAfueraLower = (lowerBig - Close[0]) / TickSize;
                         cascadaEnteredOutside = (ticksAfueraLower >= CascadaOutsideThresholdTicks);
-                        cascadaOutsideInitialSl = lowerBig + (1 * TickSize);
+                        cascadaOutsideInitialSl = Instrument.MasterInstrument.RoundToTickSize(Close[0] + (CascadaOutsideSlTicks * TickSize));
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v13.0 | ¡PUM, ADIÓS! RÁPIDO CORTO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Lower 3.5: {3:F0} tk ({4}) | Pendiente: {5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
+                        Print(string.Format("{0} - [PAS v13.1 | ¡PUM, ADIÓS! RÁPIDO CORTO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Lower 3.5: {3:F0} tk ({4}) | Pendiente: {5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
                             Time[0], Close[0], (Close[0] < lowerBig ? "5 (Afuera)" : "4 (Expansión)"), ticksAfueraLower,
-                            (cascadaEnteredOutside ? string.Format("Sobreextensión >={0}tk -> SL Ceñido en Banda 3.5", CascadaOutsideThresholdTicks) : "Canal/Ruptura Fresca -> SL Línea Media"),
+                            (cascadaEnteredOutside ? string.Format("Sobreextensión >={0}tk -> SL Oxígeno {1}tk", CascadaOutsideThresholdTicks, CascadaOutsideSlTicks) : "Canal/Ruptura Fresca -> SL Línea Media"),
                             normSlope, cascadaConsecutiveSlopeBarsShort, atr14 != null ? atr14[0] : 0.0,
-                            (cascadaEnteredOutside ? string.Format("Banda Lower 3.5 ({0:F2})", lowerBig) : string.Format("Línea Media ({0:F2})", midline))));
+                            (cascadaEnteredOutside ? string.Format("Oxígeno {0}tk ({1:F2})", CascadaOutsideSlTicks, cascadaOutsideInitialSl) : string.Format("Línea Media ({0:F2})", midline))));
                         return;
                     }
                     else if (!pendienteRapido)
@@ -1357,14 +1359,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // Detección de Sobreextensión Exterior al Disparo:
                         double ticksAfueraUpper = (Close[0] - upperBig) / TickSize;
                         cascadaEnteredOutside = (ticksAfueraUpper >= CascadaOutsideThresholdTicks);
-                        cascadaOutsideInitialSl = upperBig - (1 * TickSize);
+                        cascadaOutsideInitialSl = Instrument.MasterInstrument.RoundToTickSize(Close[0] - (CascadaOutsideSlTicks * TickSize));
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v13.0 | ¡PUM, ADIÓS! RÁPIDO LARGO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Upper 3.5: {3:F0} tk ({4}) | Pendiente: +{5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
+                        Print(string.Format("{0} - [PAS v13.1 | ¡PUM, ADIÓS! RÁPIDO LARGO DISPARADO] Entrada @ ~{1:F2} en Zona {2} | Distancia Upper 3.5: {3:F0} tk ({4}) | Pendiente: +{5:F2} (Confirmada {6} barras) | ATR(14): {7:F2} pts | SL inicial: {8}. ¡Qué grosería de trade!",
                             Time[0], Close[0], (Close[0] > upperBig ? "0 (Afuera)" : "1 (Expansión)"), ticksAfueraUpper,
-                            (cascadaEnteredOutside ? string.Format("Sobreextensión >={0}tk -> SL Ceñido en Banda 3.5", CascadaOutsideThresholdTicks) : "Canal/Ruptura Fresca -> SL Línea Media"),
+                            (cascadaEnteredOutside ? string.Format("Sobreextensión >={0}tk -> SL Oxígeno {1}tk", CascadaOutsideThresholdTicks, CascadaOutsideSlTicks) : "Canal/Ruptura Fresca -> SL Línea Media"),
                             normSlope, cascadaConsecutiveSlopeBarsLong, atr14 != null ? atr14[0] : 0.0,
-                            (cascadaEnteredOutside ? string.Format("Banda Upper 3.5 ({0:F2})", upperBig) : string.Format("Línea Media ({0:F2})", midline))));
+                            (cascadaEnteredOutside ? string.Format("Oxígeno {0}tk ({1:F2})", CascadaOutsideSlTicks, cascadaOutsideInitialSl) : string.Format("Línea Media ({0:F2})", midline))));
                         return;
                     }
                     else if (!pendienteRapido)
@@ -1565,7 +1567,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // CASCADA SURFER MONOCONTRATO v13.0: Si entra en sobreextensión exterior (>= CascadaOutsideThresholdTicks), SL anclado en Upper 3.5
+                    // CASCADA SURFER MONOCONTRATO v13.1: Si entra en sobreextensión exterior (>= CascadaOutsideThresholdTicks), SL con oxígeno CascadaOutsideSlTicks
                     double naturalSl;
                     if (cascadaEnteredOutside)
                     {
@@ -1578,8 +1580,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double maxSafeSl = Close[0] - (CascadaMaxSlTicks * TickSize);
                     initialSlPrice = Math.Max(naturalSl, maxSafeSl);
                     isCascadaLockActive = false;
-                    Print(string.Format("{0} - [PAS v13.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: {2:F2} ({3} | {4:F1} ticks de respiro | Tope {5}tk = -${6:F2}). Candado ${7:F0} armado.",
-                        Time[0], Close[0], initialSlPrice, (cascadaEnteredOutside ? "Banda Upper 3.5 (Ruptura Fallida)" : "Lower 1.75 -1tk"), (Close[0] - initialSlPrice) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), CascadaLockTriggerDollars));
+                    Print(string.Format("{0} - [PAS v13.1 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: {2:F2} ({3} | {4:F1} ticks de respiro | Tope {5}tk = -${6:F2}). Candado ${7:F0} armado.",
+                        Time[0], Close[0], initialSlPrice, (cascadaEnteredOutside ? string.Format("Oxígeno Sobreextensión {0}tk", CascadaOutsideSlTicks) : "Lower 1.75 -1tk"), (Close[0] - initialSlPrice) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), CascadaLockTriggerDollars));
                 }
                 else if (ace == AceType.As3_Ratchet)
                 {
@@ -1651,7 +1653,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // CASCADA SURFER MONOCONTRATO v13.0: Si entra en sobreextensión exterior (>= CascadaOutsideThresholdTicks), SL anclado en Lower 3.5
+                    // CASCADA SURFER MONOCONTRATO v13.1: Si entra en sobreextensión exterior (>= CascadaOutsideThresholdTicks), SL con oxígeno CascadaOutsideSlTicks
                     double naturalSl;
                     if (cascadaEnteredOutside)
                     {
@@ -1664,8 +1666,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double maxSafeSl = Close[0] + (CascadaMaxSlTicks * TickSize);
                     initialSlPrice = Math.Min(naturalSl, maxSafeSl);
                     isCascadaLockActive = false;
-                    Print(string.Format("{0} - [PAS v13.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: {2:F2} ({3} | {4:F1} ticks de respiro | Tope {5}tk = -${6:F2}). Candado ${7:F0} armado.",
-                        Time[0], Close[0], initialSlPrice, (cascadaEnteredOutside ? "Banda Lower 3.5 (Ruptura Fallida)" : "Upper 1.75 +1tk"), (initialSlPrice - Close[0]) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), CascadaLockTriggerDollars));
+                    Print(string.Format("{0} - [PAS v13.1 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: {2:F2} ({3} | {4:F1} ticks de respiro | Tope {5}tk = -${6:F2}). Candado ${7:F0} armado.",
+                        Time[0], Close[0], initialSlPrice, (cascadaEnteredOutside ? string.Format("Oxígeno Sobreextensión {0}tk", CascadaOutsideSlTicks) : "Upper 1.75 +1tk"), (initialSlPrice - Close[0]) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), CascadaLockTriggerDollars));
                 }
                 else if (ace == AceType.As3_Ratchet)
                 {
@@ -2150,9 +2152,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double structuralSl;
                     if (cascadaEnteredOutside)
                     {
-                        // Si entró en sobreextensión exterior (>= CascadaOutsideThresholdTicks fuera de Upper 3.5), el SL es ceñido en Upper 3.5 (Ruptura Fallida)
-                        double bandSl = keltnerBig.Upper[0] - (1 * TickSize);
-                        structuralSl = Math.Max(bandSl, cascadaOutsideInitialSl);
+                        // Si entró en sobreextensión exterior (>= CascadaOutsideThresholdTicks fuera de Upper 3.5), el SL es de Oxígeno (CascadaOutsideSlTicks)
+                        structuralSl = entryPrice - (CascadaOutsideSlTicks * TickSize);
                     }
                     else
                     {
@@ -2164,10 +2165,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(Math.Max(structuralSl, maxSafeSl));
                     if (Close[0] <= dynamicSl || Low[0] <= dynamicSl)
                     {
-                        string exitReason = cascadaEnteredOutside ? "SL_Banda3.5_Cascada" : "SL_BandaOpuesta_Cascada";
+                        string exitReason = cascadaEnteredOutside ? "SL_Oxigeno_Cascada" : "SL_BandaOpuesta_Cascada";
                         ExitLong(exitReason, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v13.0 | LARGO CERRADO POR SL {1}] Precio perforó {2:F2} | Salida a Mercado @ ~{3:F2} | PnL: {4:C2}",
-                            Time[0], (cascadaEnteredOutside ? "RUPTURA FALLIDA (Banda Upper 3.5)" : "ESTRUCTURAL (Línea Media)"), dynamicSl, Close[0],
+                        Print(string.Format("{0} - [PAS v13.1 | LARGO CERRADO POR SL {1}] Precio perforó {2:F2} | Salida a Mercado @ ~{3:F2} | PnL: {4:C2}",
+                            Time[0], (cascadaEnteredOutside ? string.Format("OXÍGENO ({0} ticks)", CascadaOutsideSlTicks) : "ESTRUCTURAL (Línea Media)"), dynamicSl, Close[0],
                             (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue));
                         return;
                     }
@@ -2614,9 +2615,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double structuralSl;
                     if (cascadaEnteredOutside)
                     {
-                        // Si entró en sobreextensión exterior (>= CascadaOutsideThresholdTicks fuera de Lower 3.5), el SL es ceñido en Lower 3.5 (Ruptura Fallida)
-                        double bandSl = keltnerBig.Lower[0] + (1 * TickSize);
-                        structuralSl = Math.Min(bandSl, cascadaOutsideInitialSl);
+                        // Si entró en sobreextensión exterior (>= CascadaOutsideThresholdTicks fuera de Lower 3.5), el SL es de Oxígeno (CascadaOutsideSlTicks)
+                        structuralSl = entryPrice + (CascadaOutsideSlTicks * TickSize);
                     }
                     else
                     {
@@ -2628,10 +2628,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double dynamicSl = Instrument.MasterInstrument.RoundToTickSize(Math.Min(structuralSl, maxSafeSl));
                     if (Close[0] >= dynamicSl || High[0] >= dynamicSl)
                     {
-                        string exitReason = cascadaEnteredOutside ? "SL_Banda3.5_Cascada" : "SL_BandaOpuesta_Cascada";
+                        string exitReason = cascadaEnteredOutside ? "SL_Oxigeno_Cascada" : "SL_BandaOpuesta_Cascada";
                         ExitShort(exitReason, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v13.0 | CORTO CERRADO POR SL {1}] Precio superó {2:F2} | Salida a Mercado @ ~{3:F2} | PnL: {4:C2}",
-                            Time[0], (cascadaEnteredOutside ? "RUPTURA FALLIDA (Banda Lower 3.5)" : "ESTRUCTURAL (Línea Media)"), dynamicSl, Close[0],
+                        Print(string.Format("{0} - [PAS v13.1 | CORTO CERRADO POR SL {1}] Precio superó {2:F2} | Salida a Mercado @ ~{3:F2} | PnL: {4:C2}",
+                            Time[0], (cascadaEnteredOutside ? string.Format("OXÍGENO ({0} ticks)", CascadaOutsideSlTicks) : "ESTRUCTURAL (Línea Media)"), dynamicSl, Close[0],
                             (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue));
                         return;
                     }
@@ -3186,22 +3186,27 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(2, 30)]
-        [Display(Name = "Cascada Umbral Sobreextensión Exterior (Ticks)", Description = "Margen de ticks fuera de Banda 3.5 donde se activa el SL Ceñido en la Banda Exterior (por defecto 8 ticks = 2.0 pts). Si entra a menos ticks, se trata como adentro con SL en Línea Media.", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
+        [Display(Name = "Cascada Umbral Sobreextensión Exterior (Ticks)", Description = "Margen de ticks fuera de Banda 3.5 donde se activa el SL de Oxígeno en Sobreextensión (por defecto 8 ticks = 2.0 pts). Si entra a menos ticks, se trata como adentro con SL en Línea Media.", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
         public int CascadaOutsideThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(4, 30)]
-        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
+        [Display(Name = "Cascada SL Sobreextensión (Ticks)", Description = "Distancia de Stop Loss en ticks cuando Cascada entra en sobreextensión exterior (>= CascadaOutsideThresholdTicks). Proporciona oxígeno contra sacudidas de mecha en Banda 3.5 (12 ticks = 3.0 pts / -$150 ES por defecto).", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
+        public int CascadaOutsideSlTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(4, 30)]
+        [Display(Name = "Cascada C1 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 12)]
         public int CascadaTp1Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(8, 50)]
-        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 12)]
+        [Display(Name = "Cascada C2 TP (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 13)]
         public int CascadaTp2Ticks { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 20)]
-        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 13)]
+        [Display(Name = "Cascada C3 Ahogo (Ticks)", Description = "(Compatibilidad NT8)", GroupName = "5. As 4: Cascada Surfer", Order = 14)]
         public int CascadaChokeTicks { get; set; }
 
         [NinjaScriptProperty]
