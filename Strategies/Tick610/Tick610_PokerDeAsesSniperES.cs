@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 13.1 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & SL Oxígeno 12tk en Sobreextensión]
+// VERSIÓN: 13.2 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & Escudo Anti-Asfixia en Pisos 1 y 2]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura (|m| >= 0.15 por 2 barras)
@@ -186,7 +186,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "13.1 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & SL Oxígeno 12tk en Sobreextensión]";
+                Version                                     = "13.2 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15 & Escudo Anti-Asfixia en Pisos 1 y 2]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -454,10 +454,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 double totalDailyFloatingPnL = dailyRealizedPnL + unrealizedPnL;
 
-                // CORTACIRCUITO DE PISO EXACTO EN TIEMPO REAL:
-                // Si el piso protegido está activo (Escalón 1 o 2: currentDailyFloor > 0) y el PnL cerrado lo supera, calculamos el precio
-                // exacto en ticks donde el retroceso alcanzaría el piso, para liquidar sin esperar slippage de barra.
-                if (!isDailyLocked && Position.MarketPosition != MarketPosition.Flat && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
+                // CORTACIRCUITO DE PISO EXACTO EN TIEMPO REAL (v13.2 ANTI-ASFIXIA):
+                // En Modo Dulce (currentDailyTier >= 3), el piso de $900 es sagrado y liquida en el tick exacto.
+                // En Escalón 1 y 2 (Tier 1 y 2), no se estrangula al tick para dar respiro natural de oxígeno (12tk);
+                // la protección de piso en Tier 1 y 2 se evalúa al cierre de la posición en SyncTradesAndStrikes/UpdateDailyPnLAndFloors.
+                if (!isDailyLocked && Position.MarketPosition != MarketPosition.Flat && currentDailyTier >= 3 && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickValue = TickSize * Instrument.MasterInstrument.PointValue;
@@ -502,8 +503,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // CORTACIRCUITO EN VIVO: Si el PnL total (realizado + flotante) toca el piso actual
-                if (!isDailyLocked && totalDailyFloatingPnL <= currentDailyFloor)
+                // CORTACIRCUITO EN VIVO (v13.2): Si el PnL total (realizado + flotante) toca el piso actual
+                // En Tier 0 (-$650 límite inicial) y Tier 3+ (Modo Dulce), el Cortacircuito en vivo actúa inmediatamente.
+                // En Tier 1 y 2, se le concede pista al trade con su SL natural (12 ticks); si cierra por debajo del piso, se bloquea tras el cierre.
+                bool evaluateLiveCortacircuito = (currentDailyTier == 0 || currentDailyTier >= 3);
+                if (!isDailyLocked && evaluateLiveCortacircuito && totalDailyFloatingPnL <= currentDailyFloor)
                 {
                     isDailyLocked = true;
                     dailyLockReason = string.Format("CORTACIRCUITO DIARIO ({0}) ALCANZADO (${1:F2})",
@@ -1597,8 +1601,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(initialSlPrice, Close[0] - (MinSafetySlTicks * TickSize)));
 
-                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas (currentDailyFloor > 0), el piso manda absolutamente sobre el SL
-                if (UseDailyManagement && !isDailyLocked && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
+                // ESCUDO DIARIO BLINDADO EN DOM (v13.2): En Modo Dulce (Tier >= 3), el piso manda sobre el SL. En Tier 1 y 2 se permite SL natural.
+                if (UseDailyManagement && !isDailyLocked && currentDailyTier >= 3 && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
@@ -1683,8 +1687,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(initialSlPrice, Close[0] + (MinSafetySlTicks * TickSize)));
 
-                // ESCUDO DIARIO BLINDADO EN DOM: Si hay piso activo de ganancias previas (currentDailyFloor > 0), el piso manda absolutamente sobre el SL
-                if (UseDailyManagement && !isDailyLocked && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
+                // ESCUDO DIARIO BLINDADO EN DOM (v13.2): En Modo Dulce (Tier >= 3), el piso manda sobre el SL. En Tier 1 y 2 se permite SL natural.
+                if (UseDailyManagement && !isDailyLocked && currentDailyTier >= 3 && currentDailyFloor > 0 && dailyRealizedPnL > currentDailyFloor)
                 {
                     double allowedLossDollars = dailyRealizedPnL - currentDailyFloor;
                     double tickDollarVal = TickSize * Instrument.MasterInstrument.PointValue;
