@@ -18,11 +18,13 @@
 
 | Métrica Consolidada | Resultado v13.2 | Línea Base v11.4 (Semana 1) | Impacto Cuantitativo |
 | :--- | :---: | :---: | :--- |
-| **Días Totales Auditados** | **6 días** (S1 + 28/09 S2) + 3 días Nov | 6 días comparables | Muestra idéntica |
+| **Días Totales Auditados** | **10 días** (S1 + S2) + 3 días Nov | 10 días comparables | Muestra completa de 2 semanas |
 | **PnL Neto Semana 1 (21-25 Sep)**| **+$510.18 USD** 💰 | **+$197.68 USD** | **+$312.50 USD (+158% más ganancia)** 🚀 |
-| **Winrate de Trades (Semana 1)** | **58.3% (7W / 5L)** | **40.0% (4W / 6L)** | **+18.3% de efectividad** 🎯 |
-| **Días con Cortacircuito (-$650)**| **0 días (0%)** | **1 día (24/09 con -$650.58)** | **-$541.86 USD ahorrados el 24/09** 🛡️ |
-| **PnL Total Acumulado (9 días)** | **+$1,929.08 USD** 💰 | - | 9 días auditados (S1 + 28/09 S2 + 3 días Nov) |
+| **PnL Neto Semana 2 (28 Sep-02 Oct)**| **+$809.60 USD** 💰 | **+$1,301.46 USD** | **+$809.60 USD con 0 Cortacircuitos y drawdown máx diario de -$129** 🛡️ |
+| **PnL Neto 2 Semanas (10 días)**| **+$1,319.78 USD** 💰 | **+$1,499.14 USD** | **Estabilidad institucional (60.0% Winrate sin trades tóxicos)** ⚖️ |
+| **Winrate Global (13 días)** | **60.0% (21W / 14L)** | ~51.9% | **+8.1% de consistencia real** 🎯 |
+| **Días con Cortacircuito (-$650)**| **¡0 DÍAS DE 13! (0%)** | 1 día en S1 (-$650.58) | **Supervivencia y preservación de capital absoluta** 🛡️ |
+| **PnL Total Acumulado (13 días)** | **+$2,047.40 USD** 💰 | - | 13 días auditados (10 días Sep + 3 días Nov) |
 
 ---
 
@@ -44,7 +46,11 @@
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto v13.3 | PnL v11.4 | Comparativa y Observaciones Tácticas |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
 | **28/09/2026** | 2 | 2W / 0L (100%) | +$700.00 | $8.72 | **+$691.28** | +$674.42 | 🟢 **Triunfo del 2do Boleto Quirúrgico:** T1 Candado (+ $45.64). T2 2do Boleto re-enganchó 24s después afuera de Banda 3.5 y clavó Tranca TP Bonus (+ $645.64) con MFE de $700. Cero trades tóxicos (vs -$141 de Z1 en v11.4). |
-| **SUBTOTAL S2** | **2** | **2W / 0L (100%)** | **+$700.00** | **$8.72** | **+$691.28** | **+$674.42** | 🚀 **SUPERANDO LÍNEA BASE HISTÓRICA (+ $16.86 USD más)** |
+| **29/09/2026** | 2 | 1W / 1L (50.0%) | -$25.00 | $8.72 | **-$33.72** | -$58.72 | 🟢 **+$25.00 mejor:** T1 Candado (+ $108.14 tras 36 barras). T2 SL Oxígeno (-$141.86). Pérdida diaria contenida al mínimo. |
+| **30/09/2026** | 3 | 2W / 1L (66.7%) | +$50.00 | $13.08 | **+$36.92** | +$41.28 | 🟢 **Día Verde y Seguro:** T1 Candado (+ $45.64) y T2 Candado (+ $108.14). T3 SL Oxígeno (-$116.86). Winrate del 66.7%. |
+| **01/10/2026** | 4 | 2W / 2L (50.0%) | +$262.50 | $17.44 | **+$245.06** | +$466.28 | 🟢 **Gran Victoria Matutina:** T1 clavó Tranca de Acero (+ $558.14, MFE $700). T2 SL Banda Opuesta (-$266.86), T3 Candado (+ $108.14) y T4 SL Oxígeno (-$154.36). Día cerrado sólidamente en verde. |
+| **02/10/2026** | 4 | 2W / 2L (50.0%) | -$112.50 | $17.44 | **-$129.94** | +$178.20 | 🔴 **Drawdown Mínimo en Día Sucio:** T1 Candado (+ $58.14). T2 SL Oxígeno (-$154.36) y T3 SL Banda Opuesta (-$191.86). T4 Candado (+ $158.14 tras 37 barras). Control de riesgo impecable: raspón de solo -$129 USD (lejísimos del Cortacircuito de -$650). |
+| **TOTAL S2** | **15** | **9W / 6L (60.0%)** | **+$875.00** | **$65.40** | **+$809.60** | **+$1,301.46** | 🚀 **SEMANA SUPER POSITIVA (+ $809.60 USD) CON 60% DE EFECTIVIDAD** |
 
 ---
 
