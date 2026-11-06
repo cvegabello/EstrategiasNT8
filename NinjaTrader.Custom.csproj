@@ -384,6 +384,7 @@
     <Compile Include="Strategies\Tick610\Tick610_SniperSurferES.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES.cs" />
     <Compile Include="Indicators\PAS_PendienteNormalizada.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES_v11_4.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resource.resx">
