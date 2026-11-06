@@ -30,12 +30,13 @@
 
 ## 📈 Resumen Ejecutivo Consolidado (Versión 14.2)
 
-| Métrica Consolidada | Resultado Oficial v14.2 | Línea Base v14.1 (04/11) | Línea Base v14.0 (04/11) | Impacto Esperado |
-| :--- | :---: | :---: | :---: | :--- |
-| **Días Totales Auditados** | En curso de pruebas | 1 día (+$257.56) | 1 día (+$207.56) | Cero expulsión por mechas |
-| **PnL Neto Acumulado** | Por registrar | +$257.56 USD | +$207.56 USD | Captura del rally completo del Trade 4 |
-| **Winrate Global** | Por registrar | 75.0% (3W / 1L) | 75.0% (3W / 1L) | Alta consistencia |
-| **Peor Drawdown Diario** | Por registrar | -$216.86 USD | -$116.86 USD | Salida limpia en cierre de vela |
+| Métrica Consolidada | Resultado Oficial v14.2 | Línea Base v14.1 (04/11) | Línea Base v14.0 (04/11) | Línea Base v11.4 (04/11) | Impacto Cuantitativo Institucional |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Días Totales Auditados** | **1 día** (04/11/2026) | 1 día comparable | 1 día comparable | 1 día comparable | Inauguración récord v14.2 |
+| **PnL Neto Acumulado** | **+$757.56 USD** 💰🏆 | **+$257.56 USD** | **+$207.56 USD** | **+$11.34 USD** 🔴 | **+$500.00 USD sobre v14.1 y +$746.22 USD sobre v11.4** 🚀 |
+| **Winrate Global** | **75.0% (3W / 1L)** | 75.0% (3W / 1L) | 75.0% (3W / 1L) | 100.0% (1W / 0L) | **Consistencia y R:R asimétrico brutal** 🎯 |
+| **Peor Drawdown Diario** | **-$216.86 USD** 🛡️ | -$216.86 USD | -$116.86 USD | $0.00 USD | Absorbió retrocesos sin asfixia |
+| **Trade Récord (Home Run)** | **+$845.64 USD** ⚾💥 | +$345.64 USD | +$183.14 USD | +$11.34 USD | **+17.00 pts (+68 ticks) en 60 barras completas** |
 
 ---
 
@@ -43,4 +44,4 @@
 
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto v14.2 | Resumen de Trades y Observaciones Tácticas |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **04/11/2026** | - | - | - | - | - | *Pendiente de corrida con v14.2 (Salida estricta Close[0]).* |
+| **04/11/2026** | 4 | 3W / 1L (75.0%) | +$775.00 | $17.44 | **+$757.56** 💰 | 🟢 **¡GROSERÍA TOTAL DE HOME RUN!**<br>• T1: Short @ 7715.50 -> Exit Banda 1.75 @ 7714.75 (+ $33.14).<br>• T2: Short @ 7706.75 -> Exit Banda 1.75 @ 7704.75 (+ $95.64).<br>• T3: Short @ 7691.50 -> Exit Banda 1.75 @ 7695.75 (- $216.86).<br>• T4: Long @ 7723.50 -> Exit Tranca TP Bonus @ 7740.50 (**+ $845.64 USD**, despegue vertical de 17.00 puntos / 68 ticks durante 60 barras).<br>• `Close[0]` ignoró por completo los dos martillos de mecha de 7727.25 y 7730.50 que antes nos expulsaban, cabalgó toda la subida y liquidó con la Tranca de Adamantium. **Día récord cerrado en +$757.56 USD netos**. |
