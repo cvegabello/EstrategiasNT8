@@ -455,12 +455,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (Position.MarketPosition == MarketPosition.Long)
             {
                 if (High[0] > highestPriceSinceEntry) highestPriceSinceEntry = High[0];
-                if (High[0] >= keltnerBig.Upper[0]) cascadaReachedOutsideBigBand = true;
+                // Barra completamente afuera de Banda Grande 3.5 (suelo de la vela por encima del techo 3.5)
+                if (Low[0] > keltnerBig.Upper[0]) cascadaReachedOutsideBigBand = true;
             }
             else if (Position.MarketPosition == MarketPosition.Short)
             {
                 if (Low[0] < lowestPriceSinceEntry) lowestPriceSinceEntry = Low[0];
-                if (Low[0] <= keltnerBig.Lower[0]) cascadaReachedOutsideBigBand = true;
+                // Barra completamente afuera de Banda Grande 3.5 (techo de la vela por debajo del suelo 3.5)
+                if (High[0] < keltnerBig.Lower[0]) cascadaReachedOutsideBigBand = true;
             }
 
             // 5. CORTACIRCUITO DIARIO EN VIVO ("PUM, ADIÓS") Y PISO EXACTO POR TICKS
@@ -1618,13 +1620,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // CASCADA SURFER v14.0: SL Inicial en Línea Media hasta que rompa la Banda Grande 3.5
-                    cascadaReachedOutsideBigBand = (Close[0] >= keltnerBig.Upper[0]);
+                    // CASCADA SURFER v14.0: SL Inicial en Línea Media hasta que la barra esté COMPLETAMENTE AFUERA de la Banda Grande 3.5
+                    cascadaReachedOutsideBigBand = (Low[0] > keltnerBig.Upper[0]);
                     double naturalSl = keltnerBig.Midline[0] - (2 * TickSize);
                     double maxSafeSl = Close[0] - (CascadaMaxSlTicks * TickSize);
                     initialSlPrice = Math.Max(naturalSl, maxSafeSl);
                     isCascadaLockActive = false;
-                    Print(string.Format("{0} - [PAS v14.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: Línea Media ({2:F2} | {3:F1} ticks de respiro | Tope {4}tk = -${5:F2}). Trailing Banda 1.75 se activará al romper Upper 3.5 ({6:F2}).",
+                    Print(string.Format("{0} - [PAS v14.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: Línea Media ({2:F2} | {3:F1} ticks de respiro | Tope {4}tk = -${5:F2}). Trailing Banda 1.75 se activará con barra flotando afuera de Upper 3.5 ({6:F2}).",
                         Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), keltnerBig.Upper[0]));
                 }
                 else if (ace == AceType.As3_Ratchet)
@@ -1697,13 +1699,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // CASCADA SURFER v14.0: SL Inicial en Línea Media hasta que rompa la Banda Grande 3.5
-                    cascadaReachedOutsideBigBand = (Close[0] <= keltnerBig.Lower[0]);
+                    // CASCADA SURFER v14.0: SL Inicial en Línea Media hasta que la barra esté COMPLETAMENTE AFUERA de la Banda Grande 3.5
+                    cascadaReachedOutsideBigBand = (High[0] < keltnerBig.Lower[0]);
                     double naturalSl = keltnerBig.Midline[0] + (2 * TickSize);
                     double maxSafeSl = Close[0] + (CascadaMaxSlTicks * TickSize);
                     initialSlPrice = Math.Min(naturalSl, maxSafeSl);
                     isCascadaLockActive = false;
-                    Print(string.Format("{0} - [PAS v14.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: Línea Media ({2:F2} | {3:F1} ticks de respiro | Tope {4}tk = -${5:F2}). Trailing Banda 1.75 se activará al romper Lower 3.5 ({6:F2}).",
+                    Print(string.Format("{0} - [PAS v14.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: Línea Media ({2:F2} | {3:F1} ticks de respiro | Tope {4}tk = -${5:F2}). Trailing Banda 1.75 se activará con barra flotando afuera de Lower 3.5 ({6:F2}).",
                         Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue), keltnerBig.Lower[0]));
                 }
                 else if (ace == AceType.As3_Ratchet)
@@ -2147,7 +2149,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double upperSmallBand = keltnerSmall.Upper[0];
                     double midline        = keltnerBig.Midline[0];
 
-                    if (High[0] >= upperBigBand || Close[0] >= upperBigBand)
+                    // Solo se activa si la vela está COMPLETAMENTE AFUERA de la Banda Grande 3.5 (suelo de vela por encima del techo 3.5)
+                    if (Low[0] > upperBigBand)
                     {
                         cascadaReachedOutsideBigBand = true;
                     }
@@ -2582,7 +2585,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double lowerSmallBand = keltnerSmall.Lower[0];
                     double midline        = keltnerBig.Midline[0];
 
-                    if (Low[0] <= lowerBigBand || Close[0] <= lowerBigBand)
+                    // Solo se activa si la vela está COMPLETAMENTE AFUERA de la Banda Grande 3.5 (techo de vela por debajo del suelo 3.5)
+                    if (High[0] < lowerBigBand)
                     {
                         cascadaReachedOutsideBigBand = true;
                     }
