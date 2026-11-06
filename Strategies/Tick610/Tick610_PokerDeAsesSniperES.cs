@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_PokerDeAsesSniperES (PAS) - "Poker de Ases Sniper"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 13.3 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15, Escudo Anti-Asfixia & Segundo Boleto Quirúrgico en Zona Exterior]
+// VERSIÓN: 13.4 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15, Candado Holgado $250 & 2do Boleto Quirúrgico]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura (|m| >= 0.15 por 2 barras)
@@ -33,10 +33,11 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //                          - Entrada en canal o a < 8 ticks de Banda 3.5 (Ruptura fresca tratada como adentro): SL en Línea Media.
 //                          - Entrada en sobreextensión (>= 8 ticks de Banda 3.5): SL con Oxígeno Configurable (12 ticks = 3.0 pts / -$150 ES por defecto)
 //                            para tolerar sacudidas de mecha en Banda 3.5 sin salirse del rally.
+//                          - Candado Holgado v13.4: Activación a partir de MFE >= $250 USD (20 ticks / 5.0 pts en ES / $25 MES),
+//                            fijando el suelo mínimo en BE + 4 ticks (+$50 USD). Otorga 16 ticks (4.0 pts) de colchón contra mechas de retroceso.
 //                          - Segundo Boleto Quirúrgico (v13.3): Si el 1er tiro sale vivo en el Suelo Mínimo del Candado (BE+4tk, <= $65 USD)
 //                            por un micro-respiro pero el precio sigue en cascada afuera de Banda 3.5 con pendiente firme, habilita 1 único re-enganche.
-//                          Candado con Suelo Mínimo Garantizado en BE + 4 ticks (+$50 USD) al tocar MFE >= $150 USD,
-//                          y Cuarentena de Saciedad 100% Real solo con ganancia neta cobrada en bolsillo >= $180 USD.
+//                          - Cuarentena de Saciedad 100% Real solo con ganancia neta cobrada en bolsillo >= $180 USD.
 //   2. As 3: [Ratchet]   - Súper-tendencia vertical institucional real (Sniper latente): Requiere OBLIGATORIAMENTE que EMA 200 esté
 //                          FUERA del Canal Grande 3.5 y que la Línea Media tenga pendiente a favor. Stop inicial de 12 ticks y Chicle Parabólico.
 // (As 1: Z1-100Bar y As 2: SOBB desactivados permanentemente tras auditoría histórica de 30 sesiones y 79 trades).
@@ -192,7 +193,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "13.3 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15, Escudo Anti-Asfixia & 2do Boleto Quirúrgico]";
+                Version                                     = "13.4 - Poker de Ases (PAS) [Cascada: Entrada Pura 0.15, Candado Holgado $250 & 2do Boleto]";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -244,7 +245,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (compatibilidad)
                 CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
                 CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
-                CascadaLockTriggerDollars                   = 150.0;  // Umbral de MFE en USD para activar Candado ($150 ES = +12 ticks / $15 MES)
+                CascadaLockTriggerDollars                   = 250.0;  // Umbral de MFE en USD para activar Candado ($250 ES = +20 ticks / $25 MES en v13.4)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
                 CascadaBigWinThresholdDollars               = 180.0;  // Umbral de ganancia neta en bolsillo para activar Cuarentena de Saciedad ($180 ES / $18 MES)
                 CascadaQuarantineMinutes                    = 30;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (30 min)
@@ -293,7 +294,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     DailyFloor_Piso2      = 50.0;
                     DailyGoal_Piso3       = 90.0;
                     DailyTrailingGiveback = 15.0;
-                    CascadaLockTriggerDollars = 15.0;
+                    CascadaLockTriggerDollars = 25.0;
                     CascadaBigWinThresholdDollars = 18.0;
                     TrancaBonusDollars    = 10.0;
                     TrancaSafetyDollars   = 1.0;
@@ -1520,8 +1521,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             currentAce = ace;
             entryPriceGlobal = Close[0];
-            highestPriceSinceEntry = High[0];
-            lowestPriceSinceEntry  = Low[0];
+            highestPriceSinceEntry = Close[0];
+            lowestPriceSinceEntry  = Close[0];
 
             // Sincronizamos pisos y PnL inmediatamente antes de calcular el SL
             UpdateDailyPnLAndFloors();
@@ -2151,23 +2152,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO SUELO $50 Y FIN DE CICLO v12.2) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
-                    double currentFavorableTicks = (High[0] - entryPrice) / TickSize;
+                    double currentFavorableTicks = Math.Max(0.0, (highestPriceSinceEntry - entryPrice) / TickSize);
                     double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
                     double effectiveLockTrigger  = CascadaLockTriggerDollars * instrumentMultiplier;
 
-                    // TELEMETRÍA PROVISIONAL EN VIVO (v12.2): Pendiente y Estado en cada barra activa
+                    // TELEMETRÍA PROVISIONAL EN VIVO (v13.4): Pendiente y Estado en cada barra activa
                     double normMidSlope = GetNormalizedSlope(keltnerBig.Midline);
                     double floatingGainTicks = (Close[0] - entryPrice) / TickSize;
                     double floatingProfitDollars = floatingGainTicks * (Instrument.MasterInstrument.PointValue * TickSize);
-                    Print(string.Format("{0} - [PAS v12.2 | CASCADA ACTIVA - LARGO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
+                    Print(string.Format("{0} - [PAS v13.4 | CASCADA ACTIVA - LARGO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
                         Time[0], floatingProfitDollars, floatingGainTicks, peakGainTicks, normMidSlope, isCascadaLockActive ? "ACTIVO (Suelo BE+4tk)" : "OFF"));
 
-                    // CANDADO OPCIÓN A: Al superar MFE >= $150 USD (+12 ticks en ES / $15 en MES), el Candado se arma
+                    // CANDADO v13.4: Al superar MFE >= $250 USD (+20 ticks en ES / $25 en MES), el Candado se arma
                     if (!isCascadaLockActive && currentProfitDollars >= effectiveLockTrigger)
                     {
                         isCascadaLockActive = true;
-                        Print(string.Format("{0} - [PAS v12.2 | CANDADO ACTIVADO - LARGO] MFE pico alcanzó {1:C2} (+{2:F1} tks). Suelo Mínimo Garantizado en BE +4tk (+${3:F2} USD) y Trailing en Upper 1.75 -1tk.",
-                            Time[0], currentProfitDollars, currentFavorableTicks, 4 * TickSize * Instrument.MasterInstrument.PointValue * instrumentMultiplier));
+                        Print(string.Format("{0} - [PAS v13.4 | CANDADO ACTIVADO - LARGO] MFE pico alcanzó {1:C2} (+{2:F1} tks >= {3:C2}). Suelo Mínimo Garantizado en BE +4tk (+${4:F2} USD) y Trailing en Upper 1.75 -1tk.",
+                            Time[0], currentProfitDollars, currentFavorableTicks, effectiveLockTrigger, 4 * TickSize * Instrument.MasterInstrument.PointValue * instrumentMultiplier));
                     }
 
                     // 1. Salida por Candado Activo: Sigue la Banda 1.75 pero NUNCA por debajo del Suelo Mínimo (BE + 4 ticks = +$50 USD)
@@ -2614,23 +2615,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // --- GESTIÓN AS 4: CASCADA SURFER MONOCONTRATO (CANDADO SUELO $50 Y FIN DE CICLO v12.2) ---
                 else if (currentAce == AceType.As4_Cascada50)
                 {
-                    double currentFavorableTicks = (entryPrice - Low[0]) / TickSize;
+                    double currentFavorableTicks = Math.Max(0.0, (entryPrice - lowestPriceSinceEntry) / TickSize);
                     double currentProfitDollars  = currentFavorableTicks * (Instrument.MasterInstrument.PointValue * TickSize);
                     double effectiveLockTrigger  = CascadaLockTriggerDollars * instrumentMultiplier;
 
-                    // TELEMETRÍA PROVISIONAL EN VIVO (v12.2): Pendiente y Estado en cada barra activa
+                    // TELEMETRÍA PROVISIONAL EN VIVO (v13.4): Pendiente y Estado en cada barra activa
                     double normMidSlopeShort = GetNormalizedSlope(keltnerBig.Midline);
                     double floatingGainTicksShort = (entryPrice - Close[0]) / TickSize;
                     double floatingProfitDollarsShort = floatingGainTicksShort * (Instrument.MasterInstrument.PointValue * TickSize);
-                    Print(string.Format("{0} - [PAS v12.2 | CASCADA ACTIVA - CORTO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
+                    Print(string.Format("{0} - [PAS v13.4 | CASCADA ACTIVA - CORTO] PnL Flotante: {1:C2} (+{2:F1} tks) | MFE Pico: +{3:F1} tks | Pendiente Mid: {4:F2} | Candado: {5}",
                         Time[0], floatingProfitDollarsShort, floatingGainTicksShort, peakGainTicks, normMidSlopeShort, isCascadaLockActive ? "ACTIVO (Suelo BE+4tk)" : "OFF"));
 
-                    // CANDADO OPCIÓN A: Al superar MFE >= $150 USD (+12 ticks en ES / $15 en MES), el Candado se arma
+                    // CANDADO v13.4: Al superar MFE >= $250 USD (+20 ticks en ES / $25 en MES), el Candado se arma
                     if (!isCascadaLockActive && currentProfitDollars >= effectiveLockTrigger)
                     {
                         isCascadaLockActive = true;
-                        Print(string.Format("{0} - [PAS v12.2 | CANDADO ACTIVADO - CORTO] MFE pico alcanzó {1:C2} (+{2:F1} tks). Suelo Mínimo Garantizado en BE -4tk (+${3:F2} USD) y Trailing en Lower 1.75 +1tk.",
-                            Time[0], currentProfitDollars, currentFavorableTicks, 4 * TickSize * Instrument.MasterInstrument.PointValue * instrumentMultiplier));
+                        Print(string.Format("{0} - [PAS v13.4 | CANDADO ACTIVADO - CORTO] MFE pico alcanzó {1:C2} (+{2:F1} tks >= {3:C2}). Suelo Mínimo Garantizado en BE -4tk (+${4:F2} USD) y Trailing en Lower 1.75 +1tk.",
+                            Time[0], currentProfitDollars, currentFavorableTicks, effectiveLockTrigger, 4 * TickSize * Instrument.MasterInstrument.PointValue * instrumentMultiplier));
                     }
 
                     // 1. Salida por Candado Activo: Sigue la Banda 1.75 pero NUNCA por debajo del Suelo Mínimo (BE - 4 ticks = +$50 USD)
@@ -3231,7 +3232,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(20.0, 500.0)]
-        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($150 ES = 12 ticks)", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
+        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($250 ES = 20 ticks / $25 MES)", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
         public double CascadaLockTriggerDollars { get; set; }
 
         [NinjaScriptProperty]
