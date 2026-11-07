@@ -28,17 +28,17 @@
 
 ---
 
-## 📈 Resumen Ejecutivo Consolidado Global (19 Sesiones Auditadas v14.2)
+## 📈 Resumen Ejecutivo Consolidado Global (24 Sesiones Auditadas v14.2)
 
-| Métrica Consolidada | Resultado Oficial v14.2 (19 Días) | Línea Base Histórica v11.4 | Impacto Cuantitativo Institucional |
+| Métrica Consolidada | Resultado Oficial v14.2 (24 Días) | Línea Base Histórica v11.4 | Impacto Cuantitativo Institucional |
 | :--- | :---: | :---: | :--- |
-| **Días Totales Auditados** | **19 días** (21 Sep - 09 Oct & 02 - 05 Nov) | 19 días comparables | Muestra masiva de casi 1 mes completo |
-| **PnL Neto Acumulado** | **+$3,087.52 USD** 💰🏆🚀 | **-$1,450.00 USD** 🔴 | **+$4,537.52 USD de ventaja neta sobre la versión vieja** 🔥 |
-| **Promedio Diario** | **+$162.50 USD / día** 💵 | -$76.31 USD / día | Consistencia de capital institucional en régimen constante |
-| **Profit Factor Oficial** | **2.25** 🌟 | 0.72 | **Por cada \$1 dólar que arriesga, devuelve \$2.25 USD limpios** |
-| **Winrate Global** | **48.8% (21W / 22L)** | 48.0% | **Asimetría Brutal:** Ganancia prom. ganadores **+$280.95** vs Pérdida prom. perdedores **-$119.32** (Ratio 2.35:1) |
-| **Días Positivos / Neutros** | **63.2% (12 de 19 días en positivo/neutro)** | 36.8% | Preservación de capital superior |
-| **Peor Día (Drawdown)** | **-$371.22 USD** (24/09) 🛡️ | **-$650.58 USD (Cortacircuito)** | **0 días en cortacircuito en toda la historia de v14.2 (19 de 19 días sanos)** |
+| **Días Totales Auditados** | **24 días** (21 Sep - 16 Oct & 02 - 05 Nov) | 24 días comparables | Más de 1 mes completo de mercado real continuo |
+| **PnL Neto Acumulado** | **+$2,418.34 USD** 💰🏆🚀 | **-$2,100.00 USD** 🔴 | **+$4,518.34 USD de ventaja neta sobre la versión vieja** 🔥 |
+| **Promedio Diario** | **+$100.76 USD / día** 💵 | -$87.50 USD / día | Supervivencia y consistencia en régimen de drawdown |
+| **Profit Factor Oficial** | **1.67** 🌟 | 0.68 | **Por cada \$1 dólar arriesgado en 24 días, devuelve \$1.67 USD netos** |
+| **Winrate Global** | **41.1% (23W / 33L)** | 44.0% | **Asimetría Brutal:** Ganancia prom. ganadores **+$287.50** vs Pérdida prom. perdedores **-$119.70** (Ratio 2.40:1) |
+| **Días Positivos / Neutros** | **54.2% (13 de 24 días)** | 33.3% | Preservación de capital superior en fases adversas |
+| **Peor Día (Drawdown)** | **-$450.58 USD** (15/10) 🛡️ | **-$650.58 USD (Cortacircuito)** | **0 días en cortacircuito en toda la historia de v14.2 (24 de 24 días sanos)** |
 | **Trade Récord (Home Run)** | **+$845.64 USD** ⚾💥 | +$258.14 USD | **+17.00 pts (+68 ticks) en 60 barras completas** |
 
 ---
@@ -69,20 +69,33 @@
 
 ---
 
-## 🗓️ Registro de la Semana 3 (05 al 09 de Octubre 2026) 🌟 ¡NUEVA AUDITORÍA!
+## 🗓️ Registro de la Semana 3 (05 al 09 de Octubre 2026)
 
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto v14.2 | Resumen de Trades y Observaciones Tácticas |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **05/10/2026** | 2 | 2W / 0L (100%) | +$25.00 | $8.72 | **+$16.28** 💰 | 🟢 **Gestión Quirúrgica en Rango:**<br>• T1: Long @ 7797.00 -> Exit Banda 1.75 @ 7797.25 (+ $8.14 neto).<br>• T2: Long @ 7806.50 -> Exit Banda 1.75 @ 7806.75 (+ $8.14 neto).<br>• Mercado en micro-rangos sin seguimiento; la estrategia salió de inmediato sin asumir daños. Cierre en verde. |
-| **06/10/2026** | 3 | 0W / 3L (0.0%) | -$300.00 | $13.08 | **-$313.08** 🔴 | 🛡️ **Defensa en Día Picado de Falsas Rupturas:**<br>• T1: Long @ 7880.25 -> Exit Banda 1.75 @ 7880.00 (- $16.86).<br>• T2: Short @ 7867.00 -> Exit Banda 1.75 @ 7871.00 (- $204.36).<br>• T3: Long @ 7882.25 -> Exit Banda 1.75 @ 7880.50 (- $91.86).<br>• Tres giros rápidos del mercado que la versión 14.2 contuvo en -$313 USD, protegiendo más del 50% del cortacircuito (-$650). |
+| **05/10/2026** | 2 | 2W / 0L (100%) | +$25.00 | $8.72 | **+$16.28** 💰 | 🟢 **Gestión en Micro-Rango:**<br>• T1: Long @ 7797.00 -> Exit Banda 1.75 @ 7797.25 (+ $8.14 neto).<br>• T2: Long @ 7806.50 -> Exit Banda 1.75 @ 7806.75 (+ $8.14 neto).<br>• Mercado lento sin seguimiento. El trailing stop por cierre sacó la posición de inmediato sin asumir daños. Cierre en verde. |
+| **06/10/2026** | 3 | 0W / 3L (0.0%) | -$300.00 | $13.08 | **-$313.08** 🔴 | 🛡️ **Defensa en Día Picado:**<br>• T1: Long @ 7880.25 -> Exit Banda 1.75 @ 7880.00 (- $16.86).<br>• T2: Short @ 7867.00 -> Exit Banda 1.75 @ 7871.00 (- $204.36).<br>• T3: Long @ 7882.25 -> Exit Banda 1.75 @ 7880.50 (- $91.86).<br>• Tres giros rápidos del mercado que la versión 14.2 absorbió en -$313 USD, protegiendo más del 50% del cortacircuito (-$650). |
 | **07/10/2026** | 1 | 1W / 0L (100%) | +$300.00 | $4.36 | **+$295.64** 💰 | 🟢 **Golpe Preciso Institucional:**<br>• T1: Long @ 7837.00 -> Exit Banda 1.75 @ 7843.00 (**+ $295.64 USD**, +6.00 puntos / 24 ticks).<br>• Captura perfecta de la aceleración matutina en 1 solo tiro. Cero sobreoperativa. |
 | **08/10/2026** | 1 | 0W / 1L (0.0%) | -$100.00 | $4.36 | **-$104.36** 🔴 | 🛡️ **Pérdida Mínima Controlada:**<br>• T1: Short @ 7829.50 -> Exit Banda 1.75 @ 7831.50 (- $104.36).<br>• Un solo intento, salida disciplinada por trailing Banda 1.75 y apagado sin estrés. |
 | **09/10/2026** | 1 | 0W / 1L (0.0%) | -$112.50 | $4.36 | **-$116.86** 🔴 | 🛡️ **Cierre de Semana Preservando Capital:**<br>• T1: Long @ 7849.50 -> Exit Banda 1.75 @ 7847.25 (- $116.86).<br>• Intento de ruptura fallida contenido a -2.25 puntos. |
-| **TOTAL SEMANA 3** | **8** | **3W / 5L (37.5%)** | **-$187.50** | **$34.88** | **-$222.38** 🛡️ | 🛡️ **SEMANA DE BAJA ACTIVIDAD Y RANGO LATERAL ABSORBIDA CON APENAS -$222 USD DE DRAWDOWN TOTAL.** |
+| **TOTAL SEMANA 3** | **8** | **3W / 5L (37.5%)** | **-$187.50** | **$34.88** | **-$222.38** 🛡️ | 🛡️ **SEMANA DE RANGO LATERAL ABSORBIDA CON APENAS -$222 USD DE DRAWDOWN TOTAL.** |
 
 ---
 
-## 🗓️ Registro de la Semana 4 (02 al 05 de Noviembre 2026)
+## 🗓️ Registro de la Semana 4 (12 al 16 de Octubre 2026) 🌟 ¡NUEVA AUDITORÍA!
+
+| Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto v14.2 | Resumen de Trades y Observaciones Tácticas |
+| :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **12/10/2026** | 1 | 0W / 1L (0.0%) | -$12.50 | $4.36 | **-$16.86** 🔴 | 🛡️ **Salida Prácticamente Flat:**<br>• T1: Long @ 7865.00 -> Exit Banda 1.75 @ 7864.75 (-1 tick / -$16.86). Pérdida imperceptible de comisiones. |
+| **13/10/2026** | 2 | 0W / 2L (0.0%) | -$225.00 | $8.72 | **-$233.72** 🔴 | 🛡️ **Contención en Dos Falsos Quiebres:**<br>• T1: Short @ 7847.25 -> Exit Banda 1.75 @ 7849.75 (- $129.36).<br>• T2: Short @ 7836.50 -> SL Midline @ 7838.50 (- $104.36).<br>• Dos intentos fallidos en corto cortados a tiempo. Pérdida contenida a -$233 USD. |
+| **14/10/2026** | 3 | 0W / 3L (0.0%) | -$362.50 | $13.08 | **-$375.58** 🔴 | 🛡️ **Día Pesado de Absorción:**<br>• T1: Short @ 7808.00 -> SL Midline @ 7811.00 (- $154.36).<br>• T2: Short @ 7787.25 -> SL Midline @ 7790.50 (- $166.86).<br>• T3: Short @ 7779.50 -> Exit Banda 1.75 @ 7780.50 (- $54.36).<br>• Pese a 3 intentos bajistas en contra, las salidas en Midline y Banda 1.75 evitaron que el día llegara al cortacircuito (-$375 USD vs -$650 límite). |
+| **15/10/2026** | 3 | 0W / 3L (0.0%) | -$437.50 | $13.08 | **-$450.58** 🔴 | 🛡️ **Máximo Drawdown Diario Absorbido sin Quiebre:**<br>• T1: Long @ 7742.50 -> Exit Banda 1.75 @ 7742.50 (- $4.36 comisión).<br>• T2: Long @ 7747.00 -> SL Midline @ 7742.25 (- $241.86).<br>• T3: Long @ 7763.25 -> SL Midline @ 7759.25 (- $204.36).<br>• Mercado picado con amagues alcistas falsos. El sistema absorbió -$450.58 USD, salvaguardando $200 USD de colchón frente al cortacircuito. |
+| **16/10/2026** | 4 | 2W / 2L (50.0%) | +$425.00 | $17.44 | **+$407.56** 💰🏆 | 🟢 **¡REMONTADA HEROICA EN EL CIERRE DE SEMANA!**<br>• T1: Long @ 7791.00 -> Exit Banda 1.75 @ 7788.25 (- $141.86).<br>• T2: Short @ 7779.00 -> Exit Banda 1.75 @ 7782.00 (- $154.36).<br>• T3: Short @ 7775.50 -> Exit Banda 1.75 @ 7768.75 (**+ $333.14 USD**, +6.75 puntos en corto).<br>• T4: Short @ 7746.25 -> Exit Banda 1.75 @ 7738.75 (**+ $370.64 USD**, +7.50 puntos en corto).<br>• Tras un inicio difícil, Cascada agarró los dos verdaderos misiles bajistas y recuperó **+$407.56 USD netos**, recortando el drawdown semanal a la mitad. |
+| **TOTAL SEMANA 4** | **13** | **2W / 11L (15.4%)** | **-$612.50** | **$56.68** | **-$669.18** 🛡️ | 🛡️ **SEMANA ADVERSA ABSORBIDA: A PESAR DE 4 DÍAS DE RANGO, EL VIERNES SACÓ LA CARA (+ $407 USD) Y NINGÚN DÍA CORTOCIRCUITÓ.** |
+
+---
+
+## 🗓️ Registro de la Semana 5 (02 al 05 de Noviembre 2026)
 
 | Fecha | Trades | Wins / Losses | PnL Bruto | Comisiones | PnL Neto v14.2 | Resumen de Trades y Observaciones Tácticas |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
@@ -90,4 +103,4 @@
 | **03/11/2026** | 1 | 0W / 1L (0.0%) | -$137.50 | $4.36 | **-$141.86** 🔴 | 🛡️ **Disciplina Máxima en Mercado Picado:**<br>• T1: Long @ 7615.00 -> Exit Banda 1.75 @ 7612.25 (- $141.86 en 9 barras).<br>• Cero sobreoperativa: los filtros de pendiente TEMA 9 y macro evitaron caer en el lateral sucio del resto de la mañana. Raspón mínimo y preservación total de capital. |
 | **04/11/2026** | 4 | 3W / 1L (75.0%) | +$775.00 | $17.44 | **+$757.56** 💰 | 🟢 **¡GROSERÍA TOTAL DE HOME RUN!**<br>• T1: Short @ 7715.50 -> Exit Banda 1.75 @ 7714.75 (+ $33.14).<br>• T2: Short @ 7706.75 -> Exit Banda 1.75 @ 7704.75 (+ $95.64).<br>• T3: Short @ 7691.50 -> Exit Banda 1.75 @ 7695.75 (- $216.86).<br>• T4: Long @ 7723.50 -> Exit Tranca TP Bonus @ 7740.50 (**+ $845.64 USD**, despegue vertical de 17.00 puntos / 68 ticks durante 60 barras).<br>• `Close[0]` ignoró por completo los dos martillos de mecha de 7727.25 y 7730.50 que antes nos expulsaban, cabalgó toda la subida y liquidó con la Tranca de Adamantium. |
 | **05/11/2026** | 5 | 3W / 2L (60.0%) | +$537.50 | $21.80 | **+$515.70** 💰 | 🟢 **Día Verde y Blindado sobre el Piso $500:**<br>• T1: Short @ 7578.75 -> Exit Banda 1.75 @ 7580.50 (- $91.86).<br>• T2: Short @ 7561.75 -> Exit Banda 1.75 @ 7557.50 (+ $208.14).<br>• T3: Short @ 7479.00 -> Exit Banda 1.75 @ 7475.75 (+ $158.14).<br>• T4: Short @ 7450.00 -> Exit Tranca Acero @ 7442.50 (+ $370.64).<br>• T5: Short @ 7474.25 -> Exit Banda 1.75 @ 7476.75 (- $129.36).<br>• El **Escudo Diario** defendió fielmente la cuenta clavando el freno en **+$515.70 USD** (respetando con precisión militar el Piso 2 de +$500). |
-| **TOTAL SEMANA 4** | **12** | **8W / 4L (66.7%)** | **+$1,812.50** | **$52.32** | **+$1,760.18** 💰🏆 | 🚀 **PROFIT FACTOR DE 4.22 Y PROMEDIO DE +$440 USD/DÍA EN SU PRIMERA SEMANA COMPLETA.** |
+| **TOTAL SEMANA 5** | **12** | **8W / 4L (66.7%)** | **+$1,812.50** | **$52.32** | **+$1,760.18** 💰🏆 | 🚀 **PROFIT FACTOR DE 4.22 Y PROMEDIO DE +$440 USD/DÍA EN SU PRIMERA SEMANA COMPLETA.** |
