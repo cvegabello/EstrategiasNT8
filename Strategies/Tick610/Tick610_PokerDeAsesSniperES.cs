@@ -1,4 +1,4 @@
-#region Using declarations
+﻿#region Using declarations
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -248,8 +248,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaStartTime                            = 100000; // 10:00 AM EST - Filtro Anti-Acomodación de Pre-Mercado
                 CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (compatibilidad)
-                CascadaSeparationTicks                      = 4;      // Mínimo 4 ticks de separación de la Banda 3.5
-                CascadaMinSlopeTicks                        = 2;      // Inclinación mínima requerida en la EMA 200
+                CascadaSlopeConfirmBars                     = 2;      // Barras consecutivas requeridas con Pendiente Normalizada >= Umbral (2 por defecto)
                 CascadaLockTriggerDollars                   = 250.0;  // Umbral de MFE en USD para activar Candado ($250 ES = +20 ticks / $25 MES en v13.4)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
                 CascadaBigWinThresholdDollars               = 180.0;  // Umbral de ganancia neta en bolsillo para activar Cuarentena de Saciedad ($180 ES / $18 MES)
@@ -758,7 +757,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // === CONTADOR AS 4: CASCADA (Separación de EMA 200 > 4 ticks de Banda 3.5 - Silencioso) ===
-            double separationDist = CascadaSeparationTicks * TickSize;
+            double separationDist = 4 * TickSize;
 
             // Bajista (EMA 200 arriba de Upper 3.5 por > 4 ticks)
             if (ema200[0] > (keltnerBig.Upper[0] + separationDist))
@@ -1341,7 +1340,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 bool macroBajista          = ema200[0] > midline;
                 bool precioEnZona          = Close[0] <= midline;
-                bool pendienteRapido       = cascadaConsecutiveSlopeBarsShort >= 2;
+                bool pendienteRapido       = cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars;
                 bool tema9SlopeBajista     = CurrentBar >= 5 && (tema9[0] < tema9[5]);
                 bool velaBajista           = Close[0] < Open[0];
 
@@ -1397,7 +1396,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 bool macroAlcista          = ema200[0] < midline;
                 bool precioEnZona          = Close[0] >= midline;
-                bool pendienteRapido       = cascadaConsecutiveSlopeBarsLong >= 2;
+                bool pendienteRapido       = cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars;
                 bool tema9SlopeAlcista     = CurrentBar >= 5 && (tema9[0] > tema9[5]);
                 bool velaAlcista           = Close[0] > Open[0];
 
@@ -2908,9 +2907,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "ESTRATEGIA ACTIVA (PAS)" : "ESTRATEGIA PAUSADA (PAS)",
+                Content = isStrategyActive ? "ESTRATEGIA ACTIVA (v14.2)" : "ESTRATEGIA PAUSADA (v14.2)",
                 Height = 30,
-                Width = 230,
+                Width = 240,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 10, 10, 0),
@@ -2943,7 +2942,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "ESTRATEGIA ACTIVA (PAS)" : "ESTRATEGIA PAUSADA (PAS)";
+                panicButton.Content = isStrategyActive ? "ESTRATEGIA ACTIVA (v14.2)" : "ESTRATEGIA PAUSADA (v14.2)";
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
@@ -3168,13 +3167,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Cascada Separación Ticks", GroupName = "5. As 4: Cascada Surfer", Order = 3)]
-        public int CascadaSeparationTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, 10)]
-        [Display(Name = "Cascada Pendiente Mínima Ticks", GroupName = "5. As 4: Cascada Surfer", Order = 4)]
-        public int CascadaMinSlopeTicks { get; set; }
+        [Display(Name = "Barras Confirmacion Pendiente", Description = "Numero de barras consecutivas requeridas con Pendiente Normalizada >= Umbral antes de disparar (2 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 3)]
+        public int CascadaSlopeConfirmBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(20.0, 500.0)]
