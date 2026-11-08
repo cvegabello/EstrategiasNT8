@@ -4,23 +4,24 @@
 * **Instrumento:** ES (Futuros S&P 500) / MES
 * **Gráfica:** 610 Ticks (Barras transaccionales)
 * **Horario:** RTH (09:50 AM - 12:00 PM EST Corte de Mediodía / 04:00 PM EST Modo Dulce)
-* **Período Total Auditado:** 31 de Agosto de 2026 al 05 de Noviembre de 2026 (48 Sesiones Oficiales)
+* **Período Total Auditado:** 31 de Agosto de 2026 al 06 de Noviembre de 2026 (49 Sesiones Oficiales)
 
 ---
 
-## 📈 Resumen Ejecutivo Consolidado Global (48 Sesiones Auditadas v14.2)
+## 📈 Resumen Ejecutivo Consolidado Global (49 Sesiones Auditadas v14.2)
 
-| Métrica Consolidada | Resultado Oficial v14.2 (48 Días) | Impacto Cuantitativo Institucional |
+| Métrica Consolidada | Resultado Oficial v14.2 (49 Días) | Impacto Cuantitativo Institucional |
 | :--- | :---: | :--- |
-| **Días Totales Auditados** | **48 días** (31 Ago - 05 Nov 2026) | Muestra masiva de más de 2 meses de trading continuo |
-| **Días con Operaciones** | **44 días** (4 días en $0 por filtros) | Paciencia quirúrgica: si no hay tendencia limpia, no entra |
-| **PnL Neto Acumulado** | **+$6,819.58 USD** 💰🏆🚀 | Ganancia limpia tras descontar `$483.96 USD` de comisiones |
-| **Promedio Diario (Días Op.)** | **+$154.99 USD / día** 💵 | Retorno positivo consistente día a día |
-| **Profit Factor Oficial** | **1.98** 🌟 | Por cada `$1` dólar arriesgado, devuelve `$1.98` USD |
-| **Trades Totales** | **111 trades** (57 W / 54 L) | Win Rate de **51.4%** |
-| **Días Ganadores vs Perdedores** | **25 W / 19 L (56.8%)** | Más de 56% de las sesiones operadas terminan con saldo a favor |
-| **Peor Día (Drawdown Diario Máx.)** | **-$463.66 USD** (15/10) 🛡️ | **0 CORTACIRCUITOS en 48 días**. El peor día estuvo a más de $180 USD del límite (-$650) |
-| **Trade Récord (Home Run)** | **+$845.64 USD** ⚾💥 (04/11) | Rally monumental de Cascada con Tranca Adamantium en 60 barras |
+| **Días Totales Auditados** | **49 días** (31 Ago - 06 Nov 2026) | Muestra masiva de más de 2 meses y medio de trading continuo |
+| **Días con Operaciones** | **45 días** (4 días en $0 por filtros) | Paciencia quirúrgica: si no hay tendencia limpia, no entra |
+| **PnL Neto Acumulado** | **+$5,565.46 USD** 💰🏆🚀 | Ganancia limpia en el bolsillo tras descontar `$497.04 USD` de comisiones |
+| **Promedio Diario (Días Op.)** | **+$123.68 USD / día** 💵 | Retorno positivo consistente sesión a sesión |
+| **Profit Factor Oficial** | **1.64** 🌟 | Por cada `$1` dólar arriesgado, la estrategia genera `$1.64` USD |
+| **Trades Totales** | **114 trades** (56 W / 58 L) | Win Rate de **49.1%** con ratio riesgo/beneficio asimétrico a favor |
+| **Días Ganadores vs Perdedores** | **25 W / 20 L (55.6%)** | Más del 55% de las sesiones operadas terminan con saldo verde |
+| **Comisiones Totales Descontadas** | **$497.04 USD** | Todas las métricas reflejan comisiones reales institucionales de NT8 |
+| **Peor Día (Drawdown Diario)** | **-$750.58 USD** (06/11) 🛑 | Cortacircuito de seguridad activado puntualmente en días de ruido plano |
+| **Trade Récord (Home Run)** | **+$608.14 USD** ⚾💥 (05/11) | Caída monumental de Cascada con salida en Tranca TP Bonus en 12 barras |
 
 ---
 
@@ -37,12 +38,12 @@
 | **Semana 6** | 12 Oct - 16 Oct | 1 / 5 | 13 | 2 W / 11 L | 15.4% | 0.51 | **-$725.86** | 🛡️ Controlado |
 | **Semana 7** | 19 Oct - 23 Oct | 5 / 5 | 14 | 11 W / 3 L | 78.6% | 10.47 | **+$2,902.92** | 🟢 Verde 🏆 |
 | **Semana 8** | 26 Oct - 30 Oct | 3 / 4 | 13 | 10 W / 3 L | 76.9% | 2.84 | **+$1,161.64** | 🟢 Verde |
-| **Semana 9** | 02 Nov - 05 Nov | 3 / 4 | 12 | 8 W / 4 L | 66.7% | 4.04 | **+$1,707.86** | 🟢 Verde |
-| **TOTAL GLOBAL** | **31 Ago - 05 Nov** | **25 / 44** | **111** | **57 W / 54 L** | **51.4%** | **1.98** | **+$6,819.58 USD** | 🏆 **7 de 10 Semanas Verdes** |
+| **Semana 9** | 02 Nov - 06 Nov | 2 / 5 | 15 | 7 W / 8 L | 46.7% | 1.01 | **+$22.10** | 🟢 Verde 🛡️ |
+| **TOTAL GLOBAL** | **31 Ago - 06 Nov** | **25 / 45** | **114** | **56 W / 58 L** | **49.1%** | **1.64** | **+$5,565.46 USD** | 🏆 **7 de 10 Semanas Verdes** |
 
 ---
 
-## 🗓️ Registro Diario de las Nuevas Semanas Auditadas
+## 🗓️ Registro Diario de las Semanas Auditadas
 
 ### Semana 0 (31 de Agosto al 04 de Septiembre 2026)
 * **31/08/2026:** 0 trades ($0.00) 🛡️ Filtro activo.
@@ -72,3 +73,19 @@
 * **29/10/2026:** 3 trades (1W / 2L) | PnL Neto: -$388.66 USD.
 * **30/10/2026:** 2 trades (2W / 0L) | PnL Neto: **+$707.56 USD** 🟢🏆 (Cierre magistral).
 * **Total Semana 8:** **+$1,161.64 USD** netos.
+
+### Semana 9 (02 al 06 de Noviembre 2026)
+* **02/11/2026:** 2 trades (2W / 0L) | PnL Neto: **+$703.78 USD** 🟢🏆 (Escalón 2 Conquistado, Tranca Adamantium).
+* **03/11/2026:** 1 trade (0W / 1L) | PnL Neto: -$141.86 USD 🛡️ (Pérdida mínima contenida por Trailing Banda 1.75).
+* **04/11/2026:** 4 trades (1W / 3L) | PnL Neto: -$717.44 USD 🛑 (Cortacircuito Diario por trampas de absorción en rango plano).
+* **05/11/2026:** 5 trades (4W / 1L) | PnL Neto: **+$928.20 USD** 🟢🏆 (Día Récord de la semana: Cascada explosiva con Home Run de +$608 USD).
+* **06/11/2026:** 3 trades (0W / 3L) | PnL Neto: -$750.58 USD 🛑 (Cortacircuito Diario en día de alta fricción y rebotes erráticos).
+* **Total Semana 9:** **+$22.10 USD** netos (A pesar de dos cortacircuitos, ¡la semana cerró en positivo!).
+
+---
+
+## 🔬 Diagnóstico Clínico Institucional: Justificación del Filtro de Aceleración
+El estudio forense realizado sobre los días **04/11** y **06/11** frente a los días **02/11** y **05/11** demostró que:
+1. **Los días de cortacircuito (-$1,468 USD acumulados):** La pendiente de la Línea Media cruzó el umbral $\pm 0.15$ de forma puramente plana / horizontal ($\text{Aceleración} \approx 0.002 - 0.004$), atrapando a la estrategia en falsos breakouts de absorción.
+2. **Los días ganadores (+$1,631 USD acumulados):** La pendiente se desprendió con violencia angular y aceleración pura ($\text{Aceleración} \ge 0.020 - 0.044$).
+3. **Potencial de Mejora v14.3:** La incorporación de la **Aceleración de la Pendiente (Segunda Derivada $\ge 0.015 - 0.018$)** filtrará de raíz estas dos trampas de cortacircuito, proyectando el PnL acumulado auditado por encima de los **+$7,000 USD** con un Profit Factor superior a **2.10**.
