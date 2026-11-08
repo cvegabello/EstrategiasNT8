@@ -263,6 +263,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
                 CascadaSlopeThreshold                       = 0.15;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.15 puro para todo el mundo)
+                CascadaSecondTicketSlopeThreshold           = 0.17;   // Umbral de Pendiente Normalizada mÃ¡s exigente para 2do Boleto (+0.02 vs base: > 0.17 por defecto)
                 CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Oxígeno en Sobreextensión; < 8 ticks tratada como adentro con SL Línea Media)
                 CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$150 ES / -$15 MES)
                 CascadaExitOnCloseOnly                      = true;   // Salida estricta por cierre de vela Close[0] en Banda 1.75 (ignora mechas de absorción/rechazo intra-vela)
@@ -1329,7 +1330,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // DISPARO CORTO: AS 4 CASCADA SURFER v15.0 (BAJISTA INSTITUCIONAL)
             // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto QuirÃºrgico con Enfriamiento >= 5 Barras
             // 2. Filtro Macro: LÃ­nea Roja EMA 200 por encima de la LÃ­nea Media (ema200[0] > midline)
-            // 3. Pendiente LÃ­nea Media: normSlope <= -0.15 confirmada por >= 2 barras consecutivas
+            // 3. Pendiente LÃ­nea Media:
+            //    - Disparo #1: normSlope < -0.15 confirmada por >= 2 barras consecutivas
+            //    - 2do Boleto: Mayor exigencia (normSlope < -CascadaSecondTicketSlopeThreshold, ej. < -0.17)
             // 4. Filtro Micro TEMA 9: Pendiente negativa en 5 barras (CurrentBar >= 5 && tema9[0] < tema9[5])
             // 5. UbicaciÃ³n: Precio a favor de la tendencia (Close[0] <= midline)
             // 6. Vela con intenciÃ³n bajista: Close[0] < Open[0]
@@ -1349,12 +1352,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool macroBajista          = ema200[0] > midline;
                 bool precioEnZona          = Close[0] <= midline;
                 bool pendienteRapido       = cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars;
+                double requiredSlopeShort  = isShortSecondTicket ? CascadaSecondTicketSlopeThreshold : CascadaSlopeThreshold;
+                bool slopeThresholdMet     = normSlope < -requiredSlopeShort;
                 bool tema9SlopeBajista     = CurrentBar >= 5 && (tema9[0] < tema9[5]);
                 bool velaBajista           = Close[0] < Open[0];
 
                 if (macroBajista && precioEnZona)
                 {
-                    if (pendienteRapido && tema9SlopeBajista && velaBajista)
+                    if (pendienteRapido && slopeThresholdMet && tema9SlopeBajista && velaBajista)
                     {
                         // 1. FILTRO DE TOPE MÃXIMO DE SOBREEXTENSIÃ“N ANTI-FOMO (v15.0)
                         double ticksAfueraLower = (lowerBig - Close[0]) / TickSize;
@@ -1396,11 +1401,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v15.0 | Â¡DISPARO CORTO CASCADA!] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F2} (2b) | TEMA9 OK | Afuera 3.5: {5:F1}tk | ClÃ­max Meta: {6} | {7}",
-                            Time[0], Close[0], lowerSmall, midline, normSlope,
+                        Print(string.Format("{0} - [PAS v15.0 | Â¡DISPARO CORTO CASCADA!] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F2} (Req: < -{5:F2}) | TEMA9 OK | Afuera 3.5: {6:F1}tk | ClÃ­max Meta: {7} | {8}",
+                            Time[0], Close[0], lowerSmall, midline, normSlope, requiredSlopeShort,
                             ticksAfueraLower, (cascadaHasClimaxTarget ? string.Format("{0:F1}tk ({1:F1}x)", cascadaClimaxTargetTicks, (ticksAfueraLower >= CascadaOutsideMidTierTicks ? CascadaClimaxMultHigh : CascadaClimaxMultLow)) : "N/A"),
                             (isShortSecondTicket ? "2DO BOLETO QUIRÃšRGICO (5b Cooldown)" : "DISPARO #1")));
                         return;
+                    }
+                    else if (isShortSecondTicket && pendienteRapido && !slopeThresholdMet)
+                    {
+                        Print(string.Format("{0} - [PAS v15.0 | RECHAZO 2DO BOLETO CORTO] Pendiente en {1:F2} no alcanza la mayor exigencia requerida (< -{2:F2} vs base -{3:F2}). Esperando impulso...",
+                            Time[0], normSlope, CascadaSecondTicketSlopeThreshold, CascadaSlopeThreshold));
                     }
                     else if (pendienteRapido && !tema9SlopeBajista && CurrentBar >= 5)
                     {
@@ -1414,7 +1424,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // DISPARO LARGO: AS 4 CASCADA SURFER v15.0 (ALCISTA INSTITUCIONAL)
             // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto QuirÃºrgico con Enfriamiento >= 5 Barras
             // 2. Filtro Macro: LÃ­nea Roja EMA 200 por debajo de la LÃ­nea Media (ema200[0] < midline)
-            // 3. Pendiente LÃ­nea Media: normSlope >= +0.15 confirmada por >= 2 barras consecutivas
+            // 3. Pendiente LÃ­nea Media:
+            //    - Disparo #1: normSlope > +0.15 confirmada por >= 2 barras consecutivas
+            //    - 2do Boleto: Mayor exigencia (normSlope > +CascadaSecondTicketSlopeThreshold, ej. > +0.17)
             // 4. Filtro Micro TEMA 9: Pendiente positiva en 5 barras (CurrentBar >= 5 && tema9[0] > tema9[5])
             // 5. UbicaciÃ³n: Precio a favor de la tendencia (Close[0] >= midline)
             // 6. Vela con intenciÃ³n alcista: Close[0] > Open[0]
@@ -1434,12 +1446,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool macroAlcista          = ema200[0] < midline;
                 bool precioEnZona          = Close[0] >= midline;
                 bool pendienteRapido       = cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars;
+                double requiredSlopeLong   = isLongSecondTicket ? CascadaSecondTicketSlopeThreshold : CascadaSlopeThreshold;
+                bool slopeThresholdMet     = normSlope > requiredSlopeLong;
                 bool tema9SlopeAlcista     = CurrentBar >= 5 && (tema9[0] > tema9[5]);
                 bool velaAlcista           = Close[0] > Open[0];
 
                 if (macroAlcista && precioEnZona)
                 {
-                    if (pendienteRapido && tema9SlopeAlcista && velaAlcista)
+                    if (pendienteRapido && slopeThresholdMet && tema9SlopeAlcista && velaAlcista)
                     {
                         // 1. FILTRO DE TOPE MÃXIMO DE SOBREEXTENSIÃ“N ANTI-FOMO (v15.0)
                         double ticksAfueraUpper = (Close[0] - upperBig) / TickSize;
@@ -1481,11 +1495,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v15.0 | Â¡DISPARO LARGO CASCADA!] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F2} (2b) | TEMA9 OK | Afuera 3.5: {5:F1}tk | ClÃ­max Meta: {6} | {7}",
-                            Time[0], Close[0], upperSmall, midline, normSlope,
+                        Print(string.Format("{0} - [PAS v15.0 | Â¡DISPARO LARGO CASCADA!] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F2} (Req: > +{5:F2}) | TEMA9 OK | Afuera 3.5: {6:F1}tk | ClÃ­max Meta: {7} | {8}",
+                            Time[0], Close[0], upperSmall, midline, normSlope, requiredSlopeLong,
                             ticksAfueraUpper, (cascadaHasClimaxTarget ? string.Format("{0:F1}tk ({1:F1}x)", cascadaClimaxTargetTicks, (ticksAfueraUpper >= CascadaOutsideMidTierTicks ? CascadaClimaxMultHigh : CascadaClimaxMultLow)) : "N/A"),
                             (isLongSecondTicket ? "2DO BOLETO QUIRÃšRGICO (5b Cooldown)" : "DISPARO #1")));
                         return;
+                    }
+                    else if (isLongSecondTicket && pendienteRapido && !slopeThresholdMet)
+                    {
+                        Print(string.Format("{0} - [PAS v15.0 | RECHAZO 2DO BOLETO LARGO] Pendiente en +{1:F2} no alcanza la mayor exigencia requerida (> +{2:F2} vs base +{3:F2}). Esperando impulso...",
+                            Time[0], normSlope, CascadaSecondTicketSlopeThreshold, CascadaSlopeThreshold));
                     }
                     else if (pendienteRapido && !tema9SlopeAlcista && CurrentBar >= 5)
                     {
@@ -3366,6 +3385,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0.05, 1.0)]
         [Display(Name = "Cascada Umbral Pendiente Base", Description = "Umbral base de aceleración de Pendiente Normalizada (LinReg 5 / ATR 14) para disparar rápido de Cascada dentro del canal o en ruptura fresca (0.15 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 9)]
         public double CascadaSlopeThreshold { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.05, 1.0)]
+        [Display(Name = "Cascada Umbral Pendiente 2do Boleto", Description = "Umbral de Pendiente Normalizada ms exigente para el 2do boleto quirrgico (por defecto 0.17: +0.02 vs base)", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
+        public double CascadaSecondTicketSlopeThreshold { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 30)]
