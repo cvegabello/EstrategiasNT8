@@ -1,4 +1,4 @@
-﻿#region Using declarations
+#region Using declarations
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -1584,8 +1584,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // se desescala obligatoriamente a 1 contrato para evitar que una mala racha dañe la cuenta.
             if (consecutiveLosses > 0)
             {
-                Print(string.Format("{0} - [PAS | DESESCALADO TRAS PÉRDIDA] Strike activo ({1} pérdida(s) consecutiva(s)). Entrada protegida con 1 solo contrato.",
-                    Time[0], consecutiveLosses));
+                // Print(string.Format("{0} - [PAS | DESESCALADO TRAS PÉRDIDA] Strike activo ({1} pérdida(s) consecutiva(s)). Entrada protegida con 1 solo contrato.",
+                // Time[0], consecutiveLosses));
                 targetContracts = 1;
             }
 
