@@ -1487,9 +1487,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // para que la estrategia pueda dar el salto al siguiente escalón o al Modo Dulce sin trabas.
                 if (currentDailyTier == 1 || currentDailyTier == 2)
                 {
-                    int currentTicksMargin = (int)Math.Floor(allowedLossDollars / tickDollarVal);
-                    Print(string.Format("{0} - [PAS | ESCALÓN {1} ACTIVO: 1 CONTRATO] PnL actual: ${2:F2} USD (Piso +${3:F2}). Operando con 1 contrato hacia el siguiente nivel ({4} ticks de respiro).",
-                        Time[0], currentDailyTier, dailyRealizedPnL, currentDailyFloor, currentTicksMargin));
                     return 1;
                 }
 

@@ -118,10 +118,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private DateTime cascadaQuarantineEndTime = DateTime.MinValue; // Fin de la cuarentena tras victoria (>= $180 USD netos)
         private int cascadaConsecutiveSlopeBarsLong  = 0; // Barras consecutivas con Pendiente Normalizada >= +0.15 (v12.0)
         private int cascadaConsecutiveSlopeBarsShort = 0; // Barras consecutivas con Pendiente Normalizada <= -0.15 (v12.0)
-        private double cascadaEntryOutsideTicks      = 0.0;   // Distancia en ticks fuera de Banda 3.5 al abrir la posicion (v15.0)
-        private double cascadaClimaxTargetTicks      = 0.0;   // Meta en ticks de distancia a Banda 3.5 para salida por Climax Dinamico (v15.0)
-        private bool   cascadaHasClimaxTarget        = false; // Bandera de salida activa por Climax Dinamico (v15.0)
-        private bool   cascadaEnteredOutside         = false; // Bandera: trade de Cascada disparo en Zona Alta (10-20 ticks fuera de Banda 3.5)
+        private double cascadaEntryOutsideTicks          = 0.0;   // Distancia en ticks fuera de Banda 3.5 al abrir la posicion (v15.0)
+        private double cascadaClimaxTargetTicks          = 0.0;   // Meta en ticks de distancia a Banda 3.5 para salida por Climax Dinamico (v15.0)
+        private bool   cascadaHasClimaxTarget            = false; // Bandera de salida activa por Climax Dinamico de Banda 3.5 (v15.0)
+        private int    cascadaEnteredZone                = 0;     // Zona de entrada (0: <2tk, 1: 2-10tk, 2: 10-15tk, 3: 15-25tk, 4: 25-30tk) (v15.0)
+        private double cascadaEntryMidlineDistTicks      = 0.0;   // Distancia en ticks a Linea Media al abrir la posicion para Zona 0 (v15.0)
+        private double cascadaClimaxMidlineTargetTicks   = 0.0;   // Meta en ticks de distancia a Linea Media (1.5x) para Zona 0 (v15.0)
+        private bool   cascadaHasMidlineClimaxTarget     = false; // Bandera de salida activa por Climax de Linea Media (v15.0)
         private double cascadaOutsideInitialSl       = 0.0;   // Precio de SL inicial anclado en la Banda 3.5 para salida rápida en ruptura fallida
         private bool cascadaSecondChanceLongAvailable  = false; // Bandera v15.0: Habilita 1 único Segundo Boleto en Largo tras salida por mecha sin $180
         private bool cascadaSecondChanceShortAvailable = false; // Bandera v15.0: Habilita 1 único Segundo Boleto en Corto tras salida por mecha sin $180
@@ -250,10 +253,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
                 CascadaStartTime                            = 100000; // 10:00 AM EST - Filtro Anti-Acomodación de Pre-Mercado
                 CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
-                CascadaMaxOutsideEntryTicks                 = 20;     // Tope mÃ¡ximo de distancia afuera de Banda 3.5 para permitir entrada (filtro anti-FOMO v15.0)
-                CascadaOutsideMidTierTicks                  = 10;     // Umbral que divide Zona Baja (2 a 10 ticks) y Zona Alta (10 a 20 ticks) (v15.0)
-                CascadaClimaxMultHigh                       = 2.0;    // Multiplicador de clÃ­max para Zona Alta (10 a 20 ticks afuera -> Meta = 2.0x) (v15.0)
-                CascadaClimaxMultLow                        = 5.0;    // Multiplicador de clÃ­max para Zona Baja (2 a 10 ticks afuera -> Meta = 5.0x) (v15.0)
+                CascadaMaxOutsideEntryTicks                 = 30;     // Tope maximo de distancia afuera de Banda 3.5 para permitir entrada (filtro anti-FOMO: 30 ticks por defecto)
+                CascadaTier4ExtremaTicks                    = 25;     // Umbral de inicio de Zona 4 Extrema (25 a 30 ticks afuera)
+                CascadaTier3AltaTicks                       = 15;     // Umbral de inicio de Zona 3 Alta (15 a 25 ticks afuera)
+                CascadaTier2MediaTicks                      = 10;     // Umbral de inicio de Zona 2 Media (10 a 15 ticks afuera)
+                CascadaTier1BajaTicks                       = 2;      // Umbral de inicio de Zona 1 Baja (2 a 10 ticks afuera)
+                CascadaClimaxMultExt                        = 1.6;    // Multiplicador de climax para Zona 4 Extrema (25 a 30 ticks afuera -> 1.6x)
+                CascadaClimaxMultHigh                       = 2.0;    // Multiplicador de climax para Zona 3 Alta (15 a 25 ticks afuera -> 2.0x)
+                CascadaClimaxMultMid                        = 3.0;    // Multiplicador de climax para Zona 2 Media (10 a 15 ticks afuera -> 3.0x)
+                CascadaClimaxMultLow                        = 5.0;    // Multiplicador de climax para Zona 1 Baja (2 a 10 ticks afuera -> 5.0x)
+                CascadaClimaxMidlineMult                    = 1.5;    // Multiplicador de climax respecto a Linea Media para Zona 0 (< 2 ticks afuera -> 1.5x)
                 CascadaSlopeConfirmBars                     = 2;      // Barras consecutivas requeridas con Pendiente Normalizada >= Umbral (2 por defecto)
                 CascadaLockTriggerDollars                   = 250.0;  // Umbral de MFE en USD para activar Candado ($250 ES = +20 ticks / $25 MES en v13.4)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
@@ -263,7 +272,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
                 CascadaSlopeThreshold                       = 0.15;   // Umbral de aceleración de Pendiente Normalizada LinReg/ATR para Cascada (0.15 puro para todo el mundo)
-                CascadaSecondTicketSlopeThreshold           = 0.17;   // Umbral de Pendiente Normalizada mÃ¡s exigente para 2do Boleto (+0.02 vs base: > 0.17 por defecto)
+                CascadaSecondTicketSlopeThreshold           = 0.18;   // Umbral de Pendiente Normalizada para 2do Boleto (> 0.18 estricto: no inclusive)   // Umbral de Pendiente Normalizada mÃ¡s exigente para 2do Boleto (+0.02 vs base: > 0.17 por defecto)
                 CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Oxígeno en Sobreextensión; < 8 ticks tratada como adentro con SL Línea Media)
                 CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$150 ES / -$15 MES)
                 CascadaExitOnCloseOnly                      = true;   // Salida estricta por cierre de vela Close[0] en Banda 1.75 (ignora mechas de absorción/rechazo intra-vela)
@@ -1310,13 +1319,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         // =========================================================================
         private void EvaluateAs4_Cascada50()
         {
-            // Solo opera si el As 4 estÃ¡ habilitado
-
-            // 1. FILTRO HORARIO EXCLUSIVO DE CASCADA: No opera antes de las 10:00 AM EST (Evita trampas de acomodaciÃ³n de pre-mercado)
+            // 1. FILTRO HORARIO EXCLUSIVO DE CASCADA: No opera antes de las 10:00 AM EST (Evita trampas de acomodacion de pre-mercado)
             int timeNow = ToTime(Time[0]);
             if (timeNow < CascadaStartTime || timeNow >= StopEntriesTime) return;
 
-            // 2. FILTRO DE SACIEDAD: Si Cascada logrÃ³ una victoria previa (>= $180 USD), permanece en cuarentena
+            // 2. FILTRO DE SACIEDAD: Si Cascada logro una victoria previa (>= $180 USD), permanece en cuarentena
             if (Time[0] < cascadaQuarantineEndTime) return;
 
             double midline    = keltnerBig.Midline[0];
@@ -1328,19 +1335,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // =========================================================================
             // DISPARO CORTO: AS 4 CASCADA SURFER v15.0 (BAJISTA INSTITUCIONAL)
-            // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto QuirÃºrgico con Enfriamiento >= 5 Barras
-            // 2. Filtro Macro: LÃ­nea Roja EMA 200 por encima de la LÃ­nea Media (ema200[0] > midline)
-            // 3. Pendiente LÃ­nea Media:
+            // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto Quirurgico con Enfriamiento >= 5 Barras
+            // 2. Filtro Macro: Linea Roja EMA 200 por encima de la Linea Media (ema200[0] > midline)
+            // 3. Pendiente Linea Media:
             //    - Disparo #1: normSlope < -0.15 confirmada por >= 2 barras consecutivas
-            //    - 2do Boleto: Mayor exigencia (normSlope < -CascadaSecondTicketSlopeThreshold, ej. < -0.17)
+            //    - 2do Boleto: Mayor exigencia (normSlope < -CascadaSecondTicketSlopeThreshold, ej. < -0.18)
             // 4. Filtro Micro TEMA 9: Pendiente negativa en 5 barras (CurrentBar >= 5 && tema9[0] < tema9[5])
-            // 5. UbicaciÃ³n: Precio a favor de la tendencia (Close[0] <= midline)
-            // 6. Vela con intenciÃ³n bajista: Close[0] < Open[0]
-            // 7. Filtro Anti-FOMO: Distancia afuera de Lower 3.5 <= CascadaMaxOutsideEntryTicks (20tk)
-            // 8. ClÃ­max DinÃ¡mico:
-            //    - Zona Alta (10 a 20 ticks afuera): Meta = Distancia * 2.0x | SL ceÃ±ido a 2 ticks atrÃ¡s de Banda 3.5
-            //    - Zona Baja (2 a 10 ticks afuera): Meta = Distancia * 5.0x | SL estÃ¡ndar en LÃ­nea Media
-            //    - Adentro (< 2 ticks afuera): Surfeo estÃ¡ndar en Banda 1.75
+            // 5. Ubicacion: Precio a favor de la tendencia (Close[0] <= midline)
+            // 6. Vela con intencion bajista: Close[0] < Open[0]
+            // 7. Filtro Anti-FOMO: Distancia afuera de Lower 3.5 <= CascadaMaxOutsideEntryTicks (30tk)
+            // 8. Matriz de 4 Zonas de Climax Exterior + Climax de Linea Media en Zona 0
             // =========================================================================
             bool inQuarantineShort = Time[0] < cascadaQuarantineEndTime;
             bool isShortFirstTicket  = !cascadaCycleShortFired && !inQuarantineShort;
@@ -1361,36 +1365,61 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     if (pendienteRapido && slopeThresholdMet && tema9SlopeBajista && velaBajista)
                     {
-                        // 1. FILTRO DE TOPE MÃXIMO DE SOBREEXTENSIÃ“N ANTI-FOMO (v15.0)
+                        // 1. FILTRO DE TOPE MAXIMO DE SOBREEXTENSION ANTI-FOMO (30tk v15.0)
                         double ticksAfueraLower = (lowerBig - Close[0]) / TickSize;
                         if (ticksAfueraLower > CascadaMaxOutsideEntryTicks)
                         {
-                            Print(string.Format("{0} - [PAS v15.0 | RECHAZO CASCADA CORTO] Entrada bloqueada: precio a {1:F1} ticks afuera de Lower 3.5 (Tope: {2} ticks). SobreextensiÃ³n extrema evitada.",
+                            Print(string.Format("{0} - [PAS v15.0 | RECHAZO CASCADA CORTO] Entrada bloqueada: precio a {1:F1} ticks afuera de Lower 3.5 (Tope: {2} ticks). Sobreextension extrema evitada.",
                                 Time[0], ticksAfueraLower, CascadaMaxOutsideEntryTicks));
                             return;
                         }
 
-                        // 2. CONFIGURACIÃ“N DE CLÃMAX Y SL SEGÃšN ZONA DE ENTRADA (v15.0)
-                        if (ticksAfueraLower >= CascadaOutsideMidTierTicks) // Zona Alta: 10 a 20 ticks afuera
+                        // 2. CONFIGURACION DE CLIMAX Y SL SEGUN MATRIZ DE ZONAS (v15.0)
+                        if (ticksAfueraLower >= CascadaTier4ExtremaTicks) // Zona 4 Extrema: 25 a 30 ticks afuera
                         {
-                            cascadaEntryOutsideTicks = ticksAfueraLower;
-                            cascadaClimaxTargetTicks = ticksAfueraLower * CascadaClimaxMultHigh; // 2.0x
-                            cascadaHasClimaxTarget   = true;
-                            cascadaEnteredOutside    = true; // Activa SL ceÃ±ido a 2 ticks atrÃ¡s de Banda 3.5
+                            cascadaEnteredZone              = 4;
+                            cascadaEntryOutsideTicks        = ticksAfueraLower;
+                            cascadaClimaxTargetTicks        = ticksAfueraLower * CascadaClimaxMultExt; // 1.6x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
                         }
-                        else if (ticksAfueraLower >= 2.0) // Zona Baja: 2 a 10 ticks afuera
+                        else if (ticksAfueraLower >= CascadaTier3AltaTicks) // Zona 3 Alta: 15 a 25 ticks afuera
                         {
-                            cascadaEntryOutsideTicks = ticksAfueraLower;
-                            cascadaClimaxTargetTicks = ticksAfueraLower * CascadaClimaxMultLow; // 5.0x
-                            cascadaHasClimaxTarget   = true;
-                            cascadaEnteredOutside    = false; // SL estÃ¡ndar en LÃ­nea Media
+                            cascadaEnteredZone              = 3;
+                            cascadaEntryOutsideTicks        = ticksAfueraLower;
+                            cascadaClimaxTargetTicks        = ticksAfueraLower * CascadaClimaxMultHigh; // 2.0x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
                         }
-                        else
+                        else if (ticksAfueraLower >= CascadaTier2MediaTicks) // Zona 2 Media: 10 a 15 ticks afuera
                         {
+                            cascadaEnteredZone              = 2;
+                            cascadaEntryOutsideTicks        = ticksAfueraLower;
+                            cascadaClimaxTargetTicks        = ticksAfueraLower * CascadaClimaxMultMid; // 3.0x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
+                        }
+                        else if (ticksAfueraLower >= CascadaTier1BajaTicks) // Zona 1 Baja: 2 a 10 ticks afuera
+                        {
+                            cascadaEnteredZone              = 1;
+                            cascadaEntryOutsideTicks        = ticksAfueraLower;
+                            cascadaClimaxTargetTicks        = ticksAfueraLower * CascadaClimaxMultLow; // 5.0x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
+                        }
+                        else // Zona 0: Adentro del canal (< 2 ticks afuera) -> Climax de Linea Media 1.5x
+                        {
+                            cascadaEnteredZone              = 0;
                             cascadaEntryOutsideTicks = 0.0;
-                            cascadaClimaxTargetTicks = 0.0;
-                            cascadaHasClimaxTarget   = false;
-                            cascadaEnteredOutside    = false;
+            cascadaClimaxTargetTicks = 0.0;
+            cascadaHasClimaxTarget = false;
+            cascadaEnteredZone = 0;
+            cascadaEntryMidlineDistTicks = 0.0;
+            cascadaClimaxMidlineTargetTicks = 0.0;
+            cascadaHasMidlineClimaxTarget = false;
+                            cascadaEntryMidlineDistTicks    = Math.Abs(Close[0] - midline) / TickSize;
+                            cascadaClimaxMidlineTargetTicks = cascadaEntryMidlineDistTicks * CascadaClimaxMidlineMult; // 1.5x
+                            cascadaHasMidlineClimaxTarget   = true;
                         }
 
                         cascadaCycleShortFired = true;
@@ -1401,10 +1430,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v15.0 | Â¡DISPARO CORTO CASCADA!] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F2} (Req: < -{5:F2}) | TEMA9 OK | Afuera 3.5: {6:F1}tk | ClÃ­max Meta: {7} | {8}",
-                            Time[0], Close[0], lowerSmall, midline, normSlope, requiredSlopeShort,
-                            ticksAfueraLower, (cascadaHasClimaxTarget ? string.Format("{0:F1}tk ({1:F1}x)", cascadaClimaxTargetTicks, (ticksAfueraLower >= CascadaOutsideMidTierTicks ? CascadaClimaxMultHigh : CascadaClimaxMultLow)) : "N/A"),
-                            (isShortSecondTicket ? "2DO BOLETO QUIRÃšRGICO (5b Cooldown)" : "DISPARO #1")));
+                        string targetInfo = cascadaEnteredZone > 0 
+                            ? string.Format("Afuera 3.5: {0:F1}tk | Climax 3.5 Meta: {1:F1}tk (Zona {2})", ticksAfueraLower, cascadaClimaxTargetTicks, cascadaEnteredZone)
+                            : string.Format("Zona 0 (Adentro) | Dist Midline: {0:F1}tk | Climax Midline Meta: {1:F1}tk ({2:F1}x)", cascadaEntryMidlineDistTicks, cascadaClimaxMidlineTargetTicks, CascadaClimaxMidlineMult);
+
+                        Print(string.Format("{0} - [PAS v15.0 | DISPARO CORTO CASCADA!] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F2} (Req: < -{5:F2}) | TEMA9 OK | {6} | {7}",
+                            Time[0], Close[0], lowerSmall, midline, normSlope, requiredSlopeShort, targetInfo,
+                            (isShortSecondTicket ? "2DO BOLETO QUIRURGICO (5b Cooldown)" : "DISPARO #1")));
                         return;
                     }
                     else if (isShortSecondTicket && pendienteRapido && !slopeThresholdMet)
@@ -1422,19 +1454,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // =========================================================================
             // DISPARO LARGO: AS 4 CASCADA SURFER v15.0 (ALCISTA INSTITUCIONAL)
-            // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto QuirÃºrgico con Enfriamiento >= 5 Barras
-            // 2. Filtro Macro: LÃ­nea Roja EMA 200 por debajo de la LÃ­nea Media (ema200[0] < midline)
-            // 3. Pendiente LÃ­nea Media:
+            // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto Quirurgico con Enfriamiento >= 5 Barras
+            // 2. Filtro Macro: Linea Roja EMA 200 por debajo de la Linea Media (ema200[0] < midline)
+            // 3. Pendiente Linea Media:
             //    - Disparo #1: normSlope > +0.15 confirmada por >= 2 barras consecutivas
-            //    - 2do Boleto: Mayor exigencia (normSlope > +CascadaSecondTicketSlopeThreshold, ej. > +0.17)
+            //    - 2do Boleto: Mayor exigencia (normSlope > +CascadaSecondTicketSlopeThreshold, ej. > +0.18)
             // 4. Filtro Micro TEMA 9: Pendiente positiva en 5 barras (CurrentBar >= 5 && tema9[0] > tema9[5])
-            // 5. UbicaciÃ³n: Precio a favor de la tendencia (Close[0] >= midline)
-            // 6. Vela con intenciÃ³n alcista: Close[0] > Open[0]
-            // 7. Filtro Anti-FOMO: Distancia afuera de Upper 3.5 <= CascadaMaxOutsideEntryTicks (20tk)
-            // 8. ClÃ­max DinÃ¡mico:
-            //    - Zona Alta (10 a 20 ticks afuera): Meta = Distancia * 2.0x | SL ceÃ±ido a 2 ticks atrÃ¡s de Banda 3.5
-            //    - Zona Baja (2 a 10 ticks afuera): Meta = Distancia * 5.0x | SL estÃ¡ndar en LÃ­nea Media
-            //    - Adentro (< 2 ticks afuera): Surfeo estÃ¡ndar en Banda 1.75
+            // 5. Ubicacion: Precio a favor de la tendencia (Close[0] >= midline)
+            // 6. Vela con intencion alcista: Close[0] > Open[0]
+            // 7. Filtro Anti-FOMO: Distancia afuera de Upper 3.5 <= CascadaMaxOutsideEntryTicks (30tk)
+            // 8. Matriz de 4 Zonas de Climax Exterior + Climax de Linea Media en Zona 0
             // =========================================================================
             bool inQuarantineLong = Time[0] < cascadaQuarantineEndTime;
             bool isLongFirstTicket  = !cascadaCycleLongFired && !inQuarantineLong;
@@ -1455,36 +1484,61 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     if (pendienteRapido && slopeThresholdMet && tema9SlopeAlcista && velaAlcista)
                     {
-                        // 1. FILTRO DE TOPE MÃXIMO DE SOBREEXTENSIÃ“N ANTI-FOMO (v15.0)
+                        // 1. FILTRO DE TOPE MAXIMO DE SOBREEXTENSION ANTI-FOMO (30tk v15.0)
                         double ticksAfueraUpper = (Close[0] - upperBig) / TickSize;
                         if (ticksAfueraUpper > CascadaMaxOutsideEntryTicks)
                         {
-                            Print(string.Format("{0} - [PAS v15.0 | RECHAZO CASCADA LARGO] Entrada bloqueada: precio a {1:F1} ticks afuera de Upper 3.5 (Tope: {2} ticks). SobreextensiÃ³n extrema evitada.",
+                            Print(string.Format("{0} - [PAS v15.0 | RECHAZO CASCADA LARGO] Entrada bloqueada: precio a {1:F1} ticks afuera de Upper 3.5 (Tope: {2} ticks). Sobreextension extrema evitada.",
                                 Time[0], ticksAfueraUpper, CascadaMaxOutsideEntryTicks));
                             return;
                         }
 
-                        // 2. CONFIGURACIÃ“N DE CLÃMAX Y SL SEGÃšN ZONA DE ENTRADA (v15.0)
-                        if (ticksAfueraUpper >= CascadaOutsideMidTierTicks) // Zona Alta: 10 a 20 ticks afuera
+                        // 2. CONFIGURACION DE CLIMAX Y SL SEGUN MATRIZ DE ZONAS (v15.0)
+                        if (ticksAfueraUpper >= CascadaTier4ExtremaTicks) // Zona 4 Extrema: 25 a 30 ticks afuera
                         {
-                            cascadaEntryOutsideTicks = ticksAfueraUpper;
-                            cascadaClimaxTargetTicks = ticksAfueraUpper * CascadaClimaxMultHigh; // 2.0x
-                            cascadaHasClimaxTarget   = true;
-                            cascadaEnteredOutside    = true; // Activa SL ceÃ±ido a 2 ticks atrÃ¡s de Banda 3.5
+                            cascadaEnteredZone              = 4;
+                            cascadaEntryOutsideTicks        = ticksAfueraUpper;
+                            cascadaClimaxTargetTicks        = ticksAfueraUpper * CascadaClimaxMultExt; // 1.6x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
                         }
-                        else if (ticksAfueraUpper >= 2.0) // Zona Baja: 2 a 10 ticks afuera
+                        else if (ticksAfueraUpper >= CascadaTier3AltaTicks) // Zona 3 Alta: 15 a 25 ticks afuera
                         {
-                            cascadaEntryOutsideTicks = ticksAfueraUpper;
-                            cascadaClimaxTargetTicks = ticksAfueraUpper * CascadaClimaxMultLow; // 5.0x
-                            cascadaHasClimaxTarget   = true;
-                            cascadaEnteredOutside    = false; // SL estÃ¡ndar en LÃ­nea Media
+                            cascadaEnteredZone              = 3;
+                            cascadaEntryOutsideTicks        = ticksAfueraUpper;
+                            cascadaClimaxTargetTicks        = ticksAfueraUpper * CascadaClimaxMultHigh; // 2.0x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
                         }
-                        else
+                        else if (ticksAfueraUpper >= CascadaTier2MediaTicks) // Zona 2 Media: 10 a 15 ticks afuera
                         {
+                            cascadaEnteredZone              = 2;
+                            cascadaEntryOutsideTicks        = ticksAfueraUpper;
+                            cascadaClimaxTargetTicks        = ticksAfueraUpper * CascadaClimaxMultMid; // 3.0x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
+                        }
+                        else if (ticksAfueraUpper >= CascadaTier1BajaTicks) // Zona 1 Baja: 2 a 10 ticks afuera
+                        {
+                            cascadaEnteredZone              = 1;
+                            cascadaEntryOutsideTicks        = ticksAfueraUpper;
+                            cascadaClimaxTargetTicks        = ticksAfueraUpper * CascadaClimaxMultLow; // 5.0x
+                            cascadaHasClimaxTarget          = true;
+                            cascadaHasMidlineClimaxTarget   = false;
+                        }
+                        else // Zona 0: Adentro del canal (< 2 ticks afuera) -> Climax de Linea Media 1.5x
+                        {
+                            cascadaEnteredZone              = 0;
                             cascadaEntryOutsideTicks = 0.0;
-                            cascadaClimaxTargetTicks = 0.0;
-                            cascadaHasClimaxTarget   = false;
-                            cascadaEnteredOutside    = false;
+            cascadaClimaxTargetTicks = 0.0;
+            cascadaHasClimaxTarget = false;
+            cascadaEnteredZone = 0;
+            cascadaEntryMidlineDistTicks = 0.0;
+            cascadaClimaxMidlineTargetTicks = 0.0;
+            cascadaHasMidlineClimaxTarget = false;
+                            cascadaEntryMidlineDistTicks    = Math.Abs(Close[0] - midline) / TickSize;
+                            cascadaClimaxMidlineTargetTicks = cascadaEntryMidlineDistTicks * CascadaClimaxMidlineMult; // 1.5x
+                            cascadaHasMidlineClimaxTarget   = true;
                         }
 
                         cascadaCycleLongFired = true;
@@ -1495,10 +1549,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v15.0 | Â¡DISPARO LARGO CASCADA!] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F2} (Req: > +{5:F2}) | TEMA9 OK | Afuera 3.5: {6:F1}tk | ClÃ­max Meta: {7} | {8}",
-                            Time[0], Close[0], upperSmall, midline, normSlope, requiredSlopeLong,
-                            ticksAfueraUpper, (cascadaHasClimaxTarget ? string.Format("{0:F1}tk ({1:F1}x)", cascadaClimaxTargetTicks, (ticksAfueraUpper >= CascadaOutsideMidTierTicks ? CascadaClimaxMultHigh : CascadaClimaxMultLow)) : "N/A"),
-                            (isLongSecondTicket ? "2DO BOLETO QUIRÃšRGICO (5b Cooldown)" : "DISPARO #1")));
+                        string targetInfo = cascadaEnteredZone > 0 
+                            ? string.Format("Afuera 3.5: {0:F1}tk | Climax 3.5 Meta: {1:F1}tk (Zona {2})", ticksAfueraUpper, cascadaClimaxTargetTicks, cascadaEnteredZone)
+                            : string.Format("Zona 0 (Adentro) | Dist Midline: {0:F1}tk | Climax Midline Meta: {1:F1}tk ({2:F1}x)", cascadaEntryMidlineDistTicks, cascadaClimaxMidlineTargetTicks, CascadaClimaxMidlineMult);
+
+                        Print(string.Format("{0} - [PAS v15.0 | DISPARO LARGO CASCADA!] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F2} (Req: > +{5:F2}) | TEMA9 OK | {6} | {7}",
+                            Time[0], Close[0], upperSmall, midline, normSlope, requiredSlopeLong, targetInfo,
+                            (isLongSecondTicket ? "2DO BOLETO QUIRURGICO (5b Cooldown)" : "DISPARO #1")));
                         return;
                     }
                     else if (isLongSecondTicket && pendienteRapido && !slopeThresholdMet)
@@ -1653,7 +1710,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             isCascadaLockActive = false;
             if (ace != AceType.As4_Cascada50)
             {
-                cascadaEnteredOutside = false;
+                cascadaEnteredZone = 0;
                 cascadaOutsideInitialSl = 0.0;
             }
 
@@ -1700,25 +1757,33 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // CASCADA SURFER v15.0: SL Inicial segÃºn zona de entrada
+                    // CASCADA SURFER v15.0: SL Inicial segun zona de entrada
                     isCascadaLockActive = false;
-                    if (cascadaEnteredOutside)
+                    if (cascadaEnteredZone >= 3)
                     {
-                        // Entrada en Zona Alta (10-20 ticks afuera): SL ceÃ±ido a 2 ticks atrÃ¡s de Banda Grande 3.5
-                        cascadaReachedOutsideBigBand = false; // NO saltar directo a trailing de Banda 1.75
+                        // Zonas 3 y 4 (15 a 30 ticks afuera): SL ceñido a 2 ticks atras de Banda Grande 3.5
+                        cascadaReachedOutsideBigBand = false;
                         initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(keltnerBig.Upper[0] - (2 * TickSize));
-                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial CeÃ±ido: Banda 3.5 (-2tk @ {2:F2} | {3:F1} ticks de riesgo). Meta ClÃ­max: {4:F1}tk.",
-                            Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, cascadaClimaxTargetTicks));
+                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial Ceñido: Banda 3.5 (-2tk @ {2:F2} | {3:F1} ticks de riesgo). Meta Climax 3.5: {4:F1}tk (Zona {5}).",
+                            Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, cascadaClimaxTargetTicks, cascadaEnteredZone));
+                    }
+                    else if (cascadaEnteredZone >= 1)
+                    {
+                        // Zonas 1 y 2 (2 a 15 ticks afuera): SL en el borde del Canal Pequeño (Banda 1.75 -2tk)
+                        cascadaReachedOutsideBigBand = false;
+                        initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (2 * TickSize));
+                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: Canal Pequeño Banda 1.75 (-2tk @ {2:F2} | {3:F1} ticks de riesgo). Meta Climax 3.5: {4:F1}tk (Zona {5}).",
+                            Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, cascadaClimaxTargetTicks, cascadaEnteredZone));
                     }
                     else
                     {
-                        // Entrada adentro o Zona Baja: SL Inicial en LÃ­nea Media
+                        // Zona 0: Adentro del canal (< 2 ticks afuera): SL Inicial en Linea Media con Climax Linea Media 1.5x
                         cascadaReachedOutsideBigBand = (Low[0] > keltnerBig.Upper[0]);
                         double naturalSl = keltnerBig.Midline[0] - (2 * TickSize);
                         double maxSafeSl = Close[0] - (CascadaMaxSlTicks * TickSize);
                         initialSlPrice = Math.Max(naturalSl, maxSafeSl);
-                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: LÃ­nea Media ({2:F2} | {3:F1} ticks de respiro | Tope {4}tk = -${5:F2}).",
-                            Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue)));
+                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Long @ {1:F2} | SL Inicial: Linea Media ({2:F2} | {3:F1} ticks de respiro). Meta Climax Linea Media: {4:F1}tk ({5:F1}x).",
+                            Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, cascadaClimaxMidlineTargetTicks, CascadaClimaxMidlineMult));
                     }
                 }
                 else if (ace == AceType.As3_Ratchet)
@@ -1791,25 +1856,33 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As4_Cascada50)
                 {
-                    // CASCADA SURFER v15.0: SL Inicial segÃºn zona de entrada
+                    // CASCADA SURFER v15.0: SL Inicial segun zona de entrada
                     isCascadaLockActive = false;
-                    if (cascadaEnteredOutside)
+                    if (cascadaEnteredZone >= 3)
                     {
-                        // Entrada en Zona Alta (10-20 ticks afuera): SL ceÃ±ido a 2 ticks atrÃ¡s de Banda Grande 3.5
-                        cascadaReachedOutsideBigBand = false; // NO saltar directo a trailing de Banda 1.75
+                        // Zonas 3 y 4 (15 a 30 ticks afuera): SL ceñido a 2 ticks atras de Banda Grande 3.5
+                        cascadaReachedOutsideBigBand = false;
                         initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(keltnerBig.Lower[0] + (2 * TickSize));
-                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial CeÃ±ido: Banda 3.5 (+2tk @ {2:F2} | {3:F1} ticks de riesgo). Meta ClÃ­max: {4:F1}tk.",
-                            Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, cascadaClimaxTargetTicks));
+                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial Ceñido: Banda 3.5 (+2tk @ {2:F2} | {3:F1} ticks de riesgo). Meta Climax 3.5: {4:F1}tk (Zona {5}).",
+                            Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, cascadaClimaxTargetTicks, cascadaEnteredZone));
+                    }
+                    else if (cascadaEnteredZone >= 1)
+                    {
+                        // Zonas 1 y 2 (2 a 15 ticks afuera): SL en el borde del Canal Pequeño (Banda 1.75 +2tk)
+                        cascadaReachedOutsideBigBand = false;
+                        initialSlPrice = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (2 * TickSize));
+                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: Canal Pequeño Banda 1.75 (+2tk @ {2:F2} | {3:F1} ticks de riesgo). Meta Climax 3.5: {4:F1}tk (Zona {5}).",
+                            Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, cascadaClimaxTargetTicks, cascadaEnteredZone));
                     }
                     else
                     {
-                        // Entrada adentro o Zona Baja: SL Inicial en LÃ­nea Media
+                        // Zona 0: Adentro del canal (< 2 ticks afuera): SL Inicial en Linea Media con Climax Linea Media 1.5x
                         cascadaReachedOutsideBigBand = (High[0] < keltnerBig.Lower[0]);
                         double naturalSl = keltnerBig.Midline[0] + (2 * TickSize);
                         double maxSafeSl = Close[0] + (CascadaMaxSlTicks * TickSize);
                         initialSlPrice = Math.Min(naturalSl, maxSafeSl);
-                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: LÃ­nea Media ({2:F2} | {3:F1} ticks de respiro | Tope {4}tk = -${5:F2}).",
-                            Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, CascadaMaxSlTicks, (CascadaMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue)));
+                        Print(string.Format("{0} - [PAS v15.0 - Cascada | SURFER MONOCONTRATO] Entrada Short @ {1:F2} | SL Inicial: Linea Media ({2:F2} | {3:F1} ticks de respiro). Meta Climax Linea Media: {4:F1}tk ({5:F1}x).",
+                            Time[0], Close[0], initialSlPrice, (initialSlPrice - Close[0]) / TickSize, cascadaClimaxMidlineTargetTicks, CascadaClimaxMidlineMult));
                     }
                 }
                 else if (ace == AceType.As3_Ratchet)
@@ -2253,13 +2326,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double upperSmallBand = keltnerSmall.Upper[0];
                     double midline        = keltnerBig.Midline[0];
 
-                    // Solo se activa si la vela estÃ¡ COMPLETAMENTE AFUERA de la Banda Grande 3.5 (suelo de vela por encima del techo 3.5)
+                    // Solo se activa si la vela esta COMPLETAMENTE AFUERA de la Banda Grande 3.5 (suelo de vela por encima del techo 3.5)
                     if (Low[0] > upperBigBand)
                     {
                         cascadaReachedOutsideBigBand = true;
                     }
 
-                    // FASE 0: Salida por ClÃ­max de ExpansiÃ³n de Banda 3.5 (v15.0)
+                    // FASE 0A: Salida por Climax de Expansion de Banda 3.5 (Zonas 1 a 4: v15.0)
                     if (cascadaHasClimaxTarget)
                     {
                         double currentDistUpper = (Close[0] - upperBigBand) / TickSize;
@@ -2267,30 +2340,58 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitLong("Exit_Cascada_ClimaxExpansion", "Cascada50_Long");
                             double closedProfit = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v15.0 | Â¡CLÃMAX DE EXPANSIÃ“N COBRADO - LARGO!] Distancia actual ({1:F1} tk) alcanzÃ³ meta ({2:F1} tk | Multiplicador {3:F1}x sobre {4:F1} tk iniciales). Salida @ ~{5:F2} (PnL estimado: {6:C2}). Â¡Ganancia tomada en la cresta!",
-                                Time[0], currentDistUpper, cascadaClimaxTargetTicks, (cascadaEntryOutsideTicks >= CascadaOutsideMidTierTicks ? CascadaClimaxMultHigh : CascadaClimaxMultLow), cascadaEntryOutsideTicks, Close[0], closedProfit));
+                            Print(string.Format("{0} - [PAS v15.0 | CLIMAX DE EXPANSION COBRADO - LARGO!] Distancia actual ({1:F1} tk) alcanzo meta ({2:F1} tk | Zona {3} sobre {4:F1} tk iniciales). Salida @ ~{5:F2} (PnL estimado: {6:C2}). Ganancia tomada en la cresta!",
+                                Time[0], currentDistUpper, cascadaClimaxTargetTicks, cascadaEnteredZone, cascadaEntryOutsideTicks, Close[0], closedProfit));
                             cascadaHasClimaxTarget = false;
                             return;
                         }
                     }
 
-                    // FASE 1: STOP LOSS ESTRUCTURAL OBLIGATORIO (INCONDICIONAL v15.0)
-                    if (cascadaEnteredOutside)
+                    // FASE 0B: Salida por Climax de Expansion de Linea Media (Zona 0 - Adentro: v15.0)
+                    if (cascadaHasMidlineClimaxTarget)
                     {
-                        // Entrada en Zona Alta (10-20 ticks afuera): SL ceÃ±ido a 2 ticks atrÃ¡s de Banda Grande 3.5
+                        double currentMidDist = (Close[0] - midline) / TickSize;
+                        if (currentMidDist >= cascadaClimaxMidlineTargetTicks && Close[0] > entryPrice)
+                        {
+                            ExitLong("Exit_Cascada_ClimaxMidline", "Cascada50_Long");
+                            double closedProfit = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
+                            Print(string.Format("{0} - [PAS v15.0 | CLIMAX LINEA MEDIA COBRADO - LARGO!] Distancia actual a Midline ({1:F1} tk) alcanzo meta ({2:F1} tk | {3:F1}x sobre {4:F1} tk iniciales). Salida @ ~{5:F2} (PnL estimado: {6:C2}). Ganancia tomada en el estiramiento!",
+                                Time[0], currentMidDist, cascadaClimaxMidlineTargetTicks, CascadaClimaxMidlineMult, cascadaEntryMidlineDistTicks, Close[0], closedProfit));
+                            cascadaHasMidlineClimaxTarget = false;
+                            return;
+                        }
+                    }
+
+                    // FASE 1: STOP LOSS ESTRUCTURAL OBLIGATORIO (INCONDICIONAL v15.0)
+                    if (cascadaEnteredZone >= 3)
+                    {
+                        // Zonas 3 y 4 (15 a 30 ticks afuera): SL ceñido a 2 ticks atras de Banda Grande 3.5
                         double structuralSl = Instrument.MasterInstrument.RoundToTickSize(upperBigBand - (2 * TickSize));
                         if (Close[0] <= structuralSl || Low[0] <= structuralSl)
                         {
                             ExitLong("SL_Banda35_Cascada", "Cascada50_Long");
                             double closedLoss = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
                             Print(string.Format("{0} - [PAS v15.0 | LARGO CERRADO POR SL BANDA 3.5 (-2tk)] Precio {1} SL ({2:F2} | Banda 3.5: {3:F2}) | Salida a Mercado @ ~{4:F2} | PnL: {5:C2}",
-                                Time[0], (Close[0] <= structuralSl ? "cerrÃ³ <=" : "perforÃ³"), structuralSl, upperBigBand, Close[0], closedLoss));
+                                Time[0], (Close[0] <= structuralSl ? "cerro <=" : "perforo"), structuralSl, upperBigBand, Close[0], closedLoss));
+                            return;
+                        }
+                    }
+                    else if (cascadaEnteredZone >= 1)
+                    {
+                        // Zonas 1 y 2 (2 a 15 ticks afuera): SL en el borde del Canal Pequeño (Banda 1.75 -2tk)
+                        double structuralSl = Instrument.MasterInstrument.RoundToTickSize(upperSmallBand - (2 * TickSize));
+                        if (Close[0] <= structuralSl || Low[0] <= structuralSl)
+                        {
+                            ExitLong("SL_Banda175_Cascada", "Cascada50_Long");
+                            double closedLoss = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
+                            Print(string.Format("{0} - [PAS v15.0 | LARGO CERRADO POR SL CANAL PEQUEÑO (-2tk)] Precio {1} SL ({2:F2} | Banda 1.75: {3:F2}) | Salida a Mercado @ ~{4:F2} | PnL: {5:C2}",
+                                Time[0], (Close[0] <= structuralSl ? "cerro <=" : "perforo"), structuralSl, upperSmallBand, Close[0], closedLoss));
                             return;
                         }
                     }
                     else if (!cascadaReachedOutsideBigBand)
                     {
-                        // Entrada adentro o Zona Baja: SL en LÃ­nea Media con tope de CascadaMaxSlTicks
+                        // Zona 0 (Adentro): SL en Linea Media con tope de CascadaMaxSlTicks
                         double midlineSl = Instrument.MasterInstrument.RoundToTickSize(midline - (2 * TickSize));
                         double maxSafeSl = entryPrice - (CascadaMaxSlTicks * TickSize);
                         double dynamicSl = Math.Max(midlineSl, maxSafeSl);
@@ -2299,20 +2400,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitLong("SL_Midline_Cascada", "Cascada50_Long");
                             double closedLoss = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v15.0 | LARGO CERRADO POR SL LÃNEA MEDIA] Precio perforÃ³ Midline ({1:F2}) | Salida a Mercado @ ~{2:F2} | PnL: {3:C2}",
+                            Print(string.Format("{0} - [PAS v15.0 | LARGO CERRADO POR SL LINEA MEDIA] Precio perforo Midline ({1:F2}) | Salida a Mercado @ ~{2:F2} | PnL: {3:C2}",
                                 Time[0], dynamicSl, Close[0], closedLoss));
                             return;
                         }
                     }
 
-                    // FASE 2: TRAILING EN BANDA PEQUEÃ‘A 1.75 (LÃNEA AZUL)
-                    // En Zona Alta: solo permite salida en Banda 1.75 si estÃ¡ EN GANANCIA (bandSl > entryPrice)
-                    // Si va perdiendo, el Ãºnico que corta es el SL de Banda 3.5 de FASE 1
+                    // FASE 2: TRAILING EN BANDA PEQUEÑA 1.75 (LINEA AZUL)
+                    // En Zonas 1 a 4: solo permite salida en Banda 1.75 si esta EN GANANCIA (bandSl > entryPrice)
+                    // En Zona 0: surfeo tradicional tras romper Banda 3.5
                     if (cascadaReachedOutsideBigBand)
                     {
                         double bandSl = Instrument.MasterInstrument.RoundToTickSize(upperSmallBand - (CascadaBandOffsetTicks * TickSize));
-                        bool inProfit = bandSl > entryPrice;
-                        bool allowTrailing = !cascadaEnteredOutside || inProfit;
+                        bool allowTrailing = (cascadaEnteredZone == 0) || (bandSl > entryPrice);
 
                         if (allowTrailing)
                         {
@@ -2321,8 +2421,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 ExitLong("Exit_Cascada_Banda175", "Cascada50_Long");
                                 double closedProfit = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
-                                Print(string.Format("{0} - [PAS v15.0 | LARGO CERRADO EN BANDA 1.75 (LÃNEA AZUL)] Vela {1} Banda 1.75 ({2:F2} con respiro {3}tk, SL @ {4:F2}) tras romper Banda Grande 3.5 | Salida @ ~{5:F2} (PnL estimado: {6:C2}).",
-                                    Time[0], (CascadaExitOnCloseOnly ? string.Format("CERRÃ“ @ {0:F2} <=", Close[0]) : "tocÃ³/perforÃ³"), upperSmallBand, CascadaBandOffsetTicks, bandSl, Close[0], closedProfit));
+                                Print(string.Format("{0} - [PAS v15.0 | LARGO CERRADO EN BANDA 1.75 (LINEA AZUL)] Vela {1} Banda 1.75 ({2:F2} con respiro {3}tk, SL @ {4:F2}) tras romper Banda Grande 3.5 | Salida @ ~{5:F2} (PnL estimado: {6:C2}).",
+                                    Time[0], (CascadaExitOnCloseOnly ? string.Format("CERRO @ {0:F2} <=", Close[0]) : "toco/perforo"), upperSmallBand, CascadaBandOffsetTicks, bandSl, Close[0], closedProfit));
                                 return;
                             }
                         }
@@ -2727,13 +2827,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double lowerSmallBand = keltnerSmall.Lower[0];
                     double midline        = keltnerBig.Midline[0];
 
-                    // Solo se activa si la vela estÃ¡ COMPLETAMENTE AFUERA de la Banda Grande 3.5 (techo de vela por debajo del suelo 3.5)
+                    // Solo se activa si la vela esta COMPLETAMENTE AFUERA de la Banda Grande 3.5 (techo de vela por debajo del suelo 3.5)
                     if (High[0] < lowerBigBand)
                     {
                         cascadaReachedOutsideBigBand = true;
                     }
 
-                    // FASE 0: Salida por ClÃ­max de ExpansiÃ³n de Banda 3.5 (v15.0)
+                    // FASE 0A: Salida por Climax de Expansion de Banda 3.5 (Zonas 1 a 4: v15.0)
                     if (cascadaHasClimaxTarget)
                     {
                         double currentDistLower = (lowerBigBand - Close[0]) / TickSize;
@@ -2741,30 +2841,58 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitShort("Exit_Cascada_ClimaxExpansion", "Cascada50_Short");
                             double closedProfit = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v15.0 | Â¡CLÃMAX DE EXPANSIÃ“N COBRADO - CORTO!] Distancia actual ({1:F1} tk) alcanzÃ³ meta ({2:F1} tk | Multiplicador {3:F1}x sobre {4:F1} tk iniciales). Salida @ ~{5:F2} (PnL estimado: {6:C2}). Â¡Ganancia tomada en el fondo del pozo!",
-                                Time[0], currentDistLower, cascadaClimaxTargetTicks, (cascadaEntryOutsideTicks >= CascadaOutsideMidTierTicks ? CascadaClimaxMultHigh : CascadaClimaxMultLow), cascadaEntryOutsideTicks, Close[0], closedProfit));
+                            Print(string.Format("{0} - [PAS v15.0 | CLIMAX DE EXPANSION COBRADO - CORTO!] Distancia actual ({1:F1} tk) alcanzo meta ({2:F1} tk | Zona {3} sobre {4:F1} tk iniciales). Salida @ ~{5:F2} (PnL estimado: {6:C2}). Ganancia tomada en el fondo del pozo!",
+                                Time[0], currentDistLower, cascadaClimaxTargetTicks, cascadaEnteredZone, cascadaEntryOutsideTicks, Close[0], closedProfit));
                             cascadaHasClimaxTarget = false;
                             return;
                         }
                     }
 
-                    // FASE 1: STOP LOSS ESTRUCTURAL OBLIGATORIO (INCONDICIONAL v15.0)
-                    if (cascadaEnteredOutside)
+                    // FASE 0B: Salida por Climax de Expansion de Linea Media (Zona 0 - Adentro: v15.0)
+                    if (cascadaHasMidlineClimaxTarget)
                     {
-                        // Entrada en Zona Alta (10-20 ticks afuera): SL ceÃ±ido a 2 ticks atrÃ¡s de Banda Grande 3.5
+                        double currentMidDist = (midline - Close[0]) / TickSize;
+                        if (currentMidDist >= cascadaClimaxMidlineTargetTicks && Close[0] < entryPrice)
+                        {
+                            ExitShort("Exit_Cascada_ClimaxMidline", "Cascada50_Short");
+                            double closedProfit = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
+                            Print(string.Format("{0} - [PAS v15.0 | CLIMAX LINEA MEDIA COBRADO - CORTO!] Distancia actual a Midline ({1:F1} tk) alcanzo meta ({2:F1} tk | {3:F1}x sobre {4:F1} tk iniciales). Salida @ ~{5:F2} (PnL estimado: {6:C2}). Ganancia tomada en el estiramiento!",
+                                Time[0], currentMidDist, cascadaClimaxMidlineTargetTicks, CascadaClimaxMidlineMult, cascadaEntryMidlineDistTicks, Close[0], closedProfit));
+                            cascadaHasMidlineClimaxTarget = false;
+                            return;
+                        }
+                    }
+
+                    // FASE 1: STOP LOSS ESTRUCTURAL OBLIGATORIO (INCONDICIONAL v15.0)
+                    if (cascadaEnteredZone >= 3)
+                    {
+                        // Zonas 3 y 4 (15 a 30 ticks afuera): SL ceñido a 2 ticks atras de Banda Grande 3.5
                         double structuralSl = Instrument.MasterInstrument.RoundToTickSize(lowerBigBand + (2 * TickSize));
                         if (Close[0] >= structuralSl || High[0] >= structuralSl)
                         {
                             ExitShort("SL_Banda35_Cascada", "Cascada50_Short");
                             double closedLoss = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
                             Print(string.Format("{0} - [PAS v15.0 | CORTO CERRADO POR SL BANDA 3.5 (+2tk)] Precio {1} SL ({2:F2} | Banda 3.5: {3:F2}) | Salida a Mercado @ ~{4:F2} | PnL: {5:C2}",
-                                Time[0], (Close[0] >= structuralSl ? "cerrÃ³ >=" : "perforÃ³"), structuralSl, lowerBigBand, Close[0], closedLoss));
+                                Time[0], (Close[0] >= structuralSl ? "cerro >=" : "perforo"), structuralSl, lowerBigBand, Close[0], closedLoss));
+                            return;
+                        }
+                    }
+                    else if (cascadaEnteredZone >= 1)
+                    {
+                        // Zonas 1 y 2 (2 a 15 ticks afuera): SL en el borde del Canal Pequeño (Banda 1.75 +2tk)
+                        double structuralSl = Instrument.MasterInstrument.RoundToTickSize(lowerSmallBand + (2 * TickSize));
+                        if (Close[0] >= structuralSl || High[0] >= structuralSl)
+                        {
+                            ExitShort("SL_Banda175_Cascada", "Cascada50_Short");
+                            double closedLoss = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
+                            Print(string.Format("{0} - [PAS v15.0 | CORTO CERRADO POR SL CANAL PEQUEÑO (+2tk)] Precio {1} SL ({2:F2} | Banda 1.75: {3:F2}) | Salida a Mercado @ ~{4:F2} | PnL: {5:C2}",
+                                Time[0], (Close[0] >= structuralSl ? "cerro >=" : "perforo"), structuralSl, lowerSmallBand, Close[0], closedLoss));
                             return;
                         }
                     }
                     else if (!cascadaReachedOutsideBigBand)
                     {
-                        // Entrada adentro o Zona Baja: SL en LÃ­nea Media con tope de CascadaMaxSlTicks
+                        // Zona 0 (Adentro): SL en Linea Media con tope de CascadaMaxSlTicks
                         double midlineSl = Instrument.MasterInstrument.RoundToTickSize(midline + (2 * TickSize));
                         double maxSafeSl = entryPrice + (CascadaMaxSlTicks * TickSize);
                         double dynamicSl = Math.Min(midlineSl, maxSafeSl);
@@ -2773,20 +2901,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitShort("SL_Midline_Cascada", "Cascada50_Short");
                             double closedLoss = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v15.0 | CORTO CERRADO POR SL LÃNEA MEDIA] Precio perforÃ³ Midline ({1:F2}) | Salida a Mercado @ ~{2:F2} | PnL: {3:C2}",
+                            Print(string.Format("{0} - [PAS v15.0 | CORTO CERRADO POR SL LINEA MEDIA] Precio perforo Midline ({1:F2}) | Salida a Mercado @ ~{2:F2} | PnL: {3:C2}",
                                 Time[0], dynamicSl, Close[0], closedLoss));
                             return;
                         }
                     }
 
-                    // FASE 2: TRAILING EN BANDA PEQUEÃ‘A 1.75 (LÃNEA AZUL)
-                    // En Zona Alta: solo permite salida en Banda 1.75 si estÃ¡ EN GANANCIA (bandSl < entryPrice)
-                    // Si va perdiendo, el Ãºnico que corta es el SL de Banda 3.5 de FASE 1
+                    // FASE 2: TRAILING EN BANDA PEQUEÑA 1.75 (LINEA AZUL)
+                    // En Zonas 1 a 4: solo permite salida en Banda 1.75 si esta EN GANANCIA (bandSl < entryPrice)
+                    // En Zona 0: surfeo tradicional tras romper Banda 3.5
                     if (cascadaReachedOutsideBigBand)
                     {
                         double bandSl = Instrument.MasterInstrument.RoundToTickSize(lowerSmallBand + (CascadaBandOffsetTicks * TickSize));
-                        bool inProfit = bandSl < entryPrice;
-                        bool allowTrailing = !cascadaEnteredOutside || inProfit;
+                        bool allowTrailing = (cascadaEnteredZone == 0) || (bandSl < entryPrice);
 
                         if (allowTrailing)
                         {
@@ -2795,8 +2922,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 ExitShort("Exit_Cascada_Banda175", "Cascada50_Short");
                                 double closedProfit = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
-                                Print(string.Format("{0} - [PAS v15.0 | CORTO CERRADO EN BANDA 1.75 (LÃNEA AZUL)] Vela {1} Banda 1.75 ({2:F2} con respiro {3}tk, SL @ {4:F2}) tras romper Banda Grande 3.5 | Salida @ ~{5:F2} (PnL estimado: {6:C2}).",
-                                    Time[0], (CascadaExitOnCloseOnly ? string.Format("CERRÃ“ @ {0:F2} >=", Close[0]) : "tocÃ³/perforÃ³"), lowerSmallBand, CascadaBandOffsetTicks, bandSl, Close[0], closedProfit));
+                                Print(string.Format("{0} - [PAS v15.0 | CORTO CERRADO EN BANDA 1.75 (LINEA AZUL)] Vela {1} Banda 1.75 ({2:F2} con respiro {3}tk, SL @ {4:F2}) tras romper Banda Grande 3.5 | Salida @ ~{5:F2} (PnL estimado: {6:C2}).",
+                                    Time[0], (CascadaExitOnCloseOnly ? string.Format("CERRO @ {0:F2} >=", Close[0]) : "toco/perforo"), lowerSmallBand, CascadaBandOffsetTicks, bandSl, Close[0], closedProfit));
                                 return;
                             }
                         }
@@ -2845,12 +2972,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             cascadaC2Achieved = false;
             cascadaChokeActive = false;
             isCascadaLockActive = false;
-            cascadaEnteredOutside = false;
+            cascadaEnteredZone = 0;
             cascadaOutsideInitialSl = 0.0;
             cascadaReachedOutsideBigBand = false;
             cascadaEntryOutsideTicks = 0.0;
             cascadaClimaxTargetTicks = 0.0;
             cascadaHasClimaxTarget = false;
+            cascadaEnteredZone = 0;
+            cascadaEntryMidlineDistTicks = 0.0;
+            cascadaClimaxMidlineTargetTicks = 0.0;
+            cascadaHasMidlineClimaxTarget = false;
             entryBarGlobal = -1;
 
             trancaActive = false;
@@ -3337,24 +3468,54 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CascadaFirstEntryContracts { get; set; }
 
         [NinjaScriptProperty]
-        [Range(5, 50)]
-        [Display(Name = "Cascada Distancia MÃ¡xima Entrada (Ticks)", Description = "Tope mÃ¡ximo de ticks fuera de Banda 3.5 para permitir entrada (filtro anti-FOMO: 20 ticks por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 2)]
+        [Range(5, 60)]
+        [Display(Name = "Cascada Distancia Maxima Entrada (Ticks)", Description = "Tope maximo de ticks fuera de Banda 3.5 para permitir entrada (filtro anti-FOMO: 30 ticks por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 2)]
         public int CascadaMaxOutsideEntryTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(5, 25)]
-        [Display(Name = "Cascada Umbral Zona Alta (Ticks)", Description = "Umbral de ticks fuera de Banda 3.5 que divide Zona Baja de Zona Alta (10 ticks por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 3)]
-        public int CascadaOutsideMidTierTicks { get; set; }
+        [Range(15, 40)]
+        [Display(Name = "Cascada Umbral Zona 4 Extrema (Ticks)", Description = "Umbral de ticks fuera de Banda 3.5 para Zona 4 Extrema (25 a 30 ticks afuera: 25 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 3)]
+        public int CascadaTier4ExtremaTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(10, 30)]
+        [Display(Name = "Cascada Umbral Zona 3 Alta (Ticks)", Description = "Umbral de ticks fuera de Banda 3.5 para Zona 3 Alta (15 a 25 ticks afuera: 15 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 4)]
+        public int CascadaTier3AltaTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(5, 20)]
+        [Display(Name = "Cascada Umbral Zona 2 Media (Ticks)", Description = "Umbral de ticks fuera de Banda 3.5 para Zona 2 Media (10 a 15 ticks afuera: 10 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
+        public int CascadaTier2MediaTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 5)]
+        [Display(Name = "Cascada Umbral Zona 1 Baja (Ticks)", Description = "Umbral de ticks fuera de Banda 3.5 para Zona 1 Baja (2 a 10 ticks afuera: 2 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 6)]
+        public int CascadaTier1BajaTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1.0, 10.0)]
-        [Display(Name = "Cascada Multiplicador ClÃ­max Zona Alta", Description = "Multiplicador de distancia de clÃ­max para entradas en Zona Alta (10-20 ticks afuera): por defecto 2.0x", GroupName = "5. As 4: Cascada Surfer", Order = 4)]
+        [Display(Name = "Cascada Multiplicador Climax Zona 4 Extrema", Description = "Multiplicador de climax para Zona 4 Extrema (25-30 ticks afuera): por defecto 1.6x", GroupName = "5. As 4: Cascada Surfer", Order = 7)]
+        public double CascadaClimaxMultExt { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1.0, 10.0)]
+        [Display(Name = "Cascada Multiplicador Climax Zona 3 Alta", Description = "Multiplicador de climax para Zona 3 Alta (15-25 ticks afuera): por defecto 2.0x", GroupName = "5. As 4: Cascada Surfer", Order = 8)]
         public double CascadaClimaxMultHigh { get; set; }
 
         [NinjaScriptProperty]
+        [Range(1.0, 10.0)]
+        [Display(Name = "Cascada Multiplicador Climax Zona 2 Media", Description = "Multiplicador de climax para Zona 2 Media (10-15 ticks afuera): por defecto 3.0x", GroupName = "5. As 4: Cascada Surfer", Order = 9)]
+        public double CascadaClimaxMultMid { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1.0, 15.0)]
-        [Display(Name = "Cascada Multiplicador ClÃ­max Zona Baja", Description = "Multiplicador de distancia de clÃ­max para entradas en Zona Baja (2-10 ticks afuera): por defecto 5.0x", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
+        [Display(Name = "Cascada Multiplicador Climax Zona 1 Baja", Description = "Multiplicador de climax para Zona 1 Baja (2-10 ticks afuera): por defecto 5.0x", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
         public double CascadaClimaxMultLow { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1.1, 5.0)]
+        [Display(Name = "Cascada Multiplicador Climax Linea Media Zona 0", Description = "Multiplicador de climax respecto a Linea Media para Zona 0 (< 2 ticks afuera): por defecto 1.5x", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
+        public double CascadaClimaxMidlineMult { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
