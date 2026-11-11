@@ -289,8 +289,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Injerto 1: Clímax Ratchet Asfixiante en Todos los Trades (v14.3)
                 UseClimaxRatchet                            = true;   // Activar Clímax Ratchet en todos los trades
                 ClimaxTriggerDollars                        = 400.0;  // Umbral de ganancia en USD ($400 ES / $40 MES)
-                ClimaxTriggerOutsideTicks                   = 16;     // Umbral de ticks fuera de Banda 3.5
-                ClimaxRatchetOffsetTicks                    = 3;      // Asfixia a 3 ticks del precio pico
+                ClimaxRatchetOffsetTicks                    = 6;      // Respiro de 6 ticks detrás del precio pico (1.5 pts = $75 ES / $7.5 MES)
 
                 // Injerto 2: Victoria Temprana en Trade 1 (v14.3)
                 UseEarlyWinT1                               = true;   // Activar Victoria Temprana en Trade 1
@@ -2166,23 +2165,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double midline        = keltnerBig.Midline[0];
 
                     // =========================================================================
-                    // INJERTO 1: CLÍMAX RATCHET ASFIXIANTE (PARA TODOS LOS TRADES) - LARGO (v14.3)
+                    // INJERTO 1: CLÍMAX RATCHET ASFIXIANTE (OPCIÓN 1: PURA POR DINERO) - LARGO (v14.3)
                     // =========================================================================
                     if (UseClimaxRatchet)
                     {
                         double currentGainTicksLong = (High[0] - entryPrice) / TickSize;
                         double currentGainDollarsLong = currentGainTicksLong * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
-                        double ticksOutsideBandLong = (High[0] - upperBigBand) / TickSize;
                         double effectiveClimaxTriggerDollars = ClimaxTriggerDollars * instrumentMultiplier;
 
                         if (!isClimaxRatchetActive)
                         {
-                            if (currentGainDollarsLong >= effectiveClimaxTriggerDollars || (ticksOutsideBandLong >= ClimaxTriggerOutsideTicks && currentGainDollarsLong > 0))
+                            // Clímax se activa ÚNICA Y EXCLUSIVAMENTE al alcanzar la meta de dinero ($400 ES / $40 MES)
+                            if (currentGainDollarsLong >= effectiveClimaxTriggerDollars)
                             {
                                 isClimaxRatchetActive = true;
                                 climaxPeakPrice = High[0];
-                                Print(string.Format("{0} - [PAS v14.3 | CLÍMAX ACTIVADO EN LARGO] Ganancia: {1:C2} (Meta {2:C2}) | Fuera de Banda 3.5: {3:F1}tk (Meta {4}tk). Ratchet ceñido a {5} ticks activado.",
-                                    Time[0], currentGainDollarsLong, effectiveClimaxTriggerDollars, ticksOutsideBandLong, ClimaxTriggerOutsideTicks, ClimaxRatchetOffsetTicks));
+                                Print(string.Format("{0} - [PAS v14.3 | CLÍMAX ACTIVADO EN LARGO] Ganancia Flotante alcanzó {1:C2} (Meta {2:C2}). Ratchet con respiro de {3} ticks activado.",
+                                    Time[0], currentGainDollarsLong, effectiveClimaxTriggerDollars, ClimaxRatchetOffsetTicks));
                             }
                         }
 
@@ -2195,8 +2194,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 ExitLong("Exit_Cascada_ClimaxRatchet", "Cascada50_Long");
                                 double closedProfit = (Close[0] - entryPrice) * Instrument.MasterInstrument.PointValue;
-                                Print(string.Format("{0} - [PAS v14.3 | LARGO COBRADO POR CLÍMAX RATCHET] Salida @ ~{1:F2} (Piso Ratchet @ {2:F2}, Pico @ {3:F2}) | PnL: {4:C2}",
-                                    Time[0], Close[0], climaxSlPrice, climaxPeakPrice, closedProfit));
+                                Print(string.Format("{0} - [PAS v14.3 | LARGO COBRADO POR CLÍMAX RATCHET] Salida @ ~{1:F2} (Piso Ratchet @ {2:F2}, Pico @ {3:F2}, Respiro {4}tk) | PnL: {5:C2}",
+                                    Time[0], Close[0], climaxSlPrice, climaxPeakPrice, ClimaxRatchetOffsetTicks, closedProfit));
                                 return;
                             }
                         }
@@ -2642,23 +2641,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double midline        = keltnerBig.Midline[0];
 
                     // =========================================================================
-                    // INJERTO 1: CLÍMAX RATCHET ASFIXIANTE (PARA TODOS LOS TRADES) - CORTO (v14.3)
+                    // INJERTO 1: CLÍMAX RATCHET ASFIXIANTE (OPCIÓN 1: PURA POR DINERO) - CORTO (v14.3)
                     // =========================================================================
                     if (UseClimaxRatchet)
                     {
                         double currentGainTicksShort = (entryPrice - Low[0]) / TickSize;
                         double currentGainDollarsShort = currentGainTicksShort * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
-                        double ticksOutsideBandShort = (lowerBigBand - Low[0]) / TickSize;
                         double effectiveClimaxTriggerDollars = ClimaxTriggerDollars * instrumentMultiplier;
 
                         if (!isClimaxRatchetActive)
                         {
-                            if (currentGainDollarsShort >= effectiveClimaxTriggerDollars || (ticksOutsideBandShort >= ClimaxTriggerOutsideTicks && currentGainDollarsShort > 0))
+                            // Clímax se activa ÚNICA Y EXCLUSIVAMENTE al alcanzar la meta de dinero ($400 ES / $40 MES)
+                            if (currentGainDollarsShort >= effectiveClimaxTriggerDollars)
                             {
                                 isClimaxRatchetActive = true;
                                 climaxPeakPrice = Low[0];
-                                Print(string.Format("{0} - [PAS v14.3 | CLÍMAX ACTIVADO EN CORTO] Ganancia: {1:C2} (Meta {2:C2}) | Fuera de Banda 3.5: {3:F1}tk (Meta {4}tk). Ratchet ceñido a {5} ticks activado.",
-                                    Time[0], currentGainDollarsShort, effectiveClimaxTriggerDollars, ticksOutsideBandShort, ClimaxTriggerOutsideTicks, ClimaxRatchetOffsetTicks));
+                                Print(string.Format("{0} - [PAS v14.3 | CLÍMAX ACTIVADO EN CORTO] Ganancia Flotante alcanzó {1:C2} (Meta {2:C2}). Ratchet con respiro de {3} ticks activado.",
+                                    Time[0], currentGainDollarsShort, effectiveClimaxTriggerDollars, ClimaxRatchetOffsetTicks));
                             }
                         }
 
@@ -2671,8 +2670,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 ExitShort("Exit_Cascada_ClimaxRatchet", "Cascada50_Short");
                                 double closedProfit = (entryPrice - Close[0]) * Instrument.MasterInstrument.PointValue;
-                                Print(string.Format("{0} - [PAS v14.3 | CORTO COBRADO POR CLÍMAX RATCHET] Retroceso de {1} ticks desde piso {2:F2} | Salida @ ~{3:F2} | PnL: {4:C2}",
-                                    Time[0], ClimaxRatchetOffsetTicks, climaxPeakPrice, Close[0], closedProfit));
+                                Print(string.Format("{0} - [PAS v14.3 | CORTO COBRADO POR CLÍMAX RATCHET] Salida @ ~{1:F2} (Piso Ratchet @ {2:F2}, Piso Pico @ {3:F2}, Respiro {4}tk) | PnL: {5:C2}",
+                                    Time[0], Close[0], climaxSlPrice, climaxPeakPrice, ClimaxRatchetOffsetTicks, closedProfit));
                                 return;
                             }
                         }
@@ -3003,7 +3002,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "ESTRATEGIA ACTIVA (v14.2)" : "ESTRATEGIA PAUSADA (v14.2)",
+                Content = isStrategyActive ? "ESTRATEGIA ACTIVA (v14.3)" : "ESTRATEGIA PAUSADA (v14.3)",
                 Height = 30,
                 Width = 240,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -3038,7 +3037,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "ESTRATEGIA ACTIVA (v14.2)" : "ESTRATEGIA PAUSADA (v14.2)";
+                panicButton.Content = isStrategyActive ? "ESTRATEGIA ACTIVA (v14.3)" : "ESTRATEGIA PAUSADA (v14.3)";
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
@@ -3411,13 +3410,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double ClimaxTriggerDollars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(2, 50)]
-        [Display(Name = "3. Clímax: Distancia Fuera de Banda (Ticks)", Description = "Ticks de despegue fuera de Banda 3.5 para activar Modo Clímax", GroupName = "8. Clímax Ratchet Asfixiante", Order = 3)]
-        public int ClimaxTriggerOutsideTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Range(1, 10)]
-        [Display(Name = "4. Clímax: Distancia de Asfixia Ratchet (Ticks)", Description = "Ticks de trailing ceñido detrás del precio pico una vez en Clímax (3 ticks por defecto)", GroupName = "8. Clímax Ratchet Asfixiante", Order = 4)]
+        [Range(1, 20)]
+        [Display(Name = "3. Clímax: Respiro de Asfixia Ratchet (Ticks)", Description = "Ticks de trailing ceñido detrás del precio pico una vez en Clímax (6 ticks por defecto = 1.5 pts = $75 ES / $7.5 MES)", GroupName = "8. Clímax Ratchet Asfixiante", Order = 3)]
         public int ClimaxRatchetOffsetTicks { get; set; }
         #endregion
 
