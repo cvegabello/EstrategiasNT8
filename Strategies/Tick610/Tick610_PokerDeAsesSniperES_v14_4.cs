@@ -255,7 +255,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaLockTriggerDollars                   = 250.0;  // Umbral de MFE en USD para activar Candado ($250 ES = +20 ticks / $25 MES en v13.4)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
                 CascadaBigWinThresholdDollars               = 180.0;  // Umbral de ganancia neta en bolsillo para activar Cuarentena de Saciedad ($180 ES / $18 MES)
-                CascadaQuarantineMinutes                    = 30;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (30 min)
+                CascadaQuarantineMinutes                    = 10;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (10 min oficial v14.4)
                 CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
@@ -293,7 +293,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Injerto 2: Clímax Ratchet Asfixiante en Trades Posteriores (v14.4)
                 UseClimaxRatchet                            = true;   // Activar Clímax Ratchet en trades posteriores (Trade 2+)
-                ClimaxTriggerDollars                        = 400.0;  // Umbral de ganancia en USD ($400 ES / $40 MES)
+                ClimaxTriggerDollars                        = 300.0;  // Umbral de ganancia en USD ($300 ES / $30 MES oficial v14.4)
                 ClimaxRatchetOffsetTicks                    = 6;      // Respiro de 6 ticks detrás del precio pico (1.5 pts = $75 ES / $7.5 MES)
 
                 // Injerto 3: Victoria Temprana en Trade 1 (v14.4)
@@ -324,7 +324,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     TrancaConquestBufferDollars = 5.0;
                     TrancaAnchorDollars = 2.0;
                     T1FixedTpDollars      = 47.0;
-                    ClimaxTriggerDollars  = 40.0;
+                    ClimaxTriggerDollars  = 30.0;
                     EarlyWinT1GoalDollars = 45.0;
                     currentDailyFloor     = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
@@ -1379,19 +1379,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         cascadaEnteredOutside = (ticksAfueraLower >= CascadaOutsideThresholdTicks);
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [PAS v14.2 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F2} (2b) | TEMA9 ({5:F2}) < TEMA9[5] ({6:F2}). ¡Qué grosería de trade!",
+                        Print(string.Format("{0} - [PAS v14.4 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F2} (2b) | TEMA9 ({5:F2}) < TEMA9[5] ({6:F2}). ¡Qué grosería de trade!",
                             Time[0], Close[0], lowerSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO")));
                         return;
-                    }
-                    else if (!pendienteRapido && normSlope <= -CascadaSlopeThreshold)
-                    {
-                        Print(string.Format("{0} - [PAS v14.2 | CORTO CASCADA FILTRADO - BARRA 1] Pendiente en {1:F2} tocó umbral (-{2:F2}), pero requiere 2 barras consecutivas (Actual: {3}b). Esperando confirmación...",
-                            Time[0], normSlope, CascadaSlopeThreshold, cascadaConsecutiveSlopeBarsShort));
-                    }
-                    else if (!tema9SlopeBajista && CurrentBar >= 5)
-                    {
-                        Print(string.Format("{0} - [PAS v14.2 | CORTO CASCADA FILTRADO - TEMA 9] Pendiente Mid OK ({1:F2}) pero TEMA 9 ({2:F2}) >= TEMA 9[5] ({3:F2}). Esperando momentum a favor...",
-                            Time[0], normSlope, tema9[0], tema9[5]));
                     }
                 }
             }
@@ -1435,19 +1425,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         cascadaEnteredOutside = (ticksAfueraUpper >= CascadaOutsideThresholdTicks);
 
                         ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [PAS v14.2 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F2} (2b) | TEMA9 ({5:F2}) > TEMA9[5] ({6:F2}). ¡Qué grosería de trade!",
+                        Print(string.Format("{0} - [PAS v14.4 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F2} (2b) | TEMA9 ({5:F2}) > TEMA9[5] ({6:F2}). ¡Qué grosería de trade!",
                             Time[0], Close[0], upperSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO")));
                         return;
-                    }
-                    else if (!pendienteRapido && normSlope >= CascadaSlopeThreshold)
-                    {
-                        Print(string.Format("{0} - [PAS v14.2 | LARGO CASCADA FILTRADO - BARRA 1] Pendiente en +{1:F2} tocó umbral (+{2:F2}), pero requiere 2 barras consecutivas (Actual: {3}b). Esperando confirmación...",
-                            Time[0], normSlope, CascadaSlopeThreshold, cascadaConsecutiveSlopeBarsLong));
-                    }
-                    else if (!tema9SlopeAlcista && CurrentBar >= 5)
-                    {
-                        Print(string.Format("{0} - [PAS v14.2 | LARGO CASCADA FILTRADO - TEMA 9] Pendiente Mid OK (+{1:F2}) pero TEMA 9 ({2:F2}) <= TEMA 9[5] ({3:F2}). Esperando momentum a favor...",
-                            Time[0], normSlope, tema9[0], tema9[5]));
                     }
                 }
             }
