@@ -1391,6 +1391,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], Close[0], lowerSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraLower));
                         return;
                     }
+                    else if (cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars)
+                    {
+                        // LOG FORENSE QUIRÚRGICO: Informa con 4 decimales por qué una vela candidata fue frenada
+                        string motivoFiltro = "";
+                        if (!sobreextensionPermitida)
+                            motivoFiltro = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
+                        else if (!pendienteRapido)
+                            motivoFiltro = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
+                        else if (!velaBajista)
+                            motivoFiltro = "Vela Verde alcista (Requiere vela Roja)";
+                        else if (!tema9SlopeBajista)
+                            motivoFiltro = string.Format("TEMA 9 ({0:F2} >= {1:F2}) sin inercia bajista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
+
+                        Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | CORTO CONTENIDO] Pendiente: {1:F4} ({2}b) | {3}",
+                            Time[0], normSlope, cascadaConsecutiveSlopeBarsShort, motivoFiltro));
+                    }
                 }
             }
 
@@ -1442,6 +1458,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                             Time[0], Close[0], upperSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraUpper));
                         return;
                     }
+                    else if (cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars)
+                    {
+                        // LOG FORENSE QUIRÚRGICO: Informa con 4 decimales por qué una vela candidata fue frenada
+                        string motivoFiltro = "";
+                        if (!sobreextensionPermitida)
+                            motivoFiltro = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
+                        else if (!pendienteRapido)
+                            motivoFiltro = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
+                        else if (!velaAlcista)
+                            motivoFiltro = "Vela Roja bajista (Requiere vela Verde)";
+                        else if (!tema9SlopeAlcista)
+                            motivoFiltro = string.Format("TEMA 9 ({0:F2} <= {1:F2}) sin inercia alcista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
+
+                        Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | LARGO CONTENIDO] Pendiente: +{1:F4} ({2}b) | {3}",
+                            Time[0], normSlope, cascadaConsecutiveSlopeBarsLong, motivoFiltro));
+                    }
                 }
             }
         }
@@ -1458,8 +1490,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             // se desescala obligatoriamente a 1 contrato para evitar que una mala racha dañe la cuenta.
             if (consecutiveLosses > 0)
             {
-                Print(string.Format("{0} - [PAS | DESESCALADO TRAS PÉRDIDA] Strike activo ({1} pérdida(s) consecutiva(s)). Entrada protegida con 1 solo contrato.",
-                    Time[0], consecutiveLosses));
                 targetContracts = 1;
             }
 
