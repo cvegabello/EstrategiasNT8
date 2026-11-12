@@ -263,6 +263,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaChokeTicks                           = 8;      // (Compatibilidad NT8)
                 CascadaSlopeThreshold                       = 0.15;   // Umbral base de arranque de pendiente (0.1500)
                 CascadaSlopeTriggerThreshold                = 0.1600; // MEJORA 1: Umbral de gatillo barra >= 2 (> 0.1600 estrictamente, ej. 0.1601+)
+                CascadaFiltroMacroEstricto                  = false;  // Check desactivado por defecto (Modo Dinámico: Precio vs EMA200 y Midline)
                 CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Oxígeno en Sobreextensión; < 8 ticks tratada como adentro con SL Línea Media)
                 CascadaMaxOutsideTicks                      = 30;     // MEJORA 2: Techo Máximo Exterior (<= 30 ticks fuera de Banda 3.5; más allá se cancela)
                 CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$150 ES / -$15 MES)
@@ -1345,135 +1346,172 @@ namespace NinjaTrader.NinjaScript.Strategies
             double normSlope  = GetNormalizedSlope(keltnerBig.Midline);
 
             // =========================================================================
-            // DISPARO CORTO: AS 4 CASCADA SURFER v14.2 (BAJISTA INSTITUCIONAL)
+            // DISPARO CORTO: AS 4 CASCADA SURFER v1.0 (BAJISTA INSTITUCIONAL)
             // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto Quirúrgico con Enfriamiento >= 5 Barras
-            // 2. Filtro Macro: Línea Roja EMA 200 por encima de la Línea Media (ema200[0] > midline)
-            // 3. Pendiente Línea Media: normSlope <= -0.15 confirmada por >= 2 barras consecutivas
-            // 4. Filtro Micro TEMA 9: Pendiente negativa en 5 barras (CurrentBar >= 5 && tema9[0] < tema9[5])
-            // 5. Ubicación: Precio a favor de la tendencia (Close[0] <= midline), ya sea adentro del canal o en sobreextensión
-            // 6. Vela con intención bajista: Close[0] < Open[0]
-            // 7. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 30 min y cero reintentos
+            // 2. Filtro Macro:
+            //    - Estricto (Check ON): Línea Roja EMA 200 por encima de la Línea Media (ema200[0] > midline)
+            //    - Dinámico (Check OFF, por defecto): Precio por debajo de EMA 200 (Close[0] < ema200[0])
+            // 3. Pendiente Línea Media: Arranque <= -0.1500 (2b) + Confirmación Gatillo < -0.1600 (Opción A)
+            // 4. Techo Máximo Exterior: No más de 30 ticks fuera de Lower 3.5
+            // 5. Filtro Micro TEMA 9: Pendiente negativa en 5 barras (CurrentBar >= 5 && tema9[0] < tema9[5])
+            // 6. Ubicación: Precio a favor de la tendencia (Close[0] <= midline)
+            // 7. Vela con intención bajista: Close[0] < Open[0]
+            // 8. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 10 min y cero reintentos
             // =========================================================================
-            bool inQuarantineShort = Time[0] < cascadaQuarantineEndTime;
-            bool isShortFirstTicket  = !cascadaCycleShortFired && !inQuarantineShort;
-            bool isShortSecondTicket = cascadaCycleShortFired && cascadaSecondChanceShortAvailable && !cascadaSecondChanceShortUsed 
-                                      && !inQuarantineShort && (CurrentBar - cascadaLastExitBar >= 5);
-
-            if (isShortFirstTicket || isShortSecondTicket)
+            if (normSlope <= -CascadaSlopeThreshold)
             {
-                bool macroBajista          = ema200[0] > midline;
+                bool inQuarantineShort   = Time[0] < cascadaQuarantineEndTime;
+                bool isShortFirstTicket  = !cascadaCycleShortFired && !inQuarantineShort;
+                bool isShortSecondTicket = cascadaCycleShortFired && cascadaSecondChanceShortAvailable && !cascadaSecondChanceShortUsed 
+                                          && !inQuarantineShort && (CurrentBar - cascadaLastExitBar >= 5);
+
+                bool macroBajista          = CascadaFiltroMacroEstricto ? (ema200[0] > midline) : (Close[0] < ema200[0]);
                 bool precioEnZona          = Close[0] <= midline;
-                // MEJORA 1 (Opción A): Requiere >= 2 barras acumuladas con |m| >= 0.1500 Y que en la barra de gatillo supere estrictamente -0.1600 (ej. <= -0.1601)
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars) && (normSlope < -CascadaSlopeTriggerThreshold);
                 bool tema9SlopeBajista     = CurrentBar >= 5 && (tema9[0] < tema9[5]);
                 bool velaBajista           = Close[0] < Open[0];
+                double ticksAfueraLower    = (lowerBig - Close[0]) / TickSize;
+                bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
 
-                if (macroBajista && precioEnZona)
+                if ((isShortFirstTicket || isShortSecondTicket) && macroBajista && precioEnZona && pendienteRapido && tema9SlopeBajista && velaBajista && sobreextensionPermitida)
                 {
-                    // MEJORA 2: Techo Máximo Exterior (Filtro Anti-Sobreextensión <= 30 ticks fuera de Lower 3.5)
-                    double ticksAfueraLower = (lowerBig - Close[0]) / TickSize;
-                    bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
-
-                    if (pendienteRapido && tema9SlopeBajista && velaBajista && sobreextensionPermitida)
+                    cascadaCycleShortFired = true;
+                    if (isShortSecondTicket)
                     {
-                        cascadaCycleShortFired = true;
-                        if (isShortSecondTicket)
-                        {
-                            cascadaSecondChanceShortAvailable = false;
-                            cascadaSecondChanceShortUsed = true;
-                        }
-
-                        // Verificamos si entró en sobreextensión exterior (>= 8 ticks fuera de Lower 3.5)
-                        cascadaEnteredOutside = (ticksAfueraLower >= CascadaOutsideThresholdTicks);
-
-                        ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                        Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F4} (2b) | TEMA9 ({5:F2}) < TEMA9[5] ({6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
-                            Time[0], Close[0], lowerSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraLower));
-                        return;
+                        cascadaSecondChanceShortAvailable = false;
+                        cascadaSecondChanceShortUsed = true;
                     }
-                    else if (cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars)
+
+                    // Verificamos si entró en sobreextensión exterior (>= 8 ticks fuera de Lower 3.5)
+                    cascadaEnteredOutside = (ticksAfueraLower >= CascadaOutsideThresholdTicks);
+
+                    ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
+                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F4} (2b) | TEMA9 ({5:F2}) < TEMA9[5] ({6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
+                        Time[0], Close[0], lowerSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraLower));
+                    return;
+                }
+                else
+                {
+                    // LOG FORENSE QUIRÚRGICO: Se activa SIEMPRE que la pendiente pase -0.1500 y la orden NO dispare
+                    string motivo = "";
+                    if (inQuarantineShort)
+                        motivo = string.Format("Cuarentena de Saciedad activa hasta {0:HH:mm:ss} EST", cascadaQuarantineEndTime);
+                    else if (!isShortFirstTicket && !isShortSecondTicket)
                     {
-                        // LOG FORENSE QUIRÚRGICO: Informa con 4 decimales por qué una vela candidata fue frenada
-                        string motivoFiltro = "";
-                        if (!sobreextensionPermitida)
-                            motivoFiltro = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
-                        else if (!pendienteRapido)
-                            motivoFiltro = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
-                        else if (!velaBajista)
-                            motivoFiltro = "Vela Verde alcista (Requiere vela Roja)";
-                        else if (!tema9SlopeBajista)
-                            motivoFiltro = string.Format("TEMA 9 ({0:F2} >= {1:F2}) sin inercia bajista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
-
-                        Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | CORTO CONTENIDO] Pendiente: {1:F4} ({2}b) | {3}",
-                            Time[0], normSlope, cascadaConsecutiveSlopeBarsShort, motivoFiltro));
+                        if (cascadaCycleShortFired && !cascadaSecondChanceShortAvailable)
+                            motivo = "Ciclo Corto agotado (esperando reseteo en Línea Media)";
+                        else if (cascadaSecondChanceShortUsed)
+                            motivo = "2do Boleto ya utilizado en este ciclo";
+                        else if (CurrentBar - cascadaLastExitBar < 5)
+                            motivo = string.Format("2do Boleto en enfriamiento ({0}/5 barras)", CurrentBar - cascadaLastExitBar);
                     }
+                    else if (!macroBajista)
+                    {
+                        if (CascadaFiltroMacroEstricto)
+                            motivo = string.Format("Macro no alineada: EMA200 ({0:F2}) <= Midline ({1:F2}) [Filtro Estricto]", ema200[0], midline);
+                        else
+                            motivo = string.Format("Precio ({0:F2}) >= EMA200 ({1:F2}) (Precio debe estar bajo EMA200)", Close[0], ema200[0]);
+                    }
+                    else if (!precioEnZona)
+                        motivo = string.Format("Precio ({0:F2}) > Midline ({1:F2}) (Precio debe estar bajo Línea Media)", Close[0], midline);
+                    else if (cascadaConsecutiveSlopeBarsShort < CascadaSlopeConfirmBars)
+                        motivo = string.Format("Barra {0} de pendiente (esperando confirmación barra {1})", cascadaConsecutiveSlopeBarsShort, CascadaSlopeConfirmBars);
+                    else if (!sobreextensionPermitida)
+                        motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
+                    else if (!pendienteRapido)
+                        motivo = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
+                    else if (!velaBajista)
+                        motivo = "Vela Verde alcista (Requiere vela Roja)";
+                    else if (!tema9SlopeBajista)
+                        motivo = string.Format("TEMA 9 ({0:F2} >= {1:F2}) sin inercia bajista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
+
+                    Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | CORTO CONTENIDO] Pendiente: {1:F4} ({2}b) | {3}",
+                        Time[0], normSlope, cascadaConsecutiveSlopeBarsShort, motivo));
                 }
             }
 
             // =========================================================================
             // DISPARO LARGO: AS 4 CASCADA SURFER v1.0 (ALCISTA INSTITUCIONAL)
             // 1. Regla de 1 Solo Tiro Base + 1 Segundo Boleto Quirúrgico con Enfriamiento >= 5 Barras
-            // 2. Filtro Macro: Línea Roja EMA 200 por debajo de la Línea Media (ema200[0] < midline)
+            // 2. Filtro Macro:
+            //    - Estricto (Check ON): Línea Roja EMA 200 por debajo de la Línea Media (ema200[0] < midline)
+            //    - Dinámico (Check OFF, por defecto): Precio por encima de EMA 200 (Close[0] > ema200[0])
             // 3. Pendiente Línea Media: Arranque >= +0.1500 (2b) + Confirmación Gatillo > +0.1600 (Opción A)
             // 4. Techo Máximo Exterior: No más de 30 ticks fuera de Upper 3.5
             // 5. Filtro Micro TEMA 9: Pendiente positiva en 5 barras (CurrentBar >= 5 && tema9[0] > tema9[5])
-            // 6. Ubicación: Precio a favor de la tendencia (Close[0] >= midline), ya sea adentro del canal o en sobreextensión
+            // 6. Ubicación: Precio a favor de la tendencia (Close[0] >= midline)
             // 7. Vela con intención alcista: Close[0] > Open[0]
             // 8. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 10 min y cero reintentos
             // =========================================================================
-            bool inQuarantineLong = Time[0] < cascadaQuarantineEndTime;
-            bool isLongFirstTicket  = !cascadaCycleLongFired && !inQuarantineLong;
-            bool isLongSecondTicket = cascadaCycleLongFired && cascadaSecondChanceLongAvailable && !cascadaSecondChanceLongUsed 
-                                     && !inQuarantineLong && (CurrentBar - cascadaLastExitBar >= 5);
-
-            if (isLongFirstTicket || isLongSecondTicket)
+            if (normSlope >= CascadaSlopeThreshold)
             {
-                bool macroAlcista          = ema200[0] < midline;
+                bool inQuarantineLong   = Time[0] < cascadaQuarantineEndTime;
+                bool isLongFirstTicket  = !cascadaCycleLongFired && !inQuarantineLong;
+                bool isLongSecondTicket = cascadaCycleLongFired && cascadaSecondChanceLongAvailable && !cascadaSecondChanceLongUsed 
+                                         && !inQuarantineLong && (CurrentBar - cascadaLastExitBar >= 5);
+
+                bool macroAlcista          = CascadaFiltroMacroEstricto ? (ema200[0] < midline) : (Close[0] > ema200[0]);
                 bool precioEnZona          = Close[0] >= midline;
-                // MEJORA 1 (Opción A): Requiere >= 2 barras acumuladas con m >= +0.1500 Y que en la barra de gatillo supere estrictamente +0.1600 (ej. >= +0.1601)
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars) && (normSlope > CascadaSlopeTriggerThreshold);
                 bool tema9SlopeAlcista     = CurrentBar >= 5 && (tema9[0] > tema9[5]);
                 bool velaAlcista           = Close[0] > Open[0];
+                double ticksAfueraUpper    = (Close[0] - upperBig) / TickSize;
+                bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
 
-                if (macroAlcista && precioEnZona)
+                if ((isLongFirstTicket || isLongSecondTicket) && macroAlcista && precioEnZona && pendienteRapido && tema9SlopeAlcista && velaAlcista && sobreextensionPermitida)
                 {
-                    // MEJORA 2: Techo Máximo Exterior (Filtro Anti-Sobreextensión <= 30 ticks fuera de Upper 3.5)
-                    double ticksAfueraUpper = (Close[0] - upperBig) / TickSize;
-                    bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
-
-                    if (pendienteRapido && tema9SlopeAlcista && velaAlcista && sobreextensionPermitida)
+                    cascadaCycleLongFired = true;
+                    if (isLongSecondTicket)
                     {
-                        cascadaCycleLongFired = true;
-                        if (isLongSecondTicket)
-                        {
-                            cascadaSecondChanceLongAvailable = false;
-                            cascadaSecondChanceLongUsed = true;
-                        }
-
-                        // Verificamos si entró en sobreextensión exterior (>= 8 ticks fuera de Upper 3.5)
-                        cascadaEnteredOutside = (ticksAfueraUpper >= CascadaOutsideThresholdTicks);
-
-                        ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                        Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F4} (2b) | TEMA9 ({5:F2}) > TEMA9[5] ({6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
-                            Time[0], Close[0], upperSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraUpper));
-                        return;
+                        cascadaSecondChanceLongAvailable = false;
+                        cascadaSecondChanceLongUsed = true;
                     }
-                    else if (cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars)
+
+                    // Verificamos si entró en sobreextensión exterior (>= 8 ticks fuera de Upper 3.5)
+                    cascadaEnteredOutside = (ticksAfueraUpper >= CascadaOutsideThresholdTicks);
+
+                    ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
+                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F4} (2b) | TEMA9 ({5:F2}) > TEMA9[5] ({6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
+                        Time[0], Close[0], upperSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraUpper));
+                    return;
+                }
+                else
+                {
+                    // LOG FORENSE QUIRÚRGICO: Se activa SIEMPRE que la pendiente pase +0.1500 y la orden NO dispare
+                    string motivo = "";
+                    if (inQuarantineLong)
+                        motivo = string.Format("Cuarentena de Saciedad activa hasta {0:HH:mm:ss} EST", cascadaQuarantineEndTime);
+                    else if (!isLongFirstTicket && !isLongSecondTicket)
                     {
-                        // LOG FORENSE QUIRÚRGICO: Informa con 4 decimales por qué una vela candidata fue frenada
-                        string motivoFiltro = "";
-                        if (!sobreextensionPermitida)
-                            motivoFiltro = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
-                        else if (!pendienteRapido)
-                            motivoFiltro = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
-                        else if (!velaAlcista)
-                            motivoFiltro = "Vela Roja bajista (Requiere vela Verde)";
-                        else if (!tema9SlopeAlcista)
-                            motivoFiltro = string.Format("TEMA 9 ({0:F2} <= {1:F2}) sin inercia alcista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
-
-                        Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | LARGO CONTENIDO] Pendiente: +{1:F4} ({2}b) | {3}",
-                            Time[0], normSlope, cascadaConsecutiveSlopeBarsLong, motivoFiltro));
+                        if (cascadaCycleLongFired && !cascadaSecondChanceLongAvailable)
+                            motivo = "Ciclo Largo agotado (esperando reseteo en Línea Media)";
+                        else if (cascadaSecondChanceLongUsed)
+                            motivo = "2do Boleto ya utilizado en este ciclo";
+                        else if (CurrentBar - cascadaLastExitBar < 5)
+                            motivo = string.Format("2do Boleto en enfriamiento ({0}/5 barras)", CurrentBar - cascadaLastExitBar);
                     }
+                    else if (!macroAlcista)
+                    {
+                        if (CascadaFiltroMacroEstricto)
+                            motivo = string.Format("Macro no alineada: EMA200 ({0:F2}) >= Midline ({1:F2}) [Filtro Estricto]", ema200[0], midline);
+                        else
+                            motivo = string.Format("Precio ({0:F2}) <= EMA200 ({1:F2}) (Precio debe estar sobre EMA200)", Close[0], ema200[0]);
+                    }
+                    else if (!precioEnZona)
+                        motivo = string.Format("Precio ({0:F2}) < Midline ({1:F2}) (Precio debe estar sobre Línea Media)", Close[0], midline);
+                    else if (cascadaConsecutiveSlopeBarsLong < CascadaSlopeConfirmBars)
+                        motivo = string.Format("Barra {0} de pendiente (esperando confirmación barra {1})", cascadaConsecutiveSlopeBarsLong, CascadaSlopeConfirmBars);
+                    else if (!sobreextensionPermitida)
+                        motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
+                    else if (!pendienteRapido)
+                        motivo = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
+                    else if (!velaAlcista)
+                        motivo = "Vela Roja bajista (Requiere vela Verde)";
+                    else if (!tema9SlopeAlcista)
+                        motivo = string.Format("TEMA 9 ({0:F2} <= {1:F2}) sin inercia alcista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
+
+                    Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | LARGO CONTENIDO] Pendiente: +{1:F4} ({2}b) | {3}",
+                        Time[0], normSlope, cascadaConsecutiveSlopeBarsLong, motivo));
                 }
             }
         }
@@ -3388,6 +3426,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0.10, 0.50)]
         [Display(Name = "Cascada Umbral Gatillo Barra 2", Description = "Umbral acelerado en la barra de confirmación/gatillo (> 0.1600 estrictamente)", GroupName = "5. As 4: Cascada Surfer", Order = 10)]
         public double CascadaSlopeTriggerThreshold { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Cascada Filtro Macro Estricto (Cruce Medias)", Description = "Si está activo (True), exige que la EMA 200 cruce la Línea Media (ema200 > midline en cortos). Si está inactivo (False por defecto), solo exige que el precio esté del lado correcto de ambas (Close < ema200 y Close < midline en cortos; Close > ema200 y Close > midline en largos).", GroupName = "5. As 4: Cascada Surfer", Order = 11)]
+        public bool CascadaFiltroMacroEstricto { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 30)]
