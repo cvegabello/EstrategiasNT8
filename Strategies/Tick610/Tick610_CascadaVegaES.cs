@@ -1367,7 +1367,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool macroBajista          = CascadaFiltroMacroEstricto ? (ema200[0] > midline) : (Close[0] < ema200[0]);
                 bool precioEnZona          = Close[0] <= midline;
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars) && (normSlope < -CascadaSlopeTriggerThreshold);
-                bool tema9SlopeBajista     = CurrentBar >= 5 && (tema9[0] < tema9[5]);
+                
+                // Pendiente LinReg de 3 puntos sobre TEMA 9 (m = (tema9[0] - tema9[2]) / 2.0)
+                double tema9LinRegSlope    = CurrentBar >= 2 ? (tema9[0] - tema9[2]) / 2.0 : 0.0;
+                bool tema9SlopeBajista     = CurrentBar >= 2 && (tema9LinRegSlope < 0);
                 double ticksAfueraLower    = (lowerBig - Close[0]) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
 
@@ -1384,8 +1387,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     cascadaEnteredOutside = (ticksAfueraLower >= CascadaOutsideThresholdTicks);
 
                     ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F4} (2b) | TEMA9 ({5:F2}) < TEMA9[5] ({6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
-                        Time[0], Close[0], lowerSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraLower));
+                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F4} (2b) | TEMA9 LinReg(3b): {5:F4} (TEMA9: {6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
+                        Time[0], Close[0], lowerSmall, midline, normSlope, tema9LinRegSlope, tema9[0], (isShortSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraLower));
                     return;
                 }
                 else
@@ -1419,7 +1422,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
                     else if (!tema9SlopeBajista)
-                        motivo = string.Format("TEMA 9 ({0:F2} >= {1:F2}) sin inercia bajista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
+                        motivo = string.Format("TEMA 9 LinReg(3b): {0:F4} >= 0 (Sin inercia bajista, TEMA9: {1:F2})", tema9LinRegSlope, tema9[0]);
 
                     Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | CORTO CONTENIDO] Pendiente: {1:F4} ({2}b) | {3}",
                         Time[0], normSlope, cascadaConsecutiveSlopeBarsShort, motivo));
@@ -1448,7 +1451,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool macroAlcista          = CascadaFiltroMacroEstricto ? (ema200[0] < midline) : (Close[0] > ema200[0]);
                 bool precioEnZona          = Close[0] >= midline;
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars) && (normSlope > CascadaSlopeTriggerThreshold);
-                bool tema9SlopeAlcista     = CurrentBar >= 5 && (tema9[0] > tema9[5]);
+                
+                // Pendiente LinReg de 3 puntos sobre TEMA 9 (m = (tema9[0] - tema9[2]) / 2.0)
+                double tema9LinRegSlope    = CurrentBar >= 2 ? (tema9[0] - tema9[2]) / 2.0 : 0.0;
+                bool tema9SlopeAlcista     = CurrentBar >= 2 && (tema9LinRegSlope > 0);
                 double ticksAfueraUpper    = (Close[0] - upperBig) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
 
@@ -1465,8 +1471,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     cascadaEnteredOutside = (ticksAfueraUpper >= CascadaOutsideThresholdTicks);
 
                     ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F4} (2b) | TEMA9 ({5:F2}) > TEMA9[5] ({6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
-                        Time[0], Close[0], upperSmall, midline, normSlope, tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0), (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraUpper));
+                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F4} (2b) | TEMA9 LinReg(3b): +{5:F4} (TEMA9: {6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
+                        Time[0], Close[0], upperSmall, midline, normSlope, tema9LinRegSlope, tema9[0], (isLongSecondTicket ? "2DO BOLETO QUIRÚRGICO (5b Cooldown)" : "RÁPIDO"), ticksAfueraUpper));
                     return;
                 }
                 else
@@ -1500,7 +1506,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
                     else if (!tema9SlopeAlcista)
-                        motivo = string.Format("TEMA 9 ({0:F2} <= {1:F2}) sin inercia alcista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
+                        motivo = string.Format("TEMA 9 LinReg(3b): {0:F4} <= 0 (Sin inercia alcista, TEMA9: {1:F2})", tema9LinRegSlope, tema9[0]);
 
                     Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | LARGO CONTENIDO] Pendiente: +{1:F4} ({2}b) | {3}",
                         Time[0], normSlope, cascadaConsecutiveSlopeBarsLong, motivo));
