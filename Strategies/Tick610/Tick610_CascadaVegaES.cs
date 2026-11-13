@@ -1355,8 +1355,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 4. Techo Máximo Exterior: No más de 30 ticks fuera de Lower 3.5
             // 5. Filtro Micro TEMA 9: Pendiente negativa en 5 barras (CurrentBar >= 5 && tema9[0] < tema9[5])
             // 6. Ubicación: Precio a favor de la tendencia (Close[0] <= midline)
-            // 7. Vela con intención bajista: Close[0] < Open[0]
-            // 8. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 10 min y cero reintentos
+            // 7. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 10 min y cero reintentos
             // =========================================================================
             if (normSlope <= -CascadaSlopeThreshold)
             {
@@ -1369,11 +1368,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool precioEnZona          = Close[0] <= midline;
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars) && (normSlope < -CascadaSlopeTriggerThreshold);
                 bool tema9SlopeBajista     = CurrentBar >= 5 && (tema9[0] < tema9[5]);
-                bool velaBajista           = Close[0] < Open[0];
                 double ticksAfueraLower    = (lowerBig - Close[0]) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
 
-                if ((isShortFirstTicket || isShortSecondTicket) && macroBajista && precioEnZona && pendienteRapido && tema9SlopeBajista && velaBajista && sobreextensionPermitida)
+                if ((isShortFirstTicket || isShortSecondTicket) && macroBajista && precioEnZona && pendienteRapido && tema9SlopeBajista && sobreextensionPermitida)
                 {
                     cascadaCycleShortFired = true;
                     if (isShortSecondTicket)
@@ -1420,8 +1418,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                         motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
-                    else if (!velaBajista)
-                        motivo = "Vela Verde alcista (Requiere vela Roja)";
                     else if (!tema9SlopeBajista)
                         motivo = string.Format("TEMA 9 ({0:F2} >= {1:F2}) sin inercia bajista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
 
@@ -1440,8 +1436,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 4. Techo Máximo Exterior: No más de 30 ticks fuera de Upper 3.5
             // 5. Filtro Micro TEMA 9: Pendiente positiva en 5 barras (CurrentBar >= 5 && tema9[0] > tema9[5])
             // 6. Ubicación: Precio a favor de la tendencia (Close[0] >= midline)
-            // 7. Vela con intención alcista: Close[0] > Open[0]
-            // 8. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 10 min y cero reintentos
+            // 7. Cuarentena de Saciedad: Si ganó >= $180 USD, congelado por 10 min y cero reintentos
             // =========================================================================
             if (normSlope >= CascadaSlopeThreshold)
             {
@@ -1454,11 +1449,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool precioEnZona          = Close[0] >= midline;
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars) && (normSlope > CascadaSlopeTriggerThreshold);
                 bool tema9SlopeAlcista     = CurrentBar >= 5 && (tema9[0] > tema9[5]);
-                bool velaAlcista           = Close[0] > Open[0];
                 double ticksAfueraUpper    = (Close[0] - upperBig) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
 
-                if ((isLongFirstTicket || isLongSecondTicket) && macroAlcista && precioEnZona && pendienteRapido && tema9SlopeAlcista && velaAlcista && sobreextensionPermitida)
+                if ((isLongFirstTicket || isLongSecondTicket) && macroAlcista && precioEnZona && pendienteRapido && tema9SlopeAlcista && sobreextensionPermitida)
                 {
                     cascadaCycleLongFired = true;
                     if (isLongSecondTicket)
@@ -1505,8 +1499,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                         motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
-                    else if (!velaAlcista)
-                        motivo = "Vela Roja bajista (Requiere vela Verde)";
                     else if (!tema9SlopeAlcista)
                         motivo = string.Format("TEMA 9 ({0:F2} <= {1:F2}) sin inercia alcista", tema9[0], (CurrentBar >= 5 ? tema9[5] : 0.0));
 
