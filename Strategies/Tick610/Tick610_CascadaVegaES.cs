@@ -161,6 +161,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double instrumentMultiplier = 1.0; // 1.0 para ES, 0.1 para MES
         private bool isMicroInstrument = false;
 
+        // === CONTROL DE ALERTAS SONORAS DE SESIÓN ===
+        private bool soundRthPlayed = false;
+        private bool soundEarlyWinPlayed = false;
+        private bool soundDailyLockPlayed = false;
+        private bool soundLunchCutoffPlayed = false;
+        private bool soundQuarantineStartPlayed = false;
+        private bool soundQuarantineEndPlayed = false;
+
         // === INDICADORES EN MEMORIA (SIN DIBUJAR POR REGLA AGENTS.md) ===
         private TEMA tema9;
         private EMA ema200;
@@ -254,6 +262,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (compatibilidad)
                 CascadaSlopeConfirmBars                     = 2;      // Barras consecutivas requeridas con Pendiente Normalizada >= Umbral (2 por defecto)
+                CascadaTemaLinRegBars                       = 3;      // Barras de lookback para Pendiente LinReg de TEMA 9 (3 por defecto)
                 CascadaSecondTicketCooldownBars             = 10;     // Enfriamiento de barras tras salida para habilitar 2do boleto quirúrgico (10 barras por defecto)
                 CascadaLockTriggerDollars                   = 250.0;  // Umbral de MFE en USD para activar Candado ($250 ES = +20 ticks / $25 MES en v13.4)
                 CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
@@ -305,6 +314,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Injerto 3: Victoria Temprana en Trade 1 (v1.0)
                 UseEarlyWinT1                               = true;   // Activar Victoria Temprana en Trade 1
                 EarlyWinT1GoalDollars                       = 450.0;  // Meta $450 ES / $45 MES
+
+                // Sistema de Alertas Sonoras de Campanas y Estados
+                UseSoundAlerts                              = true;   // Activar notificaciones sonoras nativas
+                SoundRthOpen                                = "Announcement.wav";         // Apertura RTH 9:50 AM EST
+                SoundEarlyWin                               = "TargetFilled.wav";         // Victoria Temprana / Meta cerrada (A esquiar ⛷️)
+                SoundDailyLock                              = "ConnectionLost.wav";       // Cortacircuito / Strikes / Candado de protección
+                SoundLunchCutoff                            = "Alert2.wav";               // Corte de Mediodía 12:00 PM EST
+                SoundQuarantineStart                        = "Alert4.wav";               // Inicio Cuarentena de Saciedad (10 min)
+                SoundQuarantineEnd                          = "AutoTrail.wav";            // Fin Cuarentena de Saciedad (Rearme)
             }
             else if (State == State.DataLoaded)
             {
@@ -432,6 +450,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 sobbFloatingBarsCountLong = 0;
                 sobbFloatingBarsCountShort = 0;
 
+                // Reseteo de banderas de sonido para la nueva sesión
+                soundRthPlayed = false;
+                soundEarlyWinPlayed = false;
+                soundDailyLockPlayed = false;
+                soundLunchCutoffPlayed = false;
+                soundQuarantineStartPlayed = false;
+                soundQuarantineEndPlayed = false;
+
                 Print(string.Format("==================== NUEVA SESIÓN RTH ({0:MM/dd/yyyy}) ==================== PnL Diario: $0.00 | Piso Inicial: -${1:F2}",
                     Time[0], DailyLossLimit));
             }
@@ -444,6 +470,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             int timeNow = ToTime(Time[0]);
             bool isForceCloseTime = timeNow >= ForceCloseTime;
             bool isTradingTime    = timeNow >= StartTime && timeNow <= StopEntriesTime;
+
+            // Sonido de Apertura RTH a las 09:50 AM EST
+            if (timeNow >= StartTime && !soundRthPlayed)
+            {
+                soundRthPlayed = true;
+                PlayStrategySound(SoundRthOpen);
+            }
 
             if (isForceCloseTime)
             {
@@ -467,6 +500,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         isDailyLocked = true;
                         dailyLockReason = string.Format("CORTE DE OPERATIVA A LAS 12:00 PM (PnL ${0:F2})", dailyRealizedPnL);
+                        if (!soundLunchCutoffPlayed)
+                        {
+                            soundLunchCutoffPlayed = true;
+                            PlayStrategySound(SoundLunchCutoff);
+                        }
                         Print(string.Format("****************************************************************************************\n" +
                                            "{0} - [ESCUDO DIARIO | CORTE A LAS 12:00 PM EST] Hora actual ({1}) alcanzó las 12:00 PM.\n" +
                                            "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
@@ -523,6 +561,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 isDailyLocked = true;
                                 dailyLockReason = string.Format("PISO EXACTO ALCANZADO (${0:F2})", currentDailyFloor);
+                                if (!soundDailyLockPlayed)
+                                {
+                                    soundDailyLockPlayed = true;
+                                    PlayStrategySound(SoundDailyLock);
+                                }
                                 Print(string.Format("****************************************************************************************\n" +
                                                     "{0} - [ESCUDO DIARIO | PISO EXACTO ALCANZADO] Precio tocó {1:F2} (Límite {2} ticks desde entrada {3:F2}).\n" +
                                                     "¡PUM, ADIÓS! Liquidando a mercado en el tick exacto para asegurar Piso de ${4:F2} USD.\n" +
@@ -539,6 +582,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             {
                                 isDailyLocked = true;
                                 dailyLockReason = string.Format("PISO EXACTO ALCANZADO (${0:F2})", currentDailyFloor);
+                                if (!soundDailyLockPlayed)
+                                {
+                                    soundDailyLockPlayed = true;
+                                    PlayStrategySound(SoundDailyLock);
+                                }
                                 Print(string.Format("****************************************************************************************\n" +
                                                     "{0} - [ESCUDO DIARIO | PISO EXACTO ALCANZADO] Precio tocó {1:F2} (Límite {2} ticks desde entrada {3:F2}).\n" +
                                                     "¡PUM, ADIÓS! Liquidando a mercado en el tick exacto para asegurar Piso de ${4:F2} USD.\n" +
@@ -561,6 +609,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     dailyLockReason = string.Format("CORTACIRCUITO DIARIO ({0}) ALCANZADO (${1:F2})",
                         currentDailyTier == 0 ? "PÉRDIDA MÁXIMA" : ("PISO ESCALÓN " + currentDailyTier), currentDailyFloor);
                     
+                    if (!soundDailyLockPlayed)
+                    {
+                        soundDailyLockPlayed = true;
+                        PlayStrategySound(SoundDailyLock);
+                    }
+
                     if (currentDailyTier == 0)
                     {
                         Print(string.Format("****************************************************************************************\n" +
@@ -1338,6 +1392,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 return;
             }
+            else if (cascadaQuarantineEndTime != DateTime.MinValue && Time[0] >= cascadaQuarantineEndTime && !soundQuarantineEndPlayed)
+            {
+                soundQuarantineEndPlayed = true;
+                PlayStrategySound(SoundQuarantineEnd);
+            }
 
             double midline    = keltnerBig.Midline[0];
             double upperSmall = keltnerSmall.Upper[0];
@@ -1369,9 +1428,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool precioEnZona          = Close[0] <= midline;
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsShort >= CascadaSlopeConfirmBars) && (normSlope < -CascadaSlopeTriggerThreshold);
                 
-                // Pendiente LinReg de 3 puntos sobre TEMA 9 (m = (tema9[0] - tema9[2]) / 2.0). Requiere estrictamente < -0.06
-                double tema9LinRegSlope    = CurrentBar >= 2 ? (tema9[0] - tema9[2]) / 2.0 : 0.0;
-                bool tema9SlopeBajista     = CurrentBar >= 2 && (tema9LinRegSlope < -0.06);
+                // Pendiente LinReg sobre TEMA 9 usando CascadaTemaLinRegBars configurable (por defecto 3). Requiere estrictamente < -0.06
+                int temaLookback = Math.Max(1, CascadaTemaLinRegBars);
+                double tema9LinRegSlope    = CurrentBar >= temaLookback ? (tema9[0] - tema9[temaLookback]) / (double)temaLookback : 0.0;
+                bool tema9SlopeBajista     = CurrentBar >= temaLookback && (tema9LinRegSlope < -0.06);
                 double ticksAfueraLower    = (lowerBig - Close[0]) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
 
@@ -1388,8 +1448,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     cascadaEnteredOutside = (ticksAfueraLower >= CascadaOutsideThresholdTicks);
 
                     ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Short, "Cascada50_Short");
-                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F4} (2b) | TEMA9 LinReg(3b): {5:F4} < -0.06 (TEMA9: {6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
-                        Time[0], Close[0], lowerSmall, midline, normSlope, tema9LinRegSlope, tema9[0], (isShortSecondTicket ? string.Format("2DO BOLETO QUIRÚRGICO ({0}b Cooldown)", CascadaSecondTicketCooldownBars) : "RÁPIDO"), ticksAfueraLower));
+                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} CORTO DISPARADO] Entrada @ ~{1:F2} | Lower 1.75: {2:F2} | Midline: {3:F2} | Pendiente: {4:F4} (2b) | TEMA9 LinReg({9}b): {5:F4} < -0.06 (TEMA9: {6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
+                        Time[0], Close[0], lowerSmall, midline, normSlope, tema9LinRegSlope, tema9[0], (isShortSecondTicket ? string.Format("2DO BOLETO QUIRÚRGICO ({0}b Cooldown)", CascadaSecondTicketCooldownBars) : "RÁPIDO"), ticksAfueraLower, temaLookback));
                     return;
                 }
                 else
@@ -1423,7 +1483,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
                     else if (!tema9SlopeBajista)
-                        motivo = string.Format("TEMA 9 LinReg(3b): {0:F4} >= -0.06 (Requiere < -0.06 estrictamente, TEMA9: {1:F2})", tema9LinRegSlope, tema9[0]);
+                        motivo = string.Format("TEMA 9 LinReg({2}b): {0:F4} >= -0.06 (Requiere < -0.06 estrictamente, TEMA9: {1:F2})", tema9LinRegSlope, tema9[0], temaLookback);
 
                     Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | CORTO CONTENIDO] Pendiente: {1:F4} ({2}b) | {3}",
                         Time[0], normSlope, cascadaConsecutiveSlopeBarsShort, motivo));
@@ -1453,9 +1513,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool precioEnZona          = Close[0] >= midline;
                 bool pendienteRapido       = (cascadaConsecutiveSlopeBarsLong >= CascadaSlopeConfirmBars) && (normSlope > CascadaSlopeTriggerThreshold);
                 
-                // Pendiente LinReg de 3 puntos sobre TEMA 9 (m = (tema9[0] - tema9[2]) / 2.0). Requiere estrictamente > +0.06
-                double tema9LinRegSlope    = CurrentBar >= 2 ? (tema9[0] - tema9[2]) / 2.0 : 0.0;
-                bool tema9SlopeAlcista     = CurrentBar >= 2 && (tema9LinRegSlope > 0.06);
+                // Pendiente LinReg sobre TEMA 9 usando CascadaTemaLinRegBars configurable (por defecto 3). Requiere estrictamente > +0.06
+                int temaLookback = Math.Max(1, CascadaTemaLinRegBars);
+                double tema9LinRegSlope    = CurrentBar >= temaLookback ? (tema9[0] - tema9[temaLookback]) / (double)temaLookback : 0.0;
+                bool tema9SlopeAlcista     = CurrentBar >= temaLookback && (tema9LinRegSlope > 0.06);
                 double ticksAfueraUpper    = (Close[0] - upperBig) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
 
@@ -1472,8 +1533,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     cascadaEnteredOutside = (ticksAfueraUpper >= CascadaOutsideThresholdTicks);
 
                     ExecuteAceEntry(AceType.As4_Cascada50, MarketPosition.Long, "Cascada50_Long");
-                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F4} (2b) | TEMA9 LinReg(3b): +{5:F4} > +0.06 (TEMA9: {6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
-                        Time[0], Close[0], upperSmall, midline, normSlope, tema9LinRegSlope, tema9[0], (isLongSecondTicket ? string.Format("2DO BOLETO QUIRÚRGICO ({0}b Cooldown)", CascadaSecondTicketCooldownBars) : "RÁPIDO"), ticksAfueraUpper));
+                    Print(string.Format("{0} - [CASCADA VEGA v1.0 | ¡PUM, ADIÓS! {7} LARGO DISPARADO] Entrada @ ~{1:F2} | Upper 1.75: {2:F2} | Midline: {3:F2} | Pendiente: +{4:F4} (2b) | TEMA9 LinReg({9}b): +{5:F4} > +0.06 (TEMA9: {6:F2}) | Afuera 3.5: {8:F1}tk. ¡Qué grosería de trade!",
+                        Time[0], Close[0], upperSmall, midline, normSlope, tema9LinRegSlope, tema9[0], (isLongSecondTicket ? string.Format("2DO BOLETO QUIRÚRGICO ({0}b Cooldown)", CascadaSecondTicketCooldownBars) : "RÁPIDO"), ticksAfueraUpper, temaLookback));
                     return;
                 }
                 else
@@ -1507,7 +1568,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
                     else if (!tema9SlopeAlcista)
-                        motivo = string.Format("TEMA 9 LinReg(3b): {0:F4} <= 0.06 (Requiere > +0.06 estrictamente, TEMA9: {1:F2})", tema9LinRegSlope, tema9[0]);
+                        motivo = string.Format("TEMA 9 LinReg({2}b): {0:F4} <= 0.06 (Requiere > +0.06 estrictamente, TEMA9: {1:F2})", tema9LinRegSlope, tema9[0], temaLookback);
 
                     Print(string.Format("{0} - [CASCADA DIAGNÓSTICO | LARGO CONTENIDO] Pendiente: +{1:F4} ({2}b) | {3}",
                         Time[0], normSlope, cascadaConsecutiveSlopeBarsLong, motivo));
@@ -2956,6 +3017,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             cascadaQuarantineEndTime = trade.Exit.Time.AddMinutes(CascadaQuarantineMinutes);
                             cascadaSecondChanceLongAvailable = false;
                             cascadaSecondChanceShortAvailable = false;
+                            soundQuarantineEndPlayed = false; // Permite que suene el rearme al vencer la cuarentena
+                            PlayStrategySound(SoundQuarantineStart);
                             Print(string.Format("****************************************************************************************\n" +
                                                 "{0} - [PAS v14.2 - Cascada | ¡QUIETO EN PRIMERA! CUARENTENA DE SACIEDAD ACTIVADA]\n" +
                                                 "¡Qué grosería de trade! Ganamos +{1:C2} netos en el bolsillo (>= {2:C2} meta de saciedad).\n" +
@@ -3008,6 +3071,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     isDailyLocked = true;
                     dailyLockReason = string.Format("{0} STRIKES CONSECUTIVOS", MaxConsecutiveLosses);
+                    if (!soundDailyLockPlayed)
+                    {
+                        soundDailyLockPlayed = true;
+                        PlayStrategySound(SoundDailyLock);
+                    }
                     Print(string.Format("****************************************************************************************\n" +
                                        "{0} - [REGLA DE 3 STRIKES] {1} pérdidas consecutivas registradas. PnL Diario: ${2:F2}.\n" +
                                        "Operativa bloqueada por el resto de la sesión para proteger capital.\n" +
@@ -3064,6 +3132,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     isDailyLocked = true;
                     dailyLockReason = string.Format("VICTORIA TEMPRANA TRADE 1 (+${0:F2}) - NOS FUIMOS A ESQUIAR ⛷️", dailyRealizedPnL);
+                    if (!soundEarlyWinPlayed)
+                    {
+                        soundEarlyWinPlayed = true;
+                        PlayStrategySound(SoundEarlyWin);
+                    }
                     Print(string.Format("{0} - [ESCUDO DIARIO v14.4 | ¡VICTORIA TEMPRANA TRADE 1!] Trade 1 alcanzó ${1:F2} USD (>= ${2:F2} meta). ¡Nos fuimos a esquiar! ⛷️ Operativa bloqueada con la plata a salvo.",
                         Time[0], dailyRealizedPnL, effectiveEarlyWinGoal));
                     return;
@@ -3114,6 +3187,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     isDailyLocked = true;
                     dailyLockReason = string.Format("PISO DE PROTECCIÓN (${0:F2}) ALCANZADO", currentDailyFloor);
+                    if (!soundDailyLockPlayed)
+                    {
+                        soundDailyLockPlayed = true;
+                        PlayStrategySound(SoundDailyLock);
+                    }
                     Print(string.Format("{0} - [ESCUDO DIARIO | CIERRE POR PISO] PnL Diario Realizado cayó a ${1:F2} (Piso protegido: ${2:F2}). Operativa bloqueada por el resto del día.",
                         Time[0], dailyRealizedPnL, currentDailyFloor));
                 }
@@ -3397,13 +3475,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CascadaSlopeConfirmBars { get; set; }
 
         [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name = "Barras Lookback LinReg TEMA 9", Description = "Barras de atraso para calcular la pendiente de regresión lineal sobre la TEMA 9 (3 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 4)]
+        public int CascadaTemaLinRegBars { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1, 50)]
-        [Display(Name = "Barras Enfriamiento 2do Disparo", Description = "Barras de espera tras salir del primer disparo antes de permitir el 2do boleto quirúrgico (10 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 4)]
+        [Display(Name = "Barras Enfriamiento 2do Disparo", Description = "Barras de espera tras salir del primer disparo antes de permitir el 2do boleto quirúrgico (10 por defecto)", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
         public int CascadaSecondTicketCooldownBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(20.0, 500.0)]
-        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($250 ES = 20 ticks / $25 MES)", GroupName = "5. As 4: Cascada Surfer", Order = 5)]
+        [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico ($250 ES = 20 ticks / $25 MES)", GroupName = "5. As 4: Cascada Surfer", Order = 6)]
         public double CascadaLockTriggerDollars { get; set; }
 
         [NinjaScriptProperty]
@@ -3585,6 +3668,57 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(100.0, 5000.0)]
         [Display(Name = "2. Victoria Temprana T1: Meta ($)", Description = "Ganancia mínima en el Trade 1 para apagar el bot ($450 ES / $45 MES)", GroupName = "10. Victoria Temprana Trade 1", Order = 2)]
         public double EarlyWinT1GoalDollars { get; set; }
+        #endregion
+
+        #region Propiedades Sistema de Alertas Sonoras
+        [NinjaScriptProperty]
+        [Display(Name = "1. Activar Alertas Sonoras", Description = "Activa notificaciones sonoras nativas de apertura, cierres y cuarentenas", GroupName = "11. Notificaciones Sonoras", Order = 1)]
+        public bool UseSoundAlerts { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "2. Sonido Apertura RTH (9:50 AM)", Description = "Archivo .wav en C:\\Program Files\\NinjaTrader 8\\sounds\\", GroupName = "11. Notificaciones Sonoras", Order = 2)]
+        public string SoundRthOpen { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "3. Sonido Victoria Temprana (A Esquiar ⛷️)", Description = "Archivo .wav para victoria temprana o meta cerrada", GroupName = "11. Notificaciones Sonoras", Order = 3)]
+        public string SoundEarlyWin { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "4. Sonido Cortacircuito / Candado", Description = "Archivo .wav para apagado por límite de pérdida o piso alcanzado", GroupName = "11. Notificaciones Sonoras", Order = 4)]
+        public string SoundDailyLock { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "5. Sonido Corte Mediodía (12:00 PM)", Description = "Archivo .wav para apagado por fin de turno de mediodía", GroupName = "11. Notificaciones Sonoras", Order = 5)]
+        public string SoundLunchCutoff { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "6. Sonido Inicio Cuarentena (10 min)", Description = "Archivo .wav al activar Cuarentena de Saciedad tras victoria >= $180", GroupName = "11. Notificaciones Sonoras", Order = 6)]
+        public string SoundQuarantineStart { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "7. Sonido Fin Cuarentena (Rearme)", Description = "Archivo .wav cuando transcurren los 10 min y el bot queda listo", GroupName = "11. Notificaciones Sonoras", Order = 7)]
+        public string SoundQuarantineEnd { get; set; }
+
+        private void PlayStrategySound(string soundFile)
+        {
+            if (!UseSoundAlerts || string.IsNullOrEmpty(soundFile)) return;
+            try
+            {
+                string fullPath = soundFile;
+                if (!System.IO.Path.IsPathRooted(fullPath))
+                {
+                    fullPath = System.IO.Path.Combine(NinjaTrader.Core.Globals.InstallDir, "sounds", soundFile);
+                }
+                if (System.IO.File.Exists(fullPath))
+                {
+                    PlaySound(fullPath);
+                }
+            }
+            catch (Exception)
+            {
+                // Silencioso ante excepciones de audio para no interrumpir el tick
+            }
+        }
         #endregion
         #endregion
     }
