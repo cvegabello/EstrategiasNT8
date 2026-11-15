@@ -1255,11 +1255,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool macroAlcista = (Close[0] > ema200[0]) && (swingLowPrice > ema200[swingBarAgo]);
             if (!macroAlcista) return;
 
-            // 1.1 FILTRO PENDIENTE LÍNEA BLANCA (Línea Media Keltner Big): Debe ser positiva (> 0)
+            // 1.1 PENDIENTE LÍNEA BLANCA (Línea Media Keltner Big):
+            // Desactivada a petición del usuario para mayor agilidad y capturar giros tempranos en suelo.
             double normSlope = GetNormalizedSlope(keltnerBig.Midline);
-            if (normSlope <= 0) return;
 
-            // 1.2 FILTRO PENDIENTE TEMA 9: Inercia alcista positiva desde que se formó el Swing Low (swingBarAgo barras atrás)
+            // 1.2 FILTRO PENDIENTE TEMA 9 (Línea Azul): Inercia alcista positiva desde que se formó el Swing Low (swingBarAgo barras atrás)
             // La TEMA 9 actual debe ser estrictamente mayor a donde estaba en el swing: tema9[0] > tema9[swingBarAgo]
             double tema9SwingSlope = (tema9[0] - tema9[swingBarAgo]) / (double)swingBarAgo;
             if (tema9SwingSlope <= 0) return;
@@ -1277,7 +1277,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             ratchetInitialSlPrice = swingLowPrice - (RatchetSlOffsetTicks * TickSize);
 
             ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Long, "Ratchet_Long");
-            Print(string.Format("{0} - [RATCHET v2.0 | ¡PUM, ADIÓS! LARGO DISPARADO] Entrada @ ~{1:F2} | Swing Low ({2}b atrás): {3:F2} (Banda Lower 1.75: {4:F2}) | Pendiente Midline: +{8:F4} (> 0) | TEMA9 Slope({2}b): +{9:F4} (> 0) | SL Inicial Fijo: {5:F2} ({6}tk bajo swing) | EMA200: {7:F2}. ¡A exprimir el rally!",
+            Print(string.Format("{0} - [RATCHET v2.0 | ¡PUM, ADIÓS! LARGO DISPARADO] Entrada @ ~{1:F2} | Swing Low ({2}b atrás): {3:F2} (Banda Lower 1.75: {4:F2}) | Pendiente Midline: {8:F4} | TEMA9 Slope({2}b): +{9:F4} (> 0) | SL Inicial Fijo: {5:F2} ({6}tk bajo swing) | EMA200: {7:F2}. ¡A exprimir el rally!",
                 Time[0], Close[0], swingBarAgo, swingLowPrice, lowerSmallAtSwing, ratchetInitialSlPrice, RatchetSlOffsetTicks, ema200[0], normSlope, tema9SwingSlope));
         }
 
