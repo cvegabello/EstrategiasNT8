@@ -1,4 +1,4 @@
-#region Using declarations
+﻿#region Using declarations
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -2531,20 +2531,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double t1TpTicks = Math.Round(effectiveT1FixedTpDollars / (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize));
                         double t1TargetPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + (t1TpTicks * TickSize));
 
-                        // 1. Si la vela actual ya alcanzó o perforó el objetivo, salida instantánea garantizada
-                        if (High[0] >= t1TargetPrice)
-                        {
-                            ExitLong("Exit_T1_TP_FrancoTirador", "Cascada50_Long");
-                            double closedProfit = (t1TargetPrice - entryPrice) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v14.4 | FRANCO-TIRADOR T1 ALCANZADO] Target @ {1:F2} alcanzado (High: {2:F2} >= Target: {1:F2} | +{3} ticks = ~${4:F2}). ¡Ganancia fija asegurada!",
-                                Time[0], t1TargetPrice, High[0], t1TpTicks, closedProfit));
-                            return;
-                        }
-                        else
-                        {
-                            // 2. Mantenemos orden Limit viva en el libro para atrapar el tick al vuelo
-                            ExitLongLimit(activeTradeContracts, t1TargetPrice, "Exit_T1_TP_FrancoTirador", "Cascada50_Long");
-                        }
+                        // Orden Limit pasiva en el libro: exige llenado al precio exacto del blanco institucional o mejor
+                        ExitLongLimit(activeTradeContracts, t1TargetPrice, "Exit_T1_TP_FrancoTirador", "Cascada50_Long");
                     }
                     // --- CASO B: TRADES 2 EN ADELANTE (CLÍMAX RATCHET ASFIXIANTE) ---
                     else if (UseClimaxRatchet)
@@ -3122,20 +3110,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double t1TpTicks = Math.Round(effectiveT1FixedTpDollars / (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize));
                         double t1TargetPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - (t1TpTicks * TickSize));
 
-                        // 1. Si la vela actual ya alcanzó o perforó el objetivo, salida instantánea garantizada
-                        if (Low[0] <= t1TargetPrice)
-                        {
-                            ExitShort("Exit_T1_TP_FrancoTirador", "Cascada50_Short");
-                            double closedProfit = (entryPrice - t1TargetPrice) * Instrument.MasterInstrument.PointValue;
-                            Print(string.Format("{0} - [PAS v14.4 | FRANCO-TIRADOR T1 ALCANZADO] Target @ {1:F2} alcanzado (Low: {2:F2} <= Target: {1:F2} | -{3} ticks = ~${4:F2}). ¡Ganancia fija asegurada!",
-                                Time[0], t1TargetPrice, Low[0], t1TpTicks, closedProfit));
-                            return;
-                        }
-                        else
-                        {
-                            // 2. Mantenemos orden Limit viva en el libro para atrapar el tick al vuelo
-                            ExitShortLimit(activeTradeContracts, t1TargetPrice, "Exit_T1_TP_FrancoTirador", "Cascada50_Short");
-                        }
+                        // Orden Limit pasiva en el libro: exige llenado al precio exacto del blanco institucional o mejor
+                        ExitShortLimit(activeTradeContracts, t1TargetPrice, "Exit_T1_TP_FrancoTirador", "Cascada50_Short");
                     }
                     // --- CASO B: TRADES 2 EN ADELANTE (CLÍMAX RATCHET ASFIXIANTE) ---
                     else if (UseClimaxRatchet)
