@@ -1393,10 +1393,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double ticksAfueraLower    = (lowerBig - Close[0]) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
 
-                // FILTRO ANTI-GANCHO EN SOBREVENTA (Módulo 1 v3.0):
-                // Si hay un Swing Low reciente (<= 40 barras) formado en sobreventa (<= Lower 1.75)
-                // y el precio actual está por encima de ese suelo pero a menos de CascadaAntiHookMinDistanceTicks ticks:
-                // ¡Cascada veta el disparo corto para evitar estrellarse contra el suelo!
+                // FILTRO ANTI-GANCHO EN SOBREVENTA (Módulo 1 v3.0 / v3.2):
+                // Zona de exclusión simétrica de 20 ticks (10 ticks arriba y 10 ticks abajo del Swing Low).
+                // ¡Cascada veta el disparo corto para evitar estrellarse contra el suelo o caer en falso rompimiento (Bear Trap)!
                 int swingLowBarAgo = swing4.SwingLowBar(0, 1, 40);
                 bool hookSueloBloqueaCorto = false;
                 double swingLowPrice = 0.0;
@@ -1409,13 +1408,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     if (swingLowPrice <= lowerSmallAtSwing)
                     {
-                        if (Close[0] >= swingLowPrice)
+                        distanciaAlSueloTicks = Math.Abs(Close[0] - swingLowPrice) / TickSize;
+                        if (distanciaAlSueloTicks < CascadaAntiHookMinDistanceTicks)
                         {
-                            distanciaAlSueloTicks = (Close[0] - swingLowPrice) / TickSize;
-                            if (distanciaAlSueloTicks < CascadaAntiHookMinDistanceTicks)
-                            {
-                                hookSueloBloqueaCorto = true;
-                            }
+                            hookSueloBloqueaCorto = true;
                         }
                     }
                 }
@@ -1466,7 +1462,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (!sobreextensionPermitida)
                         motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
                     else if (hookSueloBloqueaCorto)
-                        motivo = string.Format("Filtro Anti-Gancho Suelo: Swing Low en {0:F2} (hace {1}b en sobreventa <= Lower 1.75). Pista libre insuficiente: {2:F1}tk < {3}tk mín", swingLowPrice, swingLowBarAgo, distanciaAlSueloTicks, CascadaAntiHookMinDistanceTicks);
+                        motivo = string.Format("Filtro Anti-Gancho Suelo: Swing Low en {0:F2} (hace {1}b en sobreventa <= Lower 1.75). En zona de exclusión de 20tk (distancia: {2:F1}tk < {3}tk mín)", swingLowPrice, swingLowBarAgo, distanciaAlSueloTicks, CascadaAntiHookMinDistanceTicks);
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente {0:F4} insuficiente (Requiere < -{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
                     else if (!tema9SlopeBajista)
@@ -1507,10 +1503,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double ticksAfueraUpper    = (Close[0] - upperBig) / TickSize;
                 bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
 
-                // FILTRO ANTI-GANCHO EN SOBRECOMPRA (Módulo 1 v3.0):
-                // Si hay un Swing High reciente (<= 40 barras) formado en sobrecompra (>= Upper 1.75)
-                // y el precio actual está por debajo de ese gancho pero a menos de CascadaAntiHookMinDistanceTicks ticks:
-                // ¡Cascada veta el disparo largo para evitar estrellarse contra el techo!
+                // FILTRO ANTI-GANCHO EN SOBRECOMPRA (Módulo 1 v3.0 / v3.2):
+                // Zona de exclusión simétrica de 20 ticks (10 ticks abajo y 10 ticks arriba del Swing High).
+                // ¡Cascada veta el disparo largo para evitar estrellarse contra el techo o caer en falso rompimiento (Bull Trap)!
                 int swingHighBarAgo = swing4.SwingHighBar(0, 1, 40);
                 bool hookTechoBloqueaLargo = false;
                 double swingHighPrice = 0.0;
@@ -1523,13 +1518,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     if (swingHighPrice >= upperSmallAtSwing)
                     {
-                        if (Close[0] <= swingHighPrice)
+                        distanciaAlTechoTicks = Math.Abs(Close[0] - swingHighPrice) / TickSize;
+                        if (distanciaAlTechoTicks < CascadaAntiHookMinDistanceTicks)
                         {
-                            distanciaAlTechoTicks = (swingHighPrice - Close[0]) / TickSize;
-                            if (distanciaAlTechoTicks < CascadaAntiHookMinDistanceTicks)
-                            {
-                                hookTechoBloqueaLargo = true;
-                            }
+                            hookTechoBloqueaLargo = true;
                         }
                     }
                 }
@@ -1580,7 +1572,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (!sobreextensionPermitida)
                         motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
                     else if (hookTechoBloqueaLargo)
-                        motivo = string.Format("Filtro Anti-Gancho Techo: Swing High en {0:F2} (hace {1}b en sobrecompra >= Upper 1.75). Pista libre insuficiente: {2:F1}tk < {3}tk mín", swingHighPrice, swingHighBarAgo, distanciaAlTechoTicks, CascadaAntiHookMinDistanceTicks);
+                        motivo = string.Format("Filtro Anti-Gancho Techo: Swing High en {0:F2} (hace {1}b en sobrecompra >= Upper 1.75). En zona de exclusión de 20tk (distancia: {2:F1}tk < {3}tk mín)", swingHighPrice, swingHighBarAgo, distanciaAlTechoTicks, CascadaAntiHookMinDistanceTicks);
                     else if (!pendienteRapido)
                         motivo = string.Format("Pendiente +{0:F4} insuficiente (Requiere > +{1:F4})", normSlope, CascadaSlopeTriggerThreshold);
                     else if (!tema9SlopeAlcista)
