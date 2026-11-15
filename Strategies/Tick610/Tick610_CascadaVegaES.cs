@@ -255,9 +255,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetSwingStrength                        = 4;      // Fuerza de barras del Swing (4 por defecto)
                 RatchetSlOffsetTicks                        = 2;      // Offset de SL en ticks debajo del Swing Low (2 ticks por defecto)
                 RatchetMaxSlTicks                           = 24;     // Tope máximo de seguridad inicial para Ratchet (24 ticks = 6 pts = $300 ES / $30 MES)
-                RatchetChokeOutsideTicks                    = 8;      // Ticks por encima de Upper 3.5 para activar Fase 4 Choke Parabólico (8 ticks)
+                RatchetChokeOutsideTicks                    = 16;     // Ticks por encima de Upper 3.5 para activar Fase 4 Choke Parabólico (16 ticks para dejarlo surfear)
                 RatchetChicleTicks                          = 4;      // Trailing ceñido del Chicle Parabólico en Fase 4 (4 ticks del High)
                 RatchetC2UpperBigOffsetTicks                = 2;      // Offset en ticks sobre Upper 3.5 para liquidar Contrato 2 (Francotirador)
+                RatchetMinThrustTicks                       = 8;      // Despegue mínimo en ticks desde el Swing Low para validar el rebote (8 ticks = 2 pts en ES)
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
                 CascadaStartTime                            = 95000;  // 09:50 AM EST - Sincronizado con RTH oficial
@@ -1286,6 +1287,24 @@ namespace NinjaTrader.NinjaScript.Strategies
             // La TEMA 9 actual debe ser estrictamente mayor a donde estaba en el swing: tema9[0] > tema9[swingBarAgo]
             double tema9SwingSlope = (tema9[0] - tema9[swingBarAgo]) / (double)swingBarAgo;
             if (tema9SwingSlope <= 0) return;
+
+            // 1.2b FILTRO DE CONFIRMACIÓN INSTITUCIONAL (OPCIÓN C: DESPEGUE MÍNIMO + VELA VERDE SOBRE TEMA 9)
+            // Evita rebotes falsos/anémicos en pullbacks descendentes pesados (Cohete sin combustible)
+            double swingThrustTicks = (Close[0] - swingLowPrice) / TickSize;
+            if (swingThrustTicks < RatchetMinThrustTicks)
+            {
+                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] Despegue insuficiente ({1:F1} ticks < {2} ticks requeridos desde Swing Low {3:F2}). Cohete sin combustible.",
+                    Time[0], swingThrustTicks, RatchetMinThrustTicks, swingLowPrice));
+                return;
+            }
+
+            // Exigencia de vela alcista (verde) y cierre firme sobre TEMA 9
+            if (Close[0] < Open[0] || Close[0] < tema9[0])
+            {
+                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] Vela 4 sin control comprador (Close: {1:F2}, Open: {2:F2}, TEMA9: {3:F2}). Rechazada.",
+                    Time[0], Close[0], Open[0], tema9[0]));
+                return;
+            }
 
             // 1.3 FILTRO ANTI-KAMIKAZE: No disparar si la 4ª barra ya cerró por fuera de Upper 3.5 (Agotamiento exterior en clímax)
             double upperBigCurrent = keltnerBig.Upper[0];
@@ -3620,8 +3639,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int RatchetMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(2, 30)]
-        [Display(Name = "5. Choke Ticks fuera de Upper 3.5", Description = "Ticks por fuera de Banda Grande Upper 3.5 para activar Fase 4 Choke (8 ticks por defecto)", GroupName = "6. As 3: Ratchet v3.0", Order = 5)]
+        [Range(2, 50)]
+        [Display(Name = "5. Choke Ticks fuera de Upper 3.5", Description = "Ticks por fuera de Banda Grande Upper 3.5 para activar Fase 4 Choke (16 ticks por defecto para surfear el rally)", GroupName = "6. As 3: Ratchet v3.0", Order = 5)]
         public int RatchetChokeOutsideTicks { get; set; }
 
         [NinjaScriptProperty]
@@ -3633,6 +3652,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(0, 20)]
         [Display(Name = "7. Offset C2 Upper 3.5 (Ticks)", Description = "Ticks por encima de Upper 3.5 donde se liquida el Contrato 2 (Francotirador, 2 ticks por defecto).", GroupName = "6. As 3: Ratchet v3.0", Order = 7)]
         public int RatchetC2UpperBigOffsetTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(4, 30)]
+        [Display(Name = "8. Despegue Mínimo Swing (Ticks)", Description = "Separación mínima en ticks que la 4ª barra debe tener respecto al Swing Low (8 ticks por defecto)", GroupName = "6. As 3: Ratchet v3.0", Order = 8)]
+        public int RatchetMinThrustTicks { get; set; }
         #endregion
 
         [NinjaScriptProperty]
