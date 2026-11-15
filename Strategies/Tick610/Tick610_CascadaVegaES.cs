@@ -1299,15 +1299,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // Regla 2: La vela 4 debe ser alcista (verde)
-            if (Close[0] < Open[0])
-            {
-                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] Vela 4 no es alcista (Close: {1:F2} < Open: {2:F2}). Vendedores en control.",
-                    Time[0], Close[0], Open[0]));
-                return;
-            }
-
-            // Regla 3: Toda la barra debe estar COMPLETAMENTE suspendida por encima de la TEMA 9 (Low[0] > tema9[0])
+            // Regla 2: Toda la barra debe estar COMPLETAMENTE suspendida por encima de la TEMA 9 (Low[0] > tema9[0])
             if (RatchetRequireBarAboveTema && Low[0] <= tema9[0])
             {
                 Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] La barra no está 100% suspendida sobre TEMA 9 (Low: {1:F2} <= TEMA9: {2:F2}). Vela cortada por la línea azul.",
