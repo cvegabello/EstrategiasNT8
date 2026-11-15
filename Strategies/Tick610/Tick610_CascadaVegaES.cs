@@ -259,7 +259,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetChicleTicks                          = 4;      // Trailing ceñido del Chicle Parabólico en Fase 4 (4 ticks del High)
                 RatchetC2UpperBigOffsetTicks                = 2;      // Offset en ticks sobre Upper 3.5 para liquidar Contrato 2 (Francotirador)
                 RatchetMinLowSeparationTicks                = 8;      // Separación mínima en ticks entre la parte baja (Low) de la vela 4 y el Swing Low (8 ticks por defecto)
-                RatchetRequireBarAboveTema                  = true;   // Exigir que la barra 4 esté 100% suspendida por encima de la TEMA 9 (Low[0] > tema9[0])
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
                 CascadaStartTime                            = 95000;  // 09:50 AM EST - Sincronizado con RTH oficial
@@ -1289,21 +1288,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             double tema9SwingSlope = (tema9[0] - tema9[swingBarAgo]) / (double)swingBarAgo;
             if (tema9SwingSlope <= 0) return;
 
-            // 1.2b FILTRO DE CONFIRMACIÓN INSTITUCIONAL v3.1 (DESPEGUE DE BASE + BARRA FLOTANTE SOBRE TEMA 9):
-            // Regla 1: La parte baja de la vela 4 (Low[0]) debe estar despegada al menos RatchetMinLowSeparationTicks del Swing Low
+            // 1.2b FILTRO DE DESPEGUE DE BASE SWING (Separación mínima del Low respecto al Swing Low):
+            // Evita rebotes falsos/anémicos donde las velas siguen pegadas al suelo del pivote
             double lowSeparationTicks = (Low[0] - swingLowPrice) / TickSize;
             if (lowSeparationTicks < RatchetMinLowSeparationTicks)
             {
-                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] Base de la barra demasiado cerca del suelo ({1:F1} ticks < {2} ticks requeridos desde Swing Low {3:F2}). Vela patilarga en el fango.",
+                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] Base de la barra demasiado cerca del suelo ({1:F1} ticks < {2} ticks requeridos desde Swing Low {3:F2}). Vela pegada al piso.",
                     Time[0], lowSeparationTicks, RatchetMinLowSeparationTicks, swingLowPrice));
-                return;
-            }
-
-            // Regla 2: Toda la barra debe estar COMPLETAMENTE suspendida por encima de la TEMA 9 (Low[0] > tema9[0])
-            if (RatchetRequireBarAboveTema && Low[0] <= tema9[0])
-            {
-                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] La barra no está 100% suspendida sobre TEMA 9 (Low: {1:F2} <= TEMA9: {2:F2}). Vela cortada por la línea azul.",
-                    Time[0], Low[0], tema9[0]));
                 return;
             }
 
@@ -3658,10 +3649,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(2, 30)]
         [Display(Name = "8. Separación Mínima Base Swing (Ticks)", Description = "Separación mínima en ticks entre la parte baja (Low) de la vela 4 y el Swing Low (8 ticks por defecto)", GroupName = "6. As 3: Ratchet v3.0", Order = 8)]
         public int RatchetMinLowSeparationTicks { get; set; }
-
-        [NinjaScriptProperty]
-        [Display(Name = "9. Exigir Barra 100% sobre TEMA 9", Description = "Exige que toda la barra (incluyendo mecha inferior Low > TEMA9) esté completamente suspendida sobre la TEMA 9", GroupName = "6. As 3: Ratchet v3.0", Order = 9)]
-        public bool RatchetRequireBarAboveTema { get; set; }
         #endregion
 
         [NinjaScriptProperty]
