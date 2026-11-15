@@ -104,6 +104,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int    ratchetLastSwingBar = -1;        // Barra del último swing procesado para evitar re-entradas en la misma barra
         private bool   ratchetC1Exited = false;         // Contrato 1 (El Cajero) liquidado en Tranca + Bonus
         private bool   ratchetC2Exited = false;         // Contrato 2 (El Francotirador) liquidado en Upper 3.5 + 2 ticks
+        private int    ratchetStartingZone = 0;         // 0 = Zona Baja (<= Midline), 1 = Zona Media (Midline a Azul), 2 = Modo Cohete (> Azul)
 
         // === VARIABLES DEL AS 4: CASCADA (CAZADOR DE RÁPIDOS POR PENDIENTE NORMALIZADA + CANDADO SUELO $50) ===
         private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks (conteo de fondo)
@@ -1286,6 +1287,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             double tema9SwingSlope = (tema9[0] - tema9[swingBarAgo]) / (double)swingBarAgo;
             if (tema9SwingSlope <= 0) return;
 
+            // 1.3 FILTRO ANTI-KAMIKAZE: No disparar si la 4ª barra ya cerró por fuera de Upper 3.5 (Agotamiento exterior en clímax)
+            double upperBigCurrent = keltnerBig.Upper[0];
+            if (Close[0] > upperBigCurrent)
+            {
+                Print(string.Format("{0} - [RATCHET v3.0 | ENTRADA DESCARTADA] Vela 4 cerró fuera de Upper 3.5 ({1:F2} > {2:F2}). Sobreextensión de clímax extremo.",
+                    Time[0], Close[0], upperBigCurrent));
+                return;
+            }
+
+            // DETECCIÓN DE ZONA DE NACIMIENTO (0 = Fondo <= Midline, 1 = Media a Azul, 2 = Cohete > Azul)
+            double midlineCurrent = keltnerBig.Midline[0];
+            double upperSmallCurrent = keltnerSmall.Upper[0];
+
+            if (Close[0] > upperSmallCurrent)
+                ratchetStartingZone = 2; // Nació arriba de Banda Azul (Modo Cohete: SL Línea Media)
+            else if (Close[0] > midlineCurrent)
+                ratchetStartingZone = 1; // Nació entre Midline y Banda Azul (SL Swing)
+            else
+                ratchetStartingZone = 0; // Nació en zona baja <= Midline (SL Swing)
+
             // ¡GATILLO A MERCADO SIN MIEDO!
             ratchetLastSwingBar = absoluteSwingBar;
             ratchetPisoConquistado = 0;
@@ -1296,8 +1317,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Long, "Ratchet_Long");
             string tipoZonaLog = esPivoteExteriorBajo ? "EXTERIOR BAJO CANAL GRANDE (Suelo Extremo)" : "INTERIOR ENTRE BANDAS (1.75 a 3.5)";
-            Print(string.Format("{0} - [RATCHET v2.0 | ¡PUM, ADIÓS! LARGO DISPARADO] Zona: {10} | Entrada @ ~{1:F2} | Swing Low ({2}b atrás): {3:F2} (L1.75: {4:F2} | L3.5: {11:F2}) | Pendiente Midline: {8:F4} | TEMA9 Slope({2}b): +{9:F4} (> 0) | SL Inicial Fijo: {5:F2} ({6}tk bajo swing) | EMA200: {7:F2}. ¡A exprimir el rally!",
-                Time[0], Close[0], swingBarAgo, swingLowPrice, lowerSmallAtSwing, ratchetInitialSlPrice, RatchetSlOffsetTicks, ema200[0], normSlope, tema9SwingSlope, tipoZonaLog, lowerBigAtSwing));
+            string tipoNacimientoLog = ratchetStartingZone == 2 ? "MODO COHETE (> Azul | SL Línea Media)" : (ratchetStartingZone == 1 ? "ZONA MEDIA (Midline a Azul | SL Swing)" : "ZONA BAJA (SL Swing)");
+            Print(string.Format("{0} - [RATCHET v3.0 | ¡PUM, ADIÓS! LARGO DISPARADO] Origen: {10} | Régimen: {12} | Entrada @ ~{1:F2} | Swing Low ({2}b atrás): {3:F2} (L1.75: {4:F2} | L3.5: {11:F2}) | Pendiente Midline: {8:F4} | TEMA9 Slope({2}b): +{9:F4} (> 0) | SL Fijo: {5:F2} | EMA200: {7:F2}. ¡A exprimir el rally!",
+                Time[0], Close[0], swingBarAgo, swingLowPrice, lowerSmallAtSwing, ratchetInitialSlPrice, RatchetSlOffsetTicks, ema200[0], normSlope, tema9SwingSlope, tipoZonaLog, lowerBigAtSwing, tipoNacimientoLog));
         }
 
         // =========================================================================
@@ -1689,6 +1711,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             ratchetChokeActive = false;
             ratchetC1Exited = false;
             ratchetC2Exited = false;
+            if (ace != AceType.As3_Ratchet)
+            {
+                ratchetStartingZone = 0;
+            }
 
             cascadaC1Achieved = false;
             cascadaC2Achieved = false;
@@ -1757,11 +1783,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else if (ace == AceType.As3_Ratchet)
                 {
-                    // Ratchet v2.0 Long: SL inicial fijo bajo el Swing Low confirmado con tope de seguridad
-                    double maxSafeSl = Close[0] - (RatchetMaxSlTicks * TickSize);
-                    initialSlPrice = Math.Max(ratchetInitialSlPrice, maxSafeSl);
-                    Print(string.Format("{0} - [RATCHET v2.0 | SL INICIAL FIJADO] Entrada Long @ {1:F2} | SL en {2:F2} ({3:F1} ticks de riesgo | Tope máx {4}tk = -${5:F2} USD). Trailing Estructural por Pisos de Cemento armado.",
-                        Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, RatchetMaxSlTicks, (RatchetMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts)));
+                    // Ratchet v3.0 Long:
+                    // Si nació en Modo Cohete (arriba de Upper 1.75), el SL inicial de resguardo es la Línea Media Keltner
+                    if (ratchetStartingZone == 2)
+                    {
+                        double naturalSl = keltnerBig.Midline[0] - (2 * TickSize);
+                        double maxSafeSl = Close[0] - (RatchetMaxSlTicks * TickSize);
+                        initialSlPrice = Math.Max(naturalSl, maxSafeSl);
+                    }
+                    else
+                    {
+                        // SL inicial fijo bajo el Swing Low confirmado con tope de seguridad
+                        double maxSafeSl = Close[0] - (RatchetMaxSlTicks * TickSize);
+                        initialSlPrice = Math.Max(ratchetInitialSlPrice, maxSafeSl);
+                    }
+                    Print(string.Format("{0} - [RATCHET v3.0 | SL INICIAL FIJADO] Zona: {6} | Entrada Long @ {1:F2} | SL en {2:F2} ({3:F1} ticks de riesgo | Tope máx {4}tk = -${5:F2} USD). Trailing Estructural por Pisos de Cemento armado.",
+                        Time[0], Close[0], initialSlPrice, (Close[0] - initialSlPrice) / TickSize, RatchetMaxSlTicks, (RatchetMaxSlTicks * TickSize * Instrument.MasterInstrument.PointValue * activeTradeContracts),
+                        ratchetStartingZone == 2 ? "Modo Cohete (> Upper 1.75, SL Línea Media)" : (ratchetStartingZone == 1 ? "Zona Media (Midline a Azul, SL Swing)" : "Zona Baja (SL Swing)")));
                 }
                 else
                     initialSlPrice = keltnerSmall.Lower[0] - (1 * TickSize);
@@ -2125,29 +2163,57 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double upperSmall = keltnerSmall.Upper[0];
                     double upperBig = keltnerBig.Upper[0];
 
-                    // 1. ASCENSO DE PISOS DE CEMENTO (REGLA: BARRA FLOTANDO CON DESPEGUE MÍNIMO DE 1 TICK)
-                    // Piso 1: Barra completa arriba de Línea Media con despegue (Low[0] >= Midline + 1tk)
-                    if (ratchetPisoConquistado == 0 && Low[0] >= (midline + (1 * TickSize)))
+                    // 1. ASCENSO DE PISOS DE CEMENTO (ADAPTADO A LA ZONA DE NACIMIENTO)
+                    if (ratchetStartingZone == 0)
                     {
-                        ratchetPisoConquistado = 1;
-                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 1 CONQUISTADO] Barra con despegue real sobre Línea Media ({1:F2} >= {2:F2} + 1tk). Piso de cemento armado en Línea Media.",
-                            Time[0], Low[0], midline));
+                        // ZONA BAJA (<= Midline): Conquista progresiva estándar
+                        if (ratchetPisoConquistado == 0 && Low[0] >= (midline + (1 * TickSize)))
+                        {
+                            ratchetPisoConquistado = 1;
+                            Print(string.Format("{0} - [RATCHET v3.0 | PISO 1 CONQUISTADO] Barra con despegue real sobre Línea Media ({1:F2} >= {2:F2} + 1tk). Piso de cemento armado en Línea Media.",
+                                Time[0], Low[0], midline));
+                        }
+                        if (ratchetPisoConquistado == 1 && Low[0] >= (upperSmall + (1 * TickSize)))
+                        {
+                            ratchetPisoConquistado = 2;
+                            Print(string.Format("{0} - [RATCHET v3.0 | PISO 2 CONQUISTADO] Barra con despegue real sobre Upper 1.75 ({1:F2} >= {2:F2} + 1tk). Piso de cemento elevado a Banda Pequeña.",
+                                Time[0], Low[0], upperSmall));
+                        }
+                        if (ratchetPisoConquistado == 2 && Low[0] >= (upperBig + (1 * TickSize)))
+                        {
+                            ratchetPisoConquistado = 3;
+                            Print(string.Format("{0} - [RATCHET v3.0 | PISO 3 CONQUISTADO] Barra con despegue real sobre Upper 3.5 ({1:F2} >= {2:F2} + 1tk). Fuga exterior en órbita.",
+                                Time[0], Low[0], upperBig));
+                        }
                     }
-
-                    // Piso 2: Barra completa arriba de Banda Pequeña Upper 1.75 con despegue (Low[0] >= Upper 1.75 + 1tk)
-                    if (ratchetPisoConquistado == 1 && Low[0] >= (upperSmall + (1 * TickSize)))
+                    else if (ratchetStartingZone == 1)
                     {
-                        ratchetPisoConquistado = 2;
-                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 2 CONQUISTADO] Barra con despegue real sobre Upper 1.75 ({1:F2} >= {2:F2} + 1tk). Piso de cemento elevado a Banda Pequeña.",
-                            Time[0], Low[0], upperSmall));
+                        // ZONA MEDIA (Midline a Upper 1.75): SL inicial fijo bajo el Swing.
+                        // Solo sube a Piso 2 cuando conquiste la Banda Azul con despegue.
+                        if (ratchetPisoConquistado < 2 && Low[0] >= (upperSmall + (1 * TickSize)))
+                        {
+                            ratchetPisoConquistado = 2;
+                            Print(string.Format("{0} - [RATCHET v3.0 | PISO 2 CONQUISTADO] Entrada Zona Media superó con despegue Upper 1.75 ({1:F2} >= {2:F2} + 1tk). Piso elevado a Banda Pequeña.",
+                                Time[0], Low[0], upperSmall));
+                        }
+                        if (ratchetPisoConquistado == 2 && Low[0] >= (upperBig + (1 * TickSize)))
+                        {
+                            ratchetPisoConquistado = 3;
+                            Print(string.Format("{0} - [RATCHET v3.0 | PISO 3 CONQUISTADO] Barra con despegue real sobre Upper 3.5 ({1:F2} >= {2:F2} + 1tk). Fuga exterior en órbita.",
+                                Time[0], Low[0], upperBig));
+                        }
                     }
-
-                    // Piso 3: Barra completa arriba de Banda Grande Upper 3.5 con despegue (Low[0] >= Upper 3.5 + 1tk)
-                    if (ratchetPisoConquistado == 2 && Low[0] >= (upperBig + (1 * TickSize)))
+                    else if (ratchetStartingZone == 2)
                     {
-                        ratchetPisoConquistado = 3;
-                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 3 CONQUISTADO] Barra con despegue real sobre Upper 3.5 ({1:F2} >= {2:F2} + 1tk). Fuga exterior en órbita.",
-                            Time[0], Low[0], upperBig));
+                        // MODO COHETE (> Upper 1.75): Piso inicial de resguardo es la LÍNEA MEDIA.
+                        // No activa Piso 2 para evitar que la banda azul por debajo del precio de compra actúe como trampa de salida.
+                        // Solo sube a Piso 3 cuando una vela flote con despegue sobre Upper 3.5.
+                        if (ratchetPisoConquistado < 3 && Low[0] >= (upperBig + (1 * TickSize)))
+                        {
+                            ratchetPisoConquistado = 3;
+                            Print(string.Format("{0} - [RATCHET v3.0 | PISO 3 CONQUISTADO] Cohete superó con despegue Upper 3.5 ({1:F2} >= {2:F2} + 1tk). Piso elevado a Banda Grande.",
+                                Time[0], Low[0], upperBig));
+                        }
                     }
 
                     // 1.1 LIQUIDACIÓN CONTRATO 2: EL FRANCOTIRADOR (Upper 3.5 + 2 ticks)
@@ -2208,18 +2274,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                             return;
                         }
                     }
-                    // D) Si Piso 1 está conquistado (Línea Media): Salida si una barra completa flota abajo de la Línea Media
-                    else if (ratchetPisoConquistado == 1)
+                    // D) Si Piso 1 está conquistado (Línea Media) O si Nació en Modo Cohete (ratchetStartingZone == 2):
+                    // Salida si una barra completa flota abajo de la Línea Media
+                    else if (ratchetPisoConquistado == 1 || ratchetStartingZone == 2)
                     {
                         if (High[0] < midline)
                         {
                             ExitLong("Exit_Ratchet_PisoMidline", "Ratchet_Long");
-                            Print(string.Format("{0} - [RATCHET v3.0 | SALIDA PISO 1 LÍNEA MEDIA] Barra completica perforó Línea Media hacia abajo ({1:F2} < {2:F2}). Salida con resguardo en ganancia.",
+                            Print(string.Format("{0} - [RATCHET v3.0 | SALIDA PISO LÍNEA MEDIA] Barra completica perforó Línea Media hacia abajo ({1:F2} < {2:F2}). Salida con resguardo en Línea Media.",
                                 Time[0], High[0], midline));
                             return;
                         }
                     }
-                    // E) Piso 0: Stop Loss inicial bajo el Swing Low
+                    // E) Piso 0: Stop Loss inicial bajo el Swing Low (aplica para Zona 0 y Zona 1 antes de subir de piso)
                     else
                     {
                         if (Close[0] <= ratchetInitialSlPrice || Low[0] <= ratchetInitialSlPrice)
@@ -2900,6 +2967,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             ratchetChokeActive = false;
             ratchetC1Exited = false;
             ratchetC2Exited = false;
+            ratchetStartingZone = 0;
 
             cascadaC1Achieved = false;
             cascadaC2Achieved = false;
