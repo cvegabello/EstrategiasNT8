@@ -2125,28 +2125,28 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double upperSmall = keltnerSmall.Upper[0];
                     double upperBig = keltnerBig.Upper[0];
 
-                    // 1. ASCENSO DE PISOS DE CEMENTO (REGLA: BARRA 100% FLOTANDO ARRIBA)
-                    // Piso 1: Barra completa arriba de Línea Media (Low[0] > Midline)
-                    if (ratchetPisoConquistado == 0 && Low[0] > midline)
+                    // 1. ASCENSO DE PISOS DE CEMENTO (REGLA: BARRA FLOTANDO CON DESPEGUE MÍNIMO DE 1 TICK)
+                    // Piso 1: Barra completa arriba de Línea Media con despegue (Low[0] >= Midline + 1tk)
+                    if (ratchetPisoConquistado == 0 && Low[0] >= (midline + (1 * TickSize)))
                     {
                         ratchetPisoConquistado = 1;
-                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 1 CONQUISTADO] Barra completica flotando sobre Línea Media ({1:F2} > {2:F2}). Piso de cemento armado en Línea Media.",
+                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 1 CONQUISTADO] Barra con despegue real sobre Línea Media ({1:F2} >= {2:F2} + 1tk). Piso de cemento armado en Línea Media.",
                             Time[0], Low[0], midline));
                     }
 
-                    // Piso 2: Barra completa arriba de Banda Pequeña Upper 1.75 (Low[0] > Upper 1.75)
-                    if (ratchetPisoConquistado == 1 && Low[0] > upperSmall)
+                    // Piso 2: Barra completa arriba de Banda Pequeña Upper 1.75 con despegue (Low[0] >= Upper 1.75 + 1tk)
+                    if (ratchetPisoConquistado == 1 && Low[0] >= (upperSmall + (1 * TickSize)))
                     {
                         ratchetPisoConquistado = 2;
-                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 2 CONQUISTADO] Barra completica flotando sobre Upper 1.75 ({1:F2} > {2:F2}). Piso de cemento elevado a Banda Pequeña.",
+                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 2 CONQUISTADO] Barra con despegue real sobre Upper 1.75 ({1:F2} >= {2:F2} + 1tk). Piso de cemento elevado a Banda Pequeña.",
                             Time[0], Low[0], upperSmall));
                     }
 
-                    // Piso 3: Barra completa arriba de Banda Grande Upper 3.5 (Low[0] > Upper 3.5)
-                    if (ratchetPisoConquistado == 2 && Low[0] > upperBig)
+                    // Piso 3: Barra completa arriba de Banda Grande Upper 3.5 con despegue (Low[0] >= Upper 3.5 + 1tk)
+                    if (ratchetPisoConquistado == 2 && Low[0] >= (upperBig + (1 * TickSize)))
                     {
                         ratchetPisoConquistado = 3;
-                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 3 CONQUISTADO] Barra completica flotando sobre Upper 3.5 ({1:F2} > {2:F2}). Fuga exterior en órbita.",
+                        Print(string.Format("{0} - [RATCHET v3.0 | PISO 3 CONQUISTADO] Barra con despegue real sobre Upper 3.5 ({1:F2} >= {2:F2} + 1tk). Fuga exterior en órbita.",
                             Time[0], Low[0], upperBig));
                     }
 
