@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_CascadaVegaES - "Cascada Vega ES"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 4.1 - Cascada Vega ES [Ratchet v4.1: Protección Estricta Línea Media C2/C3 tras Cobro C1 & Zona Media]
+// VERSIÓN: 4.2 - Cascada Vega ES [Memoria de Clímax Anti-Regreso >30tk en Cascada, Ratchet v4.1 Línea Media SL C2/C3]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura
@@ -128,6 +128,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool cascadaSecondChanceLongUsed       = false; // Bandera v14.2: Garantiza máximo 1 Segundo Boleto por ciclo alcista
         private bool cascadaSecondChanceShortUsed      = false; // Bandera v14.2: Garantiza máximo 1 Segundo Boleto por ciclo bajista
         private int cascadaLastExitBar                 = -999;  // Barra donde cerró el último trade de Cascada para enfriamiento obligatorio de >= 5 barras
+        private bool cascadaClimaxUpperReached         = false; // Bandera v4.2: Memoria de Clímax (precio superó CascadaMaxOutsideTicks). Veta compras en el camino de regreso.
+        private bool cascadaClimaxLowerReached         = false; // Bandera v4.2: Memoria de Clímax (precio superó CascadaMaxOutsideTicks en cortos). Veta ventas en el camino de regreso.
         private bool cascadaReachedOutsideBigBand      = false; // Indica si el trade alcanzó o rompió hacia afuera de la Banda Grande 3.5
         private int lastCascadaDirection               = 0;     // Dirección de Cascada: 1 = Long, -1 = Short
         private int entryBarGlobal                     = -1;    // Barra donde se ejecutó la entrada activa
@@ -214,7 +216,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "4.1 - Cascada Vega ES";
+                Version                                     = "4.2 - Cascada Vega ES";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -450,6 +452,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 cascadaReachedOutsideBigBand = false;
                 cascadaConsecutiveSlopeBarsLong = 0;
                 cascadaConsecutiveSlopeBarsShort = 0;
+                cascadaClimaxUpperReached = false;
+                cascadaClimaxLowerReached = false;
                 ratchetPisoConquistado = 0;
                 ratchetChokeActive = false;
                 ratchetLastSwingLowBar = -1;
@@ -666,17 +670,19 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
             {
                 // Reseteo estructural estricto del ciclo de Cascada (SOLO cuando el precio descansa físicamente en la Línea Media)
-                if ((cascadaCycleLongFired || cascadaSecondChanceLongAvailable || cascadaSecondChanceLongUsed) && Low[0] <= keltnerBig.Midline[0])
+                if ((cascadaCycleLongFired || cascadaSecondChanceLongAvailable || cascadaSecondChanceLongUsed || cascadaClimaxUpperReached) && Low[0] <= keltnerBig.Midline[0])
                 {
                     cascadaCycleLongFired = false;
                     cascadaSecondChanceLongAvailable = false;
                     cascadaSecondChanceLongUsed = false;
+                    cascadaClimaxUpperReached = false;
                 }
-                if ((cascadaCycleShortFired || cascadaSecondChanceShortAvailable || cascadaSecondChanceShortUsed) && High[0] >= keltnerBig.Midline[0])
+                if ((cascadaCycleShortFired || cascadaSecondChanceShortAvailable || cascadaSecondChanceShortUsed || cascadaClimaxLowerReached) && High[0] >= keltnerBig.Midline[0])
                 {
                     cascadaCycleShortFired = false;
                     cascadaSecondChanceShortAvailable = false;
                     cascadaSecondChanceShortUsed = false;
+                    cascadaClimaxLowerReached = false;
                 }
 
                 // GESTIÓN DE RIESGO INTELIGENTE: Verificamos si existe margen para operar al menos 1 contrato con Stop saludable
@@ -1494,7 +1500,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double tema9LinRegSlope    = CurrentBar >= temaLookback ? (tema9[0] - tema9[temaLookback]) / (double)temaLookback : 0.0;
                 bool tema9SlopeBajista     = CurrentBar >= temaLookback && (tema9LinRegSlope < -0.06);
                 double ticksAfueraLower    = (lowerBig - Close[0]) / TickSize;
-                bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks);
+
+                // ANTI-REGRESO DE CLÍMAX ABISMO (v4.2): Si el precio visitó > 30 ticks fuera, el ciclo queda vetado en el regreso
+                if (ticksAfueraLower > CascadaMaxOutsideTicks)
+                {
+                    cascadaClimaxLowerReached = true;
+                }
+                bool sobreextensionPermitida = (ticksAfueraLower <= CascadaMaxOutsideTicks) && !cascadaClimaxLowerReached;
 
                 // FILTRO ANTI-GANCHO EN SOBREVENTA (Módulo 1 v3.0 / v3.2):
                 // Zona de exclusión simétrica de 20 ticks (10 ticks arriba y 10 ticks abajo del Swing Low).
@@ -1563,7 +1575,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (cascadaConsecutiveSlopeBarsShort < CascadaSlopeConfirmBars)
                         motivo = string.Format("Barra {0} de pendiente (esperando confirmación barra {1})", cascadaConsecutiveSlopeBarsShort, CascadaSlopeConfirmBars);
                     else if (!sobreextensionPermitida)
-                        motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
+                        motivo = cascadaClimaxLowerReached ? string.Format("Anti-Regreso Clímax Abismo Vetado ({0:F1}tk): Visitó estratosfera exterior y viene rebotando", ticksAfueraLower) : string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraLower, CascadaMaxOutsideTicks);
                     else if (hookSueloBloqueaCorto)
                         motivo = string.Format("Filtro Anti-Gancho Suelo: Swing Low en {0:F2} (hace {1}b en sobreventa <= Lower 1.75). En zona de exclusión de 20tk (distancia: {2:F1}tk < {3}tk mín)", swingLowPrice, swingLowBarAgo, distanciaAlSueloTicks, CascadaAntiHookMinDistanceTicks);
                     else if (!pendienteRapido)
@@ -1604,7 +1616,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double tema9LinRegSlope    = CurrentBar >= temaLookback ? (tema9[0] - tema9[temaLookback]) / (double)temaLookback : 0.0;
                 bool tema9SlopeAlcista     = CurrentBar >= temaLookback && (tema9LinRegSlope > 0.06);
                 double ticksAfueraUpper    = (Close[0] - upperBig) / TickSize;
-                bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks);
+
+                // ANTI-REGRESO DE CLÍMAX ESTRATOSFERA (v4.2): Si el precio visitó > 30 ticks fuera, el ciclo queda vetado en la bajada
+                if (ticksAfueraUpper > CascadaMaxOutsideTicks)
+                {
+                    cascadaClimaxUpperReached = true;
+                }
+                bool sobreextensionPermitida = (ticksAfueraUpper <= CascadaMaxOutsideTicks) && !cascadaClimaxUpperReached;
 
                 // FILTRO ANTI-GANCHO EN SOBRECOMPRA (Módulo 1 v3.0 / v3.2):
                 // Zona de exclusión simétrica de 20 ticks (10 ticks abajo y 10 ticks arriba del Swing High).
@@ -1673,7 +1691,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     else if (cascadaConsecutiveSlopeBarsLong < CascadaSlopeConfirmBars)
                         motivo = string.Format("Barra {0} de pendiente (esperando confirmación barra {1})", cascadaConsecutiveSlopeBarsLong, CascadaSlopeConfirmBars);
                     else if (!sobreextensionPermitida)
-                        motivo = string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
+                        motivo = cascadaClimaxUpperReached ? string.Format("Anti-Regreso Clímax Estratosfera Vetado ({0:F1}tk): Visitó estratosfera exterior y viene desinflándose", ticksAfueraUpper) : string.Format("Techo Exterior Vetado ({0:F1}tk > {1}tk máx)", ticksAfueraUpper, CascadaMaxOutsideTicks);
                     else if (hookTechoBloqueaLargo)
                         motivo = string.Format("Filtro Anti-Gancho Techo: Swing High en {0:F2} (hace {1}b en sobrecompra >= Upper 1.75). En zona de exclusión de 20tk (distancia: {2:F1}tk < {3}tk mín)", swingHighPrice, swingHighBarAgo, distanciaAlTechoTicks, CascadaAntiHookMinDistanceTicks);
                     else if (!pendienteRapido)
@@ -3509,7 +3527,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "CascadaVega ACTIVA (v4.1)" : "CascadaVega PAUSADA (v4.1)",
+                Content = isStrategyActive ? "CascadaVega ACTIVA (v4.2)" : "CascadaVega PAUSADA (v4.2)",
                 Height = 30,
                 Width = 240,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -3544,7 +3562,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "CascadaVega ACTIVA (v4.1)" : "CascadaVega PAUSADA (v4.1)";
+                panicButton.Content = isStrategyActive ? "CascadaVega ACTIVA (v4.2)" : "CascadaVega PAUSADA (v4.2)";
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
