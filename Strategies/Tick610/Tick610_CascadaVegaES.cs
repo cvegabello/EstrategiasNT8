@@ -1255,20 +1255,32 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool macroAlcista = (Close[0] > ema200[0]) && (swingLowPrice > ema200[swingBarAgo]);
             if (!macroAlcista) return;
 
-            // 1.1 PENDIENTE LÍNEA BLANCA (Línea Media Keltner Big):
-            // Desactivada a petición del usuario para mayor agilidad y capturar giros tempranos en suelo.
+            // 2. FILTRO DE ZONA BAJA (DESCUENTO):
+            // El pivote debió ocurrir en la zona baja (tocando o bajo Lower 1.75)
+            double lowerSmallAtSwing = keltnerSmall.Lower[swingBarAgo];
+            double lowerBigAtSwing   = keltnerBig.Lower[swingBarAgo];
+            bool enZonaBaja = (swingLowPrice <= lowerSmallAtSwing);
+            if (!enZonaBaja) return;
+
+            // 1.1 FILTRO INTELIGENTE DE PENDIENTE DE LÍNEA BLANCA (Línea Media Keltner Big):
+            // Regla refinada institucional:
+            // - Si el swing ocurrió MÁS ABAJO del canal grande (swingLowPrice < lowerBigAtSwing):
+            //   Es un rebote de suelo extremo por capitulación. ¡NO se exige pendiente de línea blanca!
+            // - Si el swing ocurrió ADENTRO del canal (entre Lower 1.75 y Lower 3.5):
+            //   Requiere confirmación de tendencia: la pendiente de la línea media blanca DEBE ser positiva (> 0).
+            bool esPivoteExteriorBajo = (swingLowPrice < lowerBigAtSwing);
             double normSlope = GetNormalizedSlope(keltnerBig.Midline);
+
+            if (!esPivoteExteriorBajo)
+            {
+                // El swing está adentro (entre Lower 1.75 y Lower 3.5): Exigimos línea blanca positiva
+                if (normSlope <= 0) return;
+            }
 
             // 1.2 FILTRO PENDIENTE TEMA 9 (Línea Azul): Inercia alcista positiva desde que se formó el Swing Low (swingBarAgo barras atrás)
             // La TEMA 9 actual debe ser estrictamente mayor a donde estaba en el swing: tema9[0] > tema9[swingBarAgo]
             double tema9SwingSlope = (tema9[0] - tema9[swingBarAgo]) / (double)swingBarAgo;
             if (tema9SwingSlope <= 0) return;
-
-            // 2. FILTRO DE ZONA BAJA (DESCUENTO):
-            // El pivote ocurrió en la zona inferior: ya sea entre Lower 1.75 y Lower 3.5, o perforando Lower 3.5
-            double lowerSmallAtSwing = keltnerSmall.Lower[swingBarAgo];
-            bool enZonaBaja = (swingLowPrice <= lowerSmallAtSwing);
-            if (!enZonaBaja) return;
 
             // ¡GATILLO A MERCADO SIN MIEDO!
             ratchetLastSwingBar = absoluteSwingBar;
@@ -1277,8 +1289,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             ratchetInitialSlPrice = swingLowPrice - (RatchetSlOffsetTicks * TickSize);
 
             ExecuteAceEntry(AceType.As3_Ratchet, MarketPosition.Long, "Ratchet_Long");
-            Print(string.Format("{0} - [RATCHET v2.0 | ¡PUM, ADIÓS! LARGO DISPARADO] Entrada @ ~{1:F2} | Swing Low ({2}b atrás): {3:F2} (Banda Lower 1.75: {4:F2}) | Pendiente Midline: {8:F4} | TEMA9 Slope({2}b): +{9:F4} (> 0) | SL Inicial Fijo: {5:F2} ({6}tk bajo swing) | EMA200: {7:F2}. ¡A exprimir el rally!",
-                Time[0], Close[0], swingBarAgo, swingLowPrice, lowerSmallAtSwing, ratchetInitialSlPrice, RatchetSlOffsetTicks, ema200[0], normSlope, tema9SwingSlope));
+            string tipoZonaLog = esPivoteExteriorBajo ? "EXTERIOR BAJO CANAL GRANDE (Suelo Extremo)" : "INTERIOR ENTRE BANDAS (1.75 a 3.5)";
+            Print(string.Format("{0} - [RATCHET v2.0 | ¡PUM, ADIÓS! LARGO DISPARADO] Zona: {10} | Entrada @ ~{1:F2} | Swing Low ({2}b atrás): {3:F2} (L1.75: {4:F2} | L3.5: {11:F2}) | Pendiente Midline: {8:F4} | TEMA9 Slope({2}b): +{9:F4} (> 0) | SL Inicial Fijo: {5:F2} ({6}tk bajo swing) | EMA200: {7:F2}. ¡A exprimir el rally!",
+                Time[0], Close[0], swingBarAgo, swingLowPrice, lowerSmallAtSwing, ratchetInitialSlPrice, RatchetSlOffsetTicks, ema200[0], normSlope, tema9SwingSlope, tipoZonaLog, lowerBigAtSwing));
         }
 
         // =========================================================================
