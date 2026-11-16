@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_CascadaVegaES - "Cascada Vega ES"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 4.3 - Cascada Vega ES [Ratchet v4.3: Regla Estricta Barra Completica Línea Media, Memoria Clímax Anti-Regreso]
+// VERSIÓN: 4.4 - Cascada Vega ES [Ratchet v4.4: Pista Libre SL Técnico en Tier 0 (Anti-Estrangulamiento Flotante)]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura
@@ -216,7 +216,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "4.3 - Cascada Vega ES";
+                Version                                     = "4.4 - Cascada Vega ES";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -614,10 +614,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // CORTACIRCUITO EN VIVO (v13.2): Si el PnL total (realizado + flotante) toca el piso actual
-                // En Tier 0 (-$650 límite inicial) y Tier 3+ (Modo Dulce), el Cortacircuito en vivo actúa inmediatamente.
-                // En Tier 1 y 2, se le concede pista al trade con su SL natural (12 ticks); si cierra por debajo del piso, se bloquea tras el cierre.
-                bool evaluateLiveCortacircuito = (currentDailyTier == 0 || currentDailyTier >= 3);
+                // CORTACIRCUITO EN VIVO (v4.4): Si el PnL total (realizado + flotante) toca el piso actual
+                // En Tier 3+ (Modo Dulce), el Cortacircuito en vivo actúa inmediatamente para proteger ganancias acumuladas.
+                // En Tier 0 (-$650 límite inicial), Cascada y SOBB se liquidan en vivo; pero a Ratchet (3 contratos)
+                // se le concede pista completa sin estrangulamiento flotante para defenderse con su SL técnico de Swing (tope 24tk).
+                // Si el trade cierra por debajo del piso diario, UpdateDailyPnLAndFloors bloquea la estrategia tras el cierre.
+                // En Tier 1 y 2, también se le concede pista al trade con su SL natural.
+                bool evaluateLiveCortacircuito = (currentDailyTier >= 3) || (currentDailyTier == 0 && currentAce != AceType.As3_Ratchet);
                 if (!isDailyLocked && evaluateLiveCortacircuito && totalDailyFloatingPnL <= currentDailyFloor)
                 {
                     isDailyLocked = true;
@@ -3523,7 +3526,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "CascadaVega ACTIVA (v4.3)" : "CascadaVega PAUSADA (v4.3)",
+                Content = isStrategyActive ? "CascadaVega ACTIVA (v4.4)" : "CascadaVega PAUSADA (v4.4)",
                 Height = 30,
                 Width = 240,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -3558,7 +3561,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "CascadaVega ACTIVA (v4.3)" : "CascadaVega PAUSADA (v4.3)";
+                panicButton.Content = isStrategyActive ? "CascadaVega ACTIVA (v4.4)" : "CascadaVega PAUSADA (v4.4)";
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
