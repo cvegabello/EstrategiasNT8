@@ -216,7 +216,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "4.5 - Cascada Vega ES";
+                Version                                     = "4.6 - Cascada Vega ES";
 
                 // Horario RTH estricto (Nueva York EST - Oficial 09:50 AM - Regla de Oro AGENTS.md)
                 StartTime                                   = 95000;  // 09:50 AM EST
@@ -504,30 +504,27 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 3.1 CORTACIRCUITO UNIVERSAL A LAS 12:00 PM (SOLO ESCALÓN 3 / MODO DULCE PUEDE CONTINUAR HASTA LAS 4:00 PM)
-            // Si son las 12:00 PM EST y no estamos en el último escalón (Modo Dulce Trailing Infinito >= $900),
-            // se apaga la operativa para evitar operar en la tarde picada o eventos de alta volatilidad (FED/FOMC/Almuerzo) y blindar las ganancias.
+            // 3.1 CORTACIRCUITO UNIVERSAL A LAS 12:00 PM (APAGADO ESTRICTO DE MEDIODÍA v4.6)
+            // Si son las 12:00 PM EST, se apaga la operativa para todos los niveles (incluido Modo Dulce)
+            // para evitar operar en la tarde picada o eventos de alta volatilidad (FED/FOMC/Almuerzo) y blindar las ganancias.
             if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && timeNow >= Tier1CutoffTime)
             {
-                if (currentDailyTier < 3)
+                if (Position.MarketPosition == MarketPosition.Flat)
                 {
-                    if (Position.MarketPosition == MarketPosition.Flat)
+                    isDailyLocked = true;
+                    dailyLockReason = string.Format("CORTE DE OPERATIVA A LAS 12:00 PM (PnL ${0:F2})", dailyRealizedPnL);
+                    if (!soundLunchCutoffPlayed)
                     {
-                        isDailyLocked = true;
-                        dailyLockReason = string.Format("CORTE DE OPERATIVA A LAS 12:00 PM (PnL ${0:F2})", dailyRealizedPnL);
-                        if (!soundLunchCutoffPlayed)
-                        {
-                            soundLunchCutoffPlayed = true;
-                            PlayStrategySound(SoundLunchCutoff);
-                        }
-                        Print(string.Format("****************************************************************************************\n" +
-                                           "{0} - [ESCUDO DIARIO | CORTE A LAS 12:00 PM EST] Hora actual ({1}) alcanzó las 12:00 PM.\n" +
-                                           "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
-                                           "No se regala dinero en la tarde sin volumen ni en trampas de la FED o almuerzo. ¡Día cerrado con disciplina!\n" +
-                                           "****************************************************************************************",
-                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base")));
-                        return;
+                        soundLunchCutoffPlayed = true;
+                        PlayStrategySound(SoundLunchCutoff);
                     }
+                    Print(string.Format("****************************************************************************************\n" +
+                                       "{0} - [ESCUDO DIARIO | CORTE A LAS 12:00 PM EST] Hora actual ({1}) alcanzó las 12:00 PM.\n" +
+                                       "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
+                                       "No se regala dinero en la tarde sin volumen ni en trampas de la FED o almuerzo. ¡Día cerrado con disciplina!\n" +
+                                       "****************************************************************************************",
+                        Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 3 ? "Modo Dulce" : (currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base"))));
+                    return;
                 }
             }
 
@@ -3290,8 +3287,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SyncTradesAndStrikes();
                 UpdateDailyPnLAndFloors();
 
-                // Verificación de corte a las 12:00 PM si el trade que acaba de cerrar ocurrió después de las 12:00 PM (Solo Escalón 3 sigue activo)
-                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked && currentDailyTier < 3)
+                // Verificación de corte a las 12:00 PM si el trade que acaba de cerrar ocurrió después de las 12:00 PM (Apagado Estricto de Mediodía v4.6)
+                if (UseDailyManagement && UseTier1LunchCutoff && !isDailyLocked)
                 {
                     int timeNow = ToTime(Time[0]);
                     if (timeNow >= Tier1CutoffTime)
@@ -3302,7 +3299,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                            "{0} - [ESCUDO DIARIO | CORTE A LAS 12:00 PM TRAS CIERRE DE TRADE] Trade cerrado después de las 12:00 PM EST ({1}).\n" +
                                            "PnL Diario Realizado: ${2:F2} USD (Zona {3}). ¡APAGANDO OPERATIVA POR EL RESTO DEL DÍA!\n" +
                                            "****************************************************************************************",
-                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base")));
+                            Time[0], timeNow, dailyRealizedPnL, currentDailyTier == 3 ? "Modo Dulce" : (currentDailyTier == 2 ? "Escalón 2" : (currentDailyTier == 1 ? "Escalón 1" : "Base"))));
                     }
                 }
 
@@ -3677,7 +3674,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int MaxConsecutiveLosses { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Corte de Mediodía", Description = "Si a las 12:00 PM EST estamos fuera de Modo Dulce (< $900), apaga nuevas entradas y asegura la ganancia", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 10)]
+        [Display(Name = "Activar Corte de Mediodía", Description = "A las 12:00 PM EST apaga estrictamente nuevas entradas para todos los niveles (incluyendo Modo Dulce) y asegura la ganancia", GroupName = "4. Escudo de Cuenta (3 Pisos)", Order = 10)]
         public bool UseTier1LunchCutoff { get; set; }
 
         [NinjaScriptProperty]
