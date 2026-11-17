@@ -263,6 +263,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetChicleTicks                          = 4;      // Trailing ceñido del Chicle Parabólico en Fase 4 (4 ticks del extremo)
                 RatchetC2UpperBigOffsetTicks                = 2;      // Offset en ticks sobre Banda 3.5 para liquidar Contrato 2 (Francotirador)
                 RatchetMinLowSeparationTicks                = 8;      // Separación mínima en ticks entre la vela 4 y el Swing (8 ticks por defecto)
+                RatchetSlopeThreshold                       = 0.10;   // Umbral de pendiente normalizada de la Línea Media para Ratchet (0.10 por defecto)
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
                 CascadaStartTime                            = 95000;  // 09:50 AM EST - Sincronizado con RTH oficial
@@ -1289,14 +1290,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool swingFlotandoAfueraLong = High[swingBarAgo] <= (lowerBigAtSwing - (2 * TickSize));
 
             // Si la vela NO estaba completamente flotando afuera con 2 ticks de despegue:
-            // Es OBLIGATORIO que la Línea Media tenga fuerza institucional alcista (normSlope >= CascadaSlopeTriggerThreshold, 0.166 por defecto).
-            // Queda terminantemente prohibido comprar si la pendiente es débil, plana o bajista (< 0.166).
+            // Es OBLIGATORIO que la Línea Media tenga fuerza institucional alcista (normSlope >= RatchetSlopeThreshold, 0.10 por defecto).
+            // Queda terminantemente prohibido comprar si la pendiente es débil, plana o bajista (< RatchetSlopeThreshold).
             if (!swingFlotandoAfueraLong)
             {
-                if (normSlope < CascadaSlopeTriggerThreshold)
+                if (normSlope < RatchetSlopeThreshold)
                 {
-                    Print(string.Format("{0} - [RATCHET v4.6 LONG | ENTRADA DESCARTADA] Pendiente Línea Media débil o en contra ({1:F4} < +{2:F4}) y Swing no está flotando afuera de Lower 3.5 (High {3:F2} > {4:F2} - 2tk). Prohibido comprar sin inercia institucional.",
-                        Time[0], normSlope, CascadaSlopeTriggerThreshold, High[swingBarAgo], lowerBigAtSwing));
+                    Print(string.Format("{0} - [RATCHET v4.6 LONG | ENTRADA DESCARTADA] Pendiente Línea Media débil o en contra ({1:F4} < +{2:F4}) y Swing no está flotando afuera de Lower 3.5 (High {3:F2} > {4:F2} - 2tk). Prohibido comprar sin inercia requerida.",
+                        Time[0], normSlope, RatchetSlopeThreshold, High[swingBarAgo], lowerBigAtSwing));
                     return;
                 }
             }
@@ -1390,14 +1391,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool swingFlotandoAfueraShort = Low[swingBarAgo] >= (upperBigAtSwing + (2 * TickSize));
 
             // Si la vela NO estaba completamente flotando afuera con 2 ticks de despegue:
-            // Es OBLIGATORIO que la Línea Media tenga fuerza institucional bajista (normSlope <= -CascadaSlopeTriggerThreshold, -0.166 por defecto).
-            // Queda terminantemente prohibido vender si la pendiente es débil, plana o alcista (> -0.166).
+            // Es OBLIGATORIO que la Línea Media tenga fuerza institucional bajista (normSlope <= -RatchetSlopeThreshold, -0.10 por defecto).
+            // Queda terminantemente prohibido vender si la pendiente es débil, plana o alcista (> -RatchetSlopeThreshold).
             if (!swingFlotandoAfueraShort)
             {
-                if (normSlope > -CascadaSlopeTriggerThreshold)
+                if (normSlope > -RatchetSlopeThreshold)
                 {
-                    Print(string.Format("{0} - [RATCHET v4.6 SHORT | ENTRADA DESCARTADA] Pendiente Línea Media débil o en contra ({1:F4} > -{2:F4}) y Swing no está flotando afuera de Upper 3.5 (Low {3:F2} < {4:F2} + 2tk). Prohibido vender sin inercia institucional.",
-                        Time[0], normSlope, CascadaSlopeTriggerThreshold, Low[swingBarAgo], upperBigAtSwing));
+                    Print(string.Format("{0} - [RATCHET v4.6 SHORT | ENTRADA DESCARTADA] Pendiente Línea Media débil o en contra ({1:F4} > -{2:F4}) y Swing no está flotando afuera de Upper 3.5 (Low {3:F2} < {4:F2} + 2tk). Prohibido vender sin inercia requerida.",
+                        Time[0], normSlope, RatchetSlopeThreshold, Low[swingBarAgo], upperBigAtSwing));
                     return;
                 }
             }
@@ -3927,6 +3928,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(2, 30)]
         [Display(Name = "8. Separación Mínima Base/Techo Swing (Ticks)", Description = "Separación mínima en ticks entre la vela 4 y el Swing (8 ticks por defecto)", GroupName = "6. As 3: Ratchet v4.6", Order = 9)]
         public int RatchetMinLowSeparationTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0.01, 1.0)]
+        [Display(Name = "9. Umbral Pendiente Línea Media", Description = "Pendiente normalizada mínima de la Línea Media para autorizar tiros en Ratchet (0.10 por defecto)", GroupName = "6. As 3: Ratchet v4.6", Order = 10)]
+        public double RatchetSlopeThreshold { get; set; }
         #endregion
 
         [NinjaScriptProperty]
