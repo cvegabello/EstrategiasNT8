@@ -1284,32 +1284,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool enZonaBaja = (swingLowPrice <= lowerSmallAtSwing);
             if (!enZonaBaja) return;
 
-            // 1.1 FILTRO INTELIGENTE DE PENDIENTE DE LÍNEA BLANCA (Línea Media Keltner Big):
-            // Regla refinada institucional:
-            // - Si el swing ocurrió MÁS ABAJO del canal grande (swingLowPrice < lowerBigAtSwing):
-            //   Es un rebote de suelo extremo por capitulación. ¡NO se exige pendiente de línea blanca!
-            // - Si el swing ocurrió ADENTRO del canal (entre Lower 1.75 y Lower 3.5):
-            //   Requiere confirmación de tendencia: la pendiente de la línea media blanca DEBE ser positiva (> 0).
+            // 1.1 FILTRO MAESTRO DE PENDIENTE DE LÍNEA BLANCA (Línea Media Keltner Big):
+            // Excepción única de Clímax: La vela del Swing estaba COMPLETAMENTE FLOTANDO por debajo de la Banda Grande 3.5 (con 2 ticks de despegue)
             bool esPivoteExteriorBajo = (swingLowPrice < lowerBigAtSwing);
             double normSlope = GetNormalizedSlope(keltnerBig.Midline);
-
-            if (!esPivoteExteriorBajo)
-            {
-                // El swing está adentro (entre Lower 1.75 y Lower 3.5): Exigimos línea blanca positiva
-                if (normSlope <= 0) return;
-            }
-
-            // 1.1b FILTRO ANTI-CORRIENTE INSTITUCIONAL (v4.5):
-            // Verificamos si la vela del Swing estaba COMPLETAMENTE FLOTANDO por debajo de la Banda Grande 3.5 (con 2 ticks de despegue)
             bool swingFlotandoAfueraLong = High[swingBarAgo] <= (lowerBigAtSwing - (2 * TickSize));
 
-            // Si NO estaba flotando afuera con despegue, queda estrictamente prohibido comprar contra una pendiente bajista institucional (<= -0.1660)
+            // Si la vela NO estaba completamente flotando afuera con 2 ticks de despegue:
+            // Es OBLIGATORIO que la Línea Media sea estrictamente positiva (normSlope > 0).
+            // Queda terminantemente prohibido comprar si la pendiente es <= 0.0 (en contra o plana).
             if (!swingFlotandoAfueraLong)
             {
-                if (normSlope <= -CascadaSlopeTriggerThreshold)
+                if (normSlope <= 0.0)
                 {
-                    Print(string.Format("{0} - [RATCHET v4.5 LONG | ENTRADA DESCARTADA] Pendiente Línea Media bajista institucional ({1:F4} <= -{2:F4}) y Swing no está flotando afuera de Lower 3.5 (High {3:F2} > {4:F2} - 2tk). Prohibido comprar contra la corriente.",
-                        Time[0], normSlope, CascadaSlopeTriggerThreshold, High[swingBarAgo], lowerBigAtSwing));
+                    Print(string.Format("{0} - [RATCHET v4.5 LONG | ENTRADA DESCARTADA] Pendiente Línea Media bajista o plana ({1:F4} <= 0.0) y Swing no está flotando afuera de Lower 3.5 (High {2:F2} > {3:F2} - 2tk). Prohibido comprar contra la corriente.",
+                        Time[0], normSlope, High[swingBarAgo], lowerBigAtSwing));
                     return;
                 }
             }
@@ -1395,32 +1384,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool enZonaAlta = (swingHighPrice >= upperSmallAtSwing);
             if (!enZonaAlta) return;
 
-            // 1.1 FILTRO INTELIGENTE DE PENDIENTE DE LÍNEA BLANCA (Línea Media Keltner Big):
-            // Regla refinada institucional:
-            // - Si el swing ocurrió MÁS ARRIBA del canal grande (swingHighPrice > upperBigAtSwing):
-            //   Es un rebote de techo extremo por capitulación compradora. ¡NO se exige pendiente de línea blanca!
-            // - Si el swing ocurrió ADENTRO del canal (entre Upper 1.75 y Upper 3.5):
-            //   Requiere confirmación de tendencia: la pendiente de la línea media blanca DEBE ser negativa (< 0).
+            // 1.1 FILTRO MAESTRO DE PENDIENTE DE LÍNEA BLANCA (Línea Media Keltner Big):
+            // Excepción única de Clímax: La vela del Swing estaba COMPLETAMENTE FLOTANDO por fuera de la Banda Grande 3.5 (con 2 ticks de despegue)
             bool esPivoteExteriorAlto = (swingHighPrice > upperBigAtSwing);
             double normSlope = GetNormalizedSlope(keltnerBig.Midline);
-
-            if (!esPivoteExteriorAlto)
-            {
-                // El swing está adentro (entre Upper 1.75 y Upper 3.5): Exigimos línea blanca negativa
-                if (normSlope >= 0) return;
-            }
-
-            // 1.1b FILTRO ANTI-CORRIENTE INSTITUCIONAL (v4.5):
-            // Verificamos si la vela del Swing estaba COMPLETAMENTE FLOTANDO por fuera de la Banda Grande 3.5 (con 2 ticks de despegue)
             bool swingFlotandoAfueraShort = Low[swingBarAgo] >= (upperBigAtSwing + (2 * TickSize));
 
-            // Si NO estaba flotando afuera con despegue, queda estrictamente prohibido vender contra una pendiente alcista institucional (>= +0.1660)
+            // Si la vela NO estaba completamente flotando afuera con 2 ticks de despegue:
+            // Es OBLIGATORIO que la Línea Media sea estrictamente negativa (normSlope < 0).
+            // Queda terminantemente prohibido vender si la pendiente es >= 0.0 (en contra o plana).
             if (!swingFlotandoAfueraShort)
             {
-                if (normSlope >= CascadaSlopeTriggerThreshold)
+                if (normSlope >= 0.0)
                 {
-                    Print(string.Format("{0} - [RATCHET v4.5 SHORT | ENTRADA DESCARTADA] Pendiente Línea Media alcista institucional ({1:F4} >= +{2:F4}) y Swing no está flotando afuera de Upper 3.5 (Low {3:F2} < {4:F2} + 2tk). Prohibido vender contra la corriente.",
-                        Time[0], normSlope, CascadaSlopeTriggerThreshold, Low[swingBarAgo], upperBigAtSwing));
+                    Print(string.Format("{0} - [RATCHET v4.5 SHORT | ENTRADA DESCARTADA] Pendiente Línea Media alcista o plana ({1:F4} >= 0.0) y Swing no está flotando afuera de Upper 3.5 (Low {2:F2} < {3:F2} + 2tk). Prohibido vender contra la corriente.",
+                        Time[0], normSlope, Low[swingBarAgo], upperBigAtSwing));
                     return;
                 }
             }
