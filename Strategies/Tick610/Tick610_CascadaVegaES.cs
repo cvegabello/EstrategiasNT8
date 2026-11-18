@@ -1271,10 +1271,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double swingLowPrice = Low[swingBarAgo];
 
-            // 1. FILTRO MACRO (v5.0): Solo exigimos que el precio de la 4ª vela esté por encima de la EMA 200
-            // No importa si el Swing Low nació por debajo de la EMA 200 (falso amague/rebote institucional)
-            bool macroAlcista = (Close[0] > ema200[0]);
-            if (!macroAlcista) return;
+            // 1. FILTRO MACRO INSTITUCIONAL Y ANTI-PICADILLO (v5.0):
+            // a) El precio actual debe estar sobre la EMA 200 (tendencia alcista).
+            // b) La EMA 200 debe estar por fuera del canal pequeño (EMA 200 <= Lower 1.75), evitando mercados picados/laterales.
+            bool macroAlcista = (Close[0] > ema200[0]) && (ema200[0] <= keltnerSmall.Lower[0]);
+            if (!macroAlcista)
+            {
+                if (Close[0] <= ema200[0])
+                    Print(string.Format("{0} - [RATCHET v5.0 LONG | ENTRADA DESCARTADA] Precio ({1:F2}) no está sobre EMA200 ({2:F2}).", Time[0], Close[0], ema200[0]));
+                else
+                    Print(string.Format("{0} - [RATCHET v5.0 LONG | ENTRADA DESCARTADA] EMA200 ({1:F2}) adentro del canal pequeño (> Lower 1.75 {2:F2}). Mercado en picadillo/compresión.", Time[0], ema200[0], keltnerSmall.Lower[0]));
+                return;
+            }
 
             // 2. FILTRO DE ZONA BAJA (DESCUENTO):
             // El pivote debió ocurrir en la zona baja (tocando o bajo Lower 1.75)
@@ -1311,12 +1319,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 1.4 FILTRO DE ACCIÓN DEL PRECIO (MOMENTUM VELA 4 v5.0):
-            // La 4ª vela debe superar el máximo de la 3ª vela (High[0] > High[1]) confirmando inercia compradora
-            if (High[0] <= High[1])
+            // 1.4 FILTRO DE ACCIÓN DEL PRECIO (PELDAÑO ALCISTA PURO EN VELA 4 v5.0):
+            // La 4ª vela debe hacer un Higher High Y un Higher Low respecto a la 3ª vela (peldaño alcista de libro)
+            if (High[0] <= High[1] || Low[0] <= Low[1])
             {
-                Print(string.Format("{0} - [RATCHET v5.0 LONG | ENTRADA DESCARTADA] Vela 4 no superó el techo de la vela 3 ({1:F2} <= {2:F2}). Falta de inercia compradora.",
-                    Time[0], High[0], High[1]));
+                Print(string.Format("{0} - [RATCHET v5.0 LONG | ENTRADA DESCARTADA] Vela 4 no formó peldaño alcista puro (High: {1:F2} vs {2:F2}, Low: {3:F2} vs {4:F2}). Falta de momentum.",
+                    Time[0], High[0], High[1], Low[0], Low[1]));
                 return;
             }
 
@@ -1366,10 +1374,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double swingHighPrice = High[swingBarAgo];
 
-            // 1. FILTRO MACRO (v5.0): Solo exigimos que el precio de la 4ª vela esté por debajo de la EMA 200
-            // No importa si el Swing High nació por encima de la EMA 200 (falso amague/rechazo institucional)
-            bool macroBajista = (Close[0] < ema200[0]);
-            if (!macroBajista) return;
+            // 1. FILTRO MACRO INSTITUCIONAL Y ANTI-PICADILLO (v5.0):
+            // a) El precio actual debe estar bajo la EMA 200 (tendencia bajista).
+            // b) La EMA 200 debe estar por fuera del canal pequeño (EMA 200 >= Upper 1.75), evitando mercados picados/laterales.
+            bool macroBajista = (Close[0] < ema200[0]) && (ema200[0] >= keltnerSmall.Upper[0]);
+            if (!macroBajista)
+            {
+                if (Close[0] >= ema200[0])
+                    Print(string.Format("{0} - [RATCHET v5.0 SHORT | ENTRADA DESCARTADA] Precio ({1:F2}) no está bajo EMA200 ({2:F2}).", Time[0], Close[0], ema200[0]));
+                else
+                    Print(string.Format("{0} - [RATCHET v5.0 SHORT | ENTRADA DESCARTADA] EMA200 ({1:F2}) adentro del canal pequeño (< Upper 1.75 {2:F2}). Mercado en picadillo/compresión.", Time[0], ema200[0], keltnerSmall.Upper[0]));
+                return;
+            }
 
             // 2. FILTRO DE ZONA ALTA (SOBRECOMPRA / RESISTENCIA):
             // El pivote debió ocurrir en la zona alta (tocando o sobre Upper 1.75)
@@ -1406,12 +1422,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // 1.4 FILTRO DE ACCIÓN DEL PRECIO (MOMENTUM VELA 4 v5.0):
-            // La 4ª vela debe perforar el mínimo de la 3ª vela (Low[0] < Low[1]) confirmando inercia vendedora
-            if (Low[0] >= Low[1])
+            // 1.4 FILTRO DE ACCIÓN DEL PRECIO (PELDAÑO BAJISTA PURO EN VELA 4 v5.0):
+            // La 4ª vela debe hacer un Lower Low Y un Lower High respecto a la 3ª vela (peldaño bajista de libro)
+            if (Low[0] >= Low[1] || High[0] >= High[1])
             {
-                Print(string.Format("{0} - [RATCHET v5.0 SHORT | ENTRADA DESCARTADA] Vela 4 no perforó el piso de la vela 3 ({1:F2} >= {2:F2}). Falta de inercia vendedora.",
-                    Time[0], Low[0], Low[1]));
+                Print(string.Format("{0} - [RATCHET v5.0 SHORT | ENTRADA DESCARTADA] Vela 4 no formó peldaño bajista puro (Low: {1:F2} vs {2:F2}, High: {3:F2} vs {4:F2}). Falta de momentum.",
+                    Time[0], Low[0], Low[1], High[0], High[1]));
                 return;
             }
 
