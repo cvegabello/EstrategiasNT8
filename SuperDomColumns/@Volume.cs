@@ -18,10 +18,12 @@ using System.Xml.Serialization;
 
 namespace NinjaTrader.NinjaScript.SuperDomColumns
 {
+	[TypeConverter("NinjaTrader.NinjaScript.SuperDomColumns.VolumeTypeConverter")]
 	public class Volume : SuperDomColumn
 	{
 		private readonly	object			barsSync					= new();
 		private				bool			clearLoadingSent;
+		private				bool			displayText;
 		private				FontFamily		fontFamily;
 		private				FontStyle		fontStyle;
 		private				FontWeight		fontWeight;
@@ -287,7 +289,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 				Buys					= new ConcurrentDictionary<double, long>();
 				BackColor				= Application.Current.TryFindResource("brushPriceColumnBackground") as Brush;
 				BarColor				= Application.Current.TryFindResource("brushVolumeColumnBackground") as Brush;
-				BuyColor				= Brushes.DarkCyan;
+				BuyColor				= (Brush)new SolidColorBrush(Color.FromArgb(0xFF, 0xD9, 0xD9, 0xFF)).GetAsFrozen();
 				DefaultWidth			= 160;
 				PreviousWidth			= -1;
 				DisplayText				= false;
@@ -297,7 +299,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 				ImmutableForeColor		= Application.Current.TryFindResource("immutableBrushVolumeColumnForeground") as Brush;
 				IsDataSeriesRequired	= true;
 				LastVolumes				= new ConcurrentDictionary<double, long>();
-				SellColor				= Brushes.Crimson;
+				SellColor				= (Brush)new SolidColorBrush(Color.FromArgb(0xFF, 0xFF, 0xD7, 0xD7)).GetAsFrozen();
 				Sells					= new ConcurrentDictionary<double, long>();
 				VolumeType				= VolumeType.Standard;
 			}
@@ -441,13 +443,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 			}
 			else if (State == State.Active)
 			{
-				if (!DisplayText)
-				{
-					WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.AddHandler(UiWrapper, "MouseMove", OnMouseMove);
-					WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.AddHandler(UiWrapper, "MouseEnter", OnMouseEnter);
-					WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.AddHandler(UiWrapper, "MouseLeave", OnMouseLeave);
-					mouseEventsSubscribed = true;
-				}
+				UpdateMouseEventSubscriptions();
 			}
 			else if (State == State.Terminated)
 			{
@@ -465,13 +461,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 					clearLoadingSent = true;
 				}
 
-				if (!DisplayText && mouseEventsSubscribed)
-				{
-					WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.RemoveHandler(UiWrapper, "MouseMove", OnMouseMove);
-					WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.RemoveHandler(UiWrapper, "MouseEnter", OnMouseEnter);
-					WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.RemoveHandler(UiWrapper, "MouseLeave", OnMouseLeave);
-					mouseEventsSubscribed = false;
-				}
+				UpdateMouseEventSubscriptions();
 
 				lastMaxIndex	= 0;
 				maxVolume		= 0;
@@ -481,6 +471,28 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 				Sells.Clear();
 				Buys.Clear();
 				LastVolumes.Clear();
+			}
+		}
+
+		private void UpdateMouseEventSubscriptions()
+		{
+			if (UiWrapper == null)
+				return;
+
+			bool shouldSubscribe = State == State.Active && !DisplayText;
+			if (shouldSubscribe && !mouseEventsSubscribed)
+			{
+				WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.AddHandler(UiWrapper, "MouseMove", OnMouseMove);
+				WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.AddHandler(UiWrapper, "MouseEnter", OnMouseEnter);
+				WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.AddHandler(UiWrapper, "MouseLeave", OnMouseLeave);
+				mouseEventsSubscribed = true;
+			}
+			else if (!shouldSubscribe && mouseEventsSubscribed)
+			{
+				WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.RemoveHandler(UiWrapper, "MouseMove", OnMouseMove);
+				WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.RemoveHandler(UiWrapper, "MouseEnter", OnMouseEnter);
+				WeakEventManager<System.Windows.Controls.Panel, MouseEventArgs>.RemoveHandler(UiWrapper, "MouseLeave", OnMouseLeave);
+				mouseEventsSubscribed = false;
 			}
 		}
 
@@ -533,7 +545,20 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 		}
 
 		[Display(ResourceType = typeof(Resource), Name = "NinjaScriptDisplayText", GroupName = "PropertyCategoryVisual", Order = 175)]
-		public bool DisplayText { get; set; }
+		[RefreshProperties(RefreshProperties.All)]
+		public bool DisplayText
+		{
+			get => displayText;
+			set
+			{
+				if (displayText == value)
+					return;
+
+				displayText = value;
+				UpdateMouseEventSubscriptions();
+				OnPropertyChanged();
+			}
+		}
 
 		[Display(ResourceType = typeof(Resource), Name = "NinjaScriptDisplayType", GroupName = "NinjaScriptSetup", Order = 150)]
 		public DisplayType DisplayType { get; set; }
@@ -606,10 +631,38 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 		public string TradingHoursSerializable { get; set; } = string.Empty;
 
 		[Display(ResourceType = typeof(Resource), Name = "GuiType", GroupName = "NinjaScriptSetup", Order = 180)]
+		[RefreshProperties(RefreshProperties.All)]
 		public VolumeType VolumeType { get; set; }
 		#endregion
 	}
 
+	public class VolumeTypeConverter : SuperDomColumnConverter
+	{
+		public override PropertyDescriptorCollection GetProperties(ITypeDescriptorContext context, object component, Attribute[] attrs)
+		{
+			PropertyDescriptorCollection properties = base.GetProperties(context, component, attrs);
+
+			if (component is not Volume volume)
+				return properties;
+
+			PropertyDescriptorCollection adjusted = new(null);
+			foreach (PropertyDescriptor pd in properties)
+			{
+				if (volume.VolumeType == VolumeType.BuySell && pd.Name == nameof(Volume.BarColor))
+					continue;
+				if (volume.VolumeType == VolumeType.Standard && pd.Name is nameof(Volume.BuyColor) or nameof(Volume.SellColor))
+					continue;
+				if (!volume.DisplayText && pd.Name == nameof(Volume.ForeColor))
+					continue;
+
+				adjusted.Add(pd);
+			}
+
+			return adjusted;
+		}
+	}
+
+	[TypeConverter("NinjaTrader.Custom.ResourceEnumConverter")]
 	public enum VolumeType
 	{
 		BuySell,

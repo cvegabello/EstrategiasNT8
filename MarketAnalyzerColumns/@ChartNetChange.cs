@@ -27,6 +27,9 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 		private DateTime		tradingDayBegin		= Core.Globals.MinDate;
 		private DateTime		tradingDayEnd		= Core.Globals.MinDate;
 
+		[Browsable(false)]
+		public override string LongDescription => MarketAnalyzerColumn.LookupLongDescription(GetType());
+
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)

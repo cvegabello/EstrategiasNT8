@@ -19,6 +19,9 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 		private Brush	outlineBrush;
 
 
+		[Browsable(false)]
+		public override string LongDescription => MarketAnalyzerColumn.LookupLongDescription(GetType());
+
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)

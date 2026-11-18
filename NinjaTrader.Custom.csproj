@@ -54,6 +54,12 @@
     <Reference Include="SharpDX.Direct2D1">
       <HintPath>C:\Program Files\NinjaTrader 8\bin\SharpDX.Direct2D1.dll</HintPath>
     </Reference>
+    <Reference Include="System.Text.Json">
+      <HintPath>C:\Program Files\NinjaTrader 8\bin\System.Text.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>C:\Program Files\NinjaTrader 8\bin\System.Memory.dll</HintPath>
+    </Reference>
     <Reference Include="NinjaTrader.Vendor">
       <HintPath>C:\Users\carlo\Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Vendor.dll</HintPath>
     </Reference>
@@ -71,7 +77,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="ActiproSoftware.Controls.WPF.SyntaxEditor.Addons.DotNet" Version="25.1.3" />
+    <PackageReference Include="ActiproSoftware.Controls.WPF.SyntaxEditor.Addons.DotNet" Version="25.1.4" />
     <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
@@ -358,8 +364,11 @@
     <Compile Include="Optimizers\%40GeneticOptimizer.cs" />
     <Compile Include="PerformanceMetrics\%40PerformanceMetric.cs" />
     <Compile Include="PerformanceMetrics\%40SampleCumProfit.cs" />
+    <Compile Include="ShareServices\%40Discord.cs" />
     <Compile Include="ShareServices\%40Mail.cs" />
+    <Compile Include="ShareServices\%40Slack.cs" />
     <Compile Include="ShareServices\%40StockTwits.cs" />
+    <Compile Include="ShareServices\%40Telegram.cs" />
     <Compile Include="ShareServices\%40TextMessage.cs" />
     <Compile Include="ShareServices\%40Twitter.cs" />
     <Compile Include="Strategies\%40SampleAtmStrategy.cs" />
@@ -370,24 +379,30 @@
     <Compile Include="SuperDomColumns\%40APQ.cs" />
     <Compile Include="SuperDomColumns\%40Notes.cs" />
     <Compile Include="SuperDomColumns\%40ProfitLoss.cs" />
-    <Compile Include="SuperDomColumns\%40Recent.cs" />
     <Compile Include="SuperDomColumns\%40Volume.cs" />
     <Compile Include="SuperDomColumns\%40PullingStacking.cs" />
+    <Compile Include="SuperDomColumns\%40PullingStackingAsk.cs" />
+    <Compile Include="SuperDomColumns\%40PullingStackingBid.cs" />
+    <Compile Include="SuperDomColumns\%40RecentAsk.cs" />
+    <Compile Include="SuperDomColumns\%40RecentBid.cs" />
+    <Compile Include="SuperDomColumns\%40Depth.cs" />
+    <Compile Include="SuperDomColumns\%40DepthAsk.cs" />
+    <Compile Include="SuperDomColumns\%40DepthBid.cs" />
+    <Compile Include="Indicators\PAS_PendienteNormalizada.cs" />
     <Compile Include="Indicators\RTHBackground.cs" />
     <Compile Include="Strategies\Tick610\Tick610_AlphaCrossover.cs" />
     <Compile Include="Strategies\Tick610\Tick610_KeltnerMatrixES.cs" />
-    <Compile Include="Strategies\Tick610\Tick610_PrecioCrossover.cs" />
-    <Compile Include="Strategies\Tick610\Tick610_RangeFisherES.cs" />
-    <Compile Include="Strategies\Tick610\Tick610_SniperExperimentES.cs" />
-    <Compile Include="Strategies\Tick610\Tick610_SniperRatchetES.cs" />
-    <Compile Include="NinjaTrader.Vendor.cs" />
-    <Compile Include="Strategies\Tick610\Tick610_SniperSurferES.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES.cs" />
-    <Compile Include="Indicators\PAS_PendienteNormalizada.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES_v11_4.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES_v14_2.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES_v14_3.cs" />
     <Compile Include="Strategies\Tick610\Tick610_PokerDeAsesSniperES_v14_4.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_PrecioCrossover.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_RangeFisherES.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_SniperExperimentES.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_SniperRatchetES.cs" />
+    <Compile Include="Strategies\Tick610\Tick610_SniperSurferES.cs" />
+    <Compile Include="NinjaTrader.Vendor.cs" />
     <Compile Include="Strategies\Tick610\Tick610_CascadaVegaES.cs" />
   </ItemGroup>
   <ItemGroup>

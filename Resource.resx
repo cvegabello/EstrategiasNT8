@@ -564,333 +564,332 @@
   <data name="NinjaScriptIndicator" xml:space="preserve">
     <value>Indicator</value>
   </data>
-
-	<data name="NinjaScriptIndicatorDescriptionADL" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=xbjJRaL81qo&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=19&amp;pp=iAQB\n\n&lt;b&gt;ADL (Accumulation/Distribution Line)&lt;/b&gt; is a cumulative volume-based indicator that relates price movement within each bar to its volume. When price closes in the upper portion of its range, volume is added; when it closes in the lower portion, volume is subtracted. The resulting line is intended to reflect buying or selling pressure over time and is often compared to price movement to evaluate confirmation or divergence.</value>
+  <data name="NinjaScriptIndicatorDescriptionADL" xml:space="preserve">
+    <value>[Video Tutorial](VT:ADL)\n\n&lt;b&gt;ADL (Accumulation/Distribution Line)&lt;/b&gt; is a cumulative volume-based indicator that relates price movement within each bar to its volume. When price closes in the upper portion of its range, volume is added; when it closes in the lower portion, volume is subtracted. The resulting line is intended to reflect buying or selling pressure over time and is often compared to price movement to evaluate confirmation or divergence.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionADX" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=WdM2JlFJx7Q&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=17&amp;pp=iAQB\n\n&lt;b&gt;ADX (Average Directional Index)&lt;/b&gt; measures the strength of a trend without indicating its direction. Higher values reflect stronger directional movement, while lower values suggest weaker or range-bound conditions. ADX is derived from positive and negative directional movement components (&lt;b&gt;+DI&lt;/b&gt; and &lt;b&gt;-DI&lt;/b&gt;), which are used to assess directional bias while ADX reflects overall trend strength.\n\nWhen ADX rises above the lower reference line, it is commonly interpreted as indicating the development of a stronger trend environment. Movement above the upper reference line is often associated with very strong trend conditions.</value>
+  <data name="NinjaScriptIndicatorDescriptionADX" xml:space="preserve">
+    <value>[Video Tutorial](VT:ADX)\n\n&lt;b&gt;ADX (Average Directional Index)&lt;/b&gt; measures the strength of a trend without indicating its direction. Higher values reflect stronger directional movement, while lower values suggest weaker or range-bound conditions. ADX is derived from positive and negative directional movement components (&lt;b&gt;+DI&lt;/b&gt; and &lt;b&gt;-DI&lt;/b&gt;), which are used to assess directional bias while ADX reflects overall trend strength.\n\nWhen ADX rises above the lower reference line, it is commonly interpreted as indicating the development of a stronger trend environment. Movement above the upper reference line is often associated with very strong trend conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionADXR" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionADXR" xml:space="preserve">
     <value>&lt;b&gt;ADXR (Average Directional Movement Rating)&lt;/b&gt; builds on &lt;b&gt;ADX (Average Directional Index)&lt;/b&gt; by smoothing it over time to provide a more stable view of overall trend strength. Higher values indicate a stronger trend environment, while lower values suggest weaker or consolidating conditions. Because it is smoothed, ADXR typically reacts more slowly than ADX and is often used to confirm whether trend strength is persisting.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionAPZ" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=Mzep8oQDZyA&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=9\n\n&lt;b&gt;APZ (Adaptive Price Zone)&lt;/b&gt; plots dynamic upper and lower bands around a moving average using market volatility. As volatility increases, the bands widen; as volatility contracts, they narrow. Price movement near or beyond the outer bands can indicate relatively extended conditions compared to recent price behavior. APZ is commonly used to visualize changing volatility and potential price expansion or contraction zones.</value>
+  <data name="NinjaScriptIndicatorDescriptionAPZ" xml:space="preserve">
+    <value>[Video Tutorial](VT:APZ)\n\n&lt;b&gt;APZ (Adaptive Price Zone)&lt;/b&gt; plots dynamic upper and lower bands around a moving average using market volatility. As volatility increases, the bands widen; as volatility contracts, they narrow. Price movement near or beyond the outer bands can indicate relatively extended conditions compared to recent price behavior. APZ is commonly used to visualize changing volatility and potential price expansion or contraction zones.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionAroon" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=2XnAxkMpQHs&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=17\n\n&lt;b&gt;Aroon&lt;/b&gt; consists of &lt;b&gt;Aroon Up&lt;/b&gt; and &lt;b&gt;Aroon Down&lt;/b&gt;, which measure the number of bars since the most recent high and low within the selected &lt;b&gt;Period&lt;/b&gt;. Values near the upper range suggest recent highs or lows occurred more recently, while lower values indicate they occurred further back in time. The relationship between Aroon Up and Aroon Down is often used to assess emerging trends or weakening momentum.</value>
+  <data name="NinjaScriptIndicatorDescriptionAroon" xml:space="preserve">
+    <value>[Video Tutorial](VT:Aroon)\n\n&lt;b&gt;Aroon&lt;/b&gt; consists of &lt;b&gt;Aroon Up&lt;/b&gt; and &lt;b&gt;Aroon Down&lt;/b&gt;, which measure the number of bars since the most recent high and low within the selected &lt;b&gt;Period&lt;/b&gt;. Values near the upper range suggest recent highs or lows occurred more recently, while lower values indicate they occurred further back in time. The relationship between Aroon Up and Aroon Down is often used to assess emerging trends or weakening momentum.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionAroonOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionAroonOscillator" xml:space="preserve">
     <value>&lt;b&gt;Aroon Oscillator&lt;/b&gt; is derived from the &lt;b&gt;Aroon&lt;/b&gt; indicator and plots the difference between the two values. Positive readings indicate recent highs occurred more recently than lows, while negative readings indicate the opposite. The oscillator fluctuates around zero and is commonly used to assess shifts in trend strength and directional bias.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionATR" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionATR" xml:space="preserve">
     <value>&lt;b&gt;ATR (Average True Range)&lt;/b&gt; measures market volatility by calculating the average range between high and low prices, including gaps, over the selected &lt;b&gt;Period&lt;/b&gt;. Higher ATR values indicate increased price movement, while lower values reflect quieter conditions. ATR does not indicate direction; it is commonly used to assess relative volatility and how price movement is expanding or contracting over time.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionBollinger" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=7UwjifDcW28&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=6\n\n&lt;b&gt;Bollinger (Bollinger Bands)&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of standard deviation. The bands expand as volatility increases and contract as volatility decreases. Price interacting with the outer bands can indicate relatively high or low levels compared to recent activity. Bollinger Bands are often used to visualize volatility shifts and relative price extremes.</value>
+  <data name="NinjaScriptIndicatorDescriptionBollinger" xml:space="preserve">
+    <value>[Video Tutorial](VT:Bollinger)\n\n&lt;b&gt;Bollinger (Bollinger Bands)&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of standard deviation. The bands expand as volatility increases and contract as volatility decreases. Price interacting with the outer bands can indicate relatively high or low levels compared to recent activity. Bollinger Bands are often used to visualize volatility shifts and relative price extremes.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionBOP" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionBOP" xml:space="preserve">
     <value>&lt;b&gt;BOP (Balance of Power)&lt;/b&gt; measures the relationship between buyers and sellers by comparing the distance between open and close relative to the bar's range. Values above zero indicate that buyers controlled more of the session's range, while values below zero indicate greater selling control. BOP is typically used to gauge shifts in short-term control between bulls and bears.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionBuySellPressure" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionBuySellPressure" xml:space="preserve">
     <value>&lt;b&gt;Buy Sell Pressure&lt;/b&gt; plots separate &lt;b&gt;Buy Pressure&lt;/b&gt; and &lt;b&gt;Sell Pressure&lt;/b&gt; values for each bar, representing the estimated percentage of the bar's activity attributed to buy versus sell orders. The two plots together reflect how order flow was distributed within the bar, showing the relative balance between buying and selling pressure. When Buy Pressure exceeds Sell Pressure, buying activity dominated that bar; when Sell Pressure is greater, selling activity dominated.\n\nThis indicator relies on intrabar order flow data and will only display historically when &lt;b&gt;Tick Replay&lt;/b&gt; is enabled; otherwise, it plots in real-time only.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCCI" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionCCI" xml:space="preserve">
     <value>&lt;b&gt;CCI (Commodity Channel Index)&lt;/b&gt; is a momentum oscillator that measures how far price has deviated from its average over the selected &lt;b&gt;Period&lt;/b&gt;. Values above zero indicate price is trading above its average, while values below zero indicate it is below. More extreme readings reflect greater deviation from typical price levels. CCI is often used to identify relative strength, weakness, and potential shifts in momentum.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionChaikinMoneyFlow" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionChaikinMoneyFlow" xml:space="preserve">
     <value>&lt;b&gt;CMF (Chaikin Money Flow)&lt;/b&gt; is a volume-weighted indicator that measures buying and selling pressure over the selected &lt;b&gt;Period&lt;/b&gt;. It evaluates where price closes within its range and combines that with volume to produce a value that fluctuates above and below zero. Positive readings suggest sustained accumulation, while negative readings suggest distribution. CMF is commonly used to assess whether volume is confirming price movement.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionChaikinOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionChaikinOscillator" xml:space="preserve">
     <value>&lt;b&gt;Chaikin Oscillator&lt;/b&gt; is derived from the &lt;b&gt;ADL (Accumulation/Distribution Line)&lt;/b&gt; and plots the difference between two moving averages of ADL. It highlights changes in momentum behind accumulation and distribution. Rising values indicate increasing buying pressure relative to selling pressure, while falling values indicate the opposite. It is often used to identify shifts in money flow momentum.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionChaikinVolatility" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionChaikinVolatility" xml:space="preserve">
     <value>&lt;b&gt;Chaikin Volatility&lt;/b&gt; measures the rate of change in the trading range (high minus low) over a specified period. Increasing values reflect expanding price ranges and rising volatility, while decreasing values indicate contracting ranges. This indicator focuses on volatility expansion and contraction rather than price direction.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCMO" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionCMO" xml:space="preserve">
     <value>&lt;b&gt;CMO (Chande Momentum Oscillator)&lt;/b&gt; is a momentum indicator that measures the difference between the sum of recent gains and losses over the selected &lt;b&gt;Period&lt;/b&gt;. It fluctuates above and below zero, with positive values reflecting stronger upward momentum and negative values reflecting stronger downward momentum. Because it accounts for both gains and losses directly, CMO can respond quickly to shifts in price momentum.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionConstantLines" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionConstantLines" xml:space="preserve">
     <value>&lt;b&gt;Constant Lines&lt;/b&gt; draws one or more user-defined horizontal reference lines on the chart. These lines remain fixed at the specified price levels and do not adjust automatically with market data. This indicator is typically used to mark key price levels, thresholds, or custom reference values.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCurrentDayOHL" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=C5_spt0Yvhs&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=16\n\n&lt;b&gt;Current Day OHL (Current Day Open/High/Low)&lt;/b&gt; plots the current session's Open, High, and Low levels directly on the chart. The High and Low update throughout the session as new extremes are made, while the Open remains fixed at the session start. This indicator provides a clear reference to the active session's price range.</value>
+  <data name="NinjaScriptIndicatorDescriptionCurrentDayOHL" xml:space="preserve">
+    <value>[Video Tutorial](VT:CurrentDayOHL)\n\n&lt;b&gt;Current Day OHL (Current Day Open/High/Low)&lt;/b&gt; plots the current session's Open, High, and Low levels directly on the chart. The High and Low update throughout the session as new extremes are made, while the Open remains fixed at the session start. This indicator provides a clear reference to the active session's price range.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDEMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDEMA" xml:space="preserve">
     <value>&lt;b&gt;DEMA (Double Exponential Moving Average)&lt;/b&gt; is a moving average designed to reduce lag compared to a traditional EMA (Exponential Moving Average). It applies a smoothing technique that responds more quickly to recent price changes while still filtering short-term noise. DEMA is often used to track trend direction with faster responsiveness than standard moving averages.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDM" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDM" xml:space="preserve">
     <value>&lt;b&gt;DM (Directional Movement)&lt;/b&gt; plots &lt;b&gt;+DI (Positive Directional Indicator)&lt;/b&gt;, &lt;b&gt;-DI (Negative Directional Indicator)&lt;/b&gt;,\n&lt;b&gt;ADX (Average Directional Index)&lt;/b&gt; to evaluate directional movement and overall trend strength over the selected &lt;b&gt;Period&lt;/b&gt;. The +DI line measures upward directional movement, while the -DI line measures downward directional movement.\n\nWhen &lt;b&gt;+DI crosses above -DI&lt;/b&gt;, it indicates upward momentum has overtaken downward momentum and is commonly interpreted as a bullish directional signal. When &lt;b&gt;-DI crosses above +DI&lt;/b&gt;, it indicates downward momentum has overtaken upward momentum and is commonly interpreted as a bearish directional signal. ADX reflects the strength of the prevailing trend, regardless of which direction is dominant.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDMI" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDMI" xml:space="preserve">
     <value>&lt;b&gt;DMI (Directional Movement Index)&lt;/b&gt; calculates a normalized measure of directional movement based on &lt;b&gt;+DM&lt;/b&gt; and &lt;b&gt;-DM&lt;/b&gt; over the selected &lt;b&gt;Period&lt;/b&gt;. Values above zero indicate stronger upward directional movement, while values below zero indicate stronger downward directional movement. The closer the value is to zero, the more balanced the up and down movement has been.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDMIndex" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDMIndex" xml:space="preserve">
     <value>&lt;b&gt;DM Index (Dynamic Momentum Index)&lt;/b&gt; is a variable-period &lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; that automatically adapts its effective RSI lookback based on recent volatility. In more volatile conditions it uses a shorter period (more responsive), and in quieter conditions it uses a longer period (smoother). It is interpreted similarly to RSI, with higher readings commonly associated with overbought conditions and lower readings with oversold conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDonchianChannel" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=3EhlGcyT3QU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=21\n\n&lt;b&gt;Donchian Channel&lt;/b&gt; plots upper and lower bands based on the highest high and lowest low over the selected &lt;b&gt;Period&lt;/b&gt;. The channel expands and contracts as new highs and lows are established. It is commonly used to visualize breakout levels and the current price range relative to recent extremes.</value>
+  <data name="NinjaScriptIndicatorDescriptionDonchianChannel" xml:space="preserve">
+    <value>[Video Tutorial](VT:DonchianChannel)\n\n&lt;b&gt;Donchian Channel&lt;/b&gt; plots upper and lower bands based on the highest high and lowest low over the selected &lt;b&gt;Period&lt;/b&gt;. The channel expands and contracts as new highs and lows are established. It is commonly used to visualize breakout levels and the current price range relative to recent extremes.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDoubleStochastics" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDoubleStochastics" xml:space="preserve">
     <value>&lt;b&gt;Double Stochastics&lt;/b&gt; is a stochastic calculation to a stochastic value, creating a smoothed momentum oscillator. The indicator fluctuates within a bounded range and highlights shifts in short-term momentum relative to recent price action. It is often used to identify changes in momentum intensity and potential overextended conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionEaseOfMovement" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionEaseOfMovement" xml:space="preserve">
     <value>&lt;b&gt;EMV (Ease of Movement)&lt;/b&gt; measures how easily price moves relative to volume. It compares the change in price to the amount of volume required to produce that movement. Positive values indicate price is advancing with relatively less resistance, while negative values indicate price is declining with relative ease. EMV is commonly used to evaluate the relationship between price movement and underlying participation.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionEMA" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=pcraBHC70B8&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=19\n\n&lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt; is a moving average that places greater weight on recent prices, allowing it to respond more quickly to current market changes than a simple moving average. The slope and position of the EMA are often used to assess trend direction and short-term momentum.</value>
+  <data name="NinjaScriptIndicatorDescriptionEMA" xml:space="preserve">
+    <value>[Video Tutorial](VT:EMA)\n\n&lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt; is a moving average that places greater weight on recent prices, allowing it to respond more quickly to current market changes than a simple moving average. The slope and position of the EMA are often used to assess trend direction and short-term momentum.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionFisherTransform" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionFisherTransform" xml:space="preserve">
     <value>&lt;b&gt;Fisher Transform&lt;/b&gt; applies a mathematical transformation to price data to create a normalized oscillator designed to highlight extreme movements. The indicator oscillates around zero and emphasizes shifts in momentum. Rapid reversals or line crossovers are commonly observed for changes in price momentum.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionFOSC" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionFOSC" xml:space="preserve">
     <value>&lt;b&gt;FOSC (Forecast Oscillator)&lt;/b&gt; measures the percentage difference between the current price and a linear regression forecast over the selected &lt;b&gt;Period&lt;/b&gt;. Positive values indicate price is trading above the projected regression value, while negative values indicate it is below. FOSC is used to evaluate how far price has deviated from its statistically projected path.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionHMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionHMA" xml:space="preserve">
     <value>&lt;b&gt;HMA (Hull Moving Average)&lt;/b&gt; is a weighted moving average designed to reduce lag while maintaining smoothness. It uses a calculation that combines weighted averages and a square-root period adjustment to respond quickly to price changes. HMA is commonly used to assess trend direction with reduced delay compared to traditional moving averages.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionIchimokuCloud" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionIchimokuCloud" xml:space="preserve">
     <value>&lt;b&gt;Ichimoku Cloud&lt;/b&gt; plots multiple components — &lt;b&gt;Conversion (Tenkan)&lt;/b&gt;, &lt;b&gt;Base (Kijun)&lt;/b&gt;, &lt;b&gt;Leading (Senkou) Span A&lt;/b&gt;, &lt;b&gt;Leading (Senkou) Span B&lt;/b&gt;, and &lt;b&gt;Lagging (Chikou)&lt;/b&gt; — to provide a structured view of trend, momentum, and projected support/resistance. The area between Span A and Span B forms the "Cloud," which shifts forward in time. Relative positioning of price and the Cloud is commonly used to assess overall market structure.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionKAMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionKAMA" xml:space="preserve">
     <value>&lt;b&gt;KAMA (Kaufman's Adaptive Moving Average)&lt;/b&gt; is a moving average that adjusts its smoothing factor based on market efficiency. During trending conditions it becomes more responsive, and during sideways conditions it becomes smoother. KAMA is designed to reduce noise while adapting to changing price behavior.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionKeltnerChannel" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=BRNYtRuy6QQ&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=12\n\n&lt;b&gt;Keltner Channel&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of &lt;b&gt;ATR (Average True Range)&lt;/b&gt;. The bands expand and contract based on volatility. Price interaction with the outer bands is commonly observed to assess relative extension and volatility conditions.</value>
+  <data name="NinjaScriptIndicatorDescriptionKeltnerChannel" xml:space="preserve">
+    <value>[Video Tutorial](VT:KeltnerChannel)\n\n&lt;b&gt;Keltner Channel&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of &lt;b&gt;ATR (Average True Range)&lt;/b&gt;. The bands expand and contract based on volatility. Price interaction with the outer bands is commonly observed to assess relative extension and volatility conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionKeyReversalDown" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionKeyReversalDown" xml:space="preserve">
     <value>&lt;b&gt;Key Reversal Down&lt;/b&gt; evaluates each bar for a bearish key reversal condition, which occurs when the current bar makes a higher high than the prior bar and closes below the prior bar's close. When the condition is met, the indicator plots a value of &lt;b&gt;1&lt;/b&gt; for that bar; otherwise, it plots &lt;b&gt;0&lt;/b&gt;. This output is designed for condition detection in analysis or strategy logic rather than visual pattern annotation.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionKeyReversalUp" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionKeyReversalUp" xml:space="preserve">
     <value>&lt;b&gt;Key Reversal Up&lt;/b&gt; evaluates each bar for a bullish key reversal condition, which occurs when the current bar makes a lower low than the prior bar and closes above the prior bar's close. When the condition is met, the indicator plots a value of &lt;b&gt;1&lt;/b&gt; for that bar; otherwise, it plots &lt;b&gt;0&lt;/b&gt;. This output is intended for condition detection in analysis or strategy logic rather than visual pattern annotation.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionLinReg" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionLinReg" xml:space="preserve">
     <value>&lt;b&gt;Lin. Reg. (Linear Regression)&lt;/b&gt; plots the end-point value of a linear regression line calculated over the selected &lt;b&gt;Period&lt;/b&gt;. The line represents the statistically best-fit trend of price for that lookback window and updates each bar. It is commonly used to visualize underlying trend direction and smoothing based on regression analysis.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionLinRegIntercept" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionLinRegIntercept" xml:space="preserve">
     <value>&lt;b&gt;Lin. Reg. Intercept (Linear Regression Intercept)&lt;/b&gt; plots the intercept value of the linear regression line over the selected &lt;b&gt;Period&lt;/b&gt;. The intercept represents where the regression line would cross the price axis at the start of the lookback window. This indicator is primarily used for analytical or strategy development purposes related to regression calculations.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionLinRegSlope" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionLinRegSlope" xml:space="preserve">
     <value>&lt;b&gt;Lin. Reg. Slope (Linear Regression Slope)&lt;/b&gt; measures the slope of the linear regression line over the selected &lt;b&gt;Period&lt;/b&gt;. Positive values indicate an upward-sloping regression trend, while negative values indicate a downward slope. The magnitude reflects the strength of the directional bias within the regression window.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMACD" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=2CgisquYX7A&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=22\n\n&lt;b&gt;MACD (Moving Average Convergence Divergence)&lt;/b&gt; plots the difference between a fast and slow &lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt;, along with a &lt;b&gt;Signal&lt;/b&gt; line (an EMA of the MACD) and a histogram that represents the distance between the MACD and Signal lines.\n\nWhen the MACD value is above zero, the fast EMA is positioned above the slow EMA, indicating shorter-term momentum is stronger than the longer-term average. When below zero, the fast EMA is positioned below the slow EMA. Crossovers between the MACD and Signal lines, as well as changes in the histogram's height and direction, are commonly observed to evaluate momentum shifts.</value>
+  <data name="NinjaScriptIndicatorDescriptionMACD" xml:space="preserve">
+    <value>[Video Tutorial](VT:MACD)\n\n&lt;b&gt;MACD (Moving Average Convergence Divergence)&lt;/b&gt; plots the difference between a fast and slow &lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt;, along with a &lt;b&gt;Signal&lt;/b&gt; line (an EMA of the MACD) and a histogram that represents the distance between the MACD and Signal lines.\n\nWhen the MACD value is above zero, the fast EMA is positioned above the slow EMA, indicating shorter-term momentum is stronger than the longer-term average. When below zero, the fast EMA is positioned below the slow EMA. Crossovers between the MACD and Signal lines, as well as changes in the histogram's height and direction, are commonly observed to evaluate momentum shifts.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMAEnvelopes" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMAEnvelopes" xml:space="preserve">
     <value>&lt;b&gt;MA Envelopes (Moving Average Envelopes)&lt;/b&gt; plots upper and lower bands offset by a user-defined percentage above and below a moving average. The bands expand or contract proportionally with the average and remain equidistant from it. Price interaction with the envelopes is commonly observed to assess relative extension from the underlying average.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMAMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMAMA" xml:space="preserve">
     <value>&lt;b&gt;MAMA (Mesa Adaptive Moving Average)&lt;/b&gt; is an adaptive moving average that adjusts its smoothing based on price phase and cycle analysis. It plots &lt;b&gt;MAMA (Default)&lt;/b&gt; and a companion line, &lt;b&gt;FAMA (Following Adaptive Moving Average)&lt;/b&gt;. MAMA is designed to respond quickly to price changes while reducing lag during slower market conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMAX" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMAX" xml:space="preserve">
     <value>&lt;b&gt;MAX (Maximum)&lt;/b&gt; returns the highest value of the selected input series over the specified &lt;b&gt;Period&lt;/b&gt;. It updates each bar and reflects the rolling maximum within the lookback window. MAX is commonly used for range calculations and channel-based indicators.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMFI" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMFI" xml:space="preserve">
     <value>&lt;b&gt;MFI (Money Flow Index)&lt;/b&gt; is a volume-weighted momentum oscillator that incorporates both price and volume over the selected &lt;b&gt;Period&lt;/b&gt;. It fluctuates between 0 and 100, with higher readings reflecting stronger positive money flow and lower readings reflecting stronger negative money flow. Extreme readings are commonly associated with overbought or oversold conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMIN" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMIN" xml:space="preserve">
     <value>&lt;b&gt;MIN (Minimum)&lt;/b&gt; returns the lowest value of the selected input series over the specified &lt;b&gt;Period&lt;/b&gt;. It updates each bar and reflects the rolling minimum within the lookback window. MIN is commonly used in range-based calculations and channel-style indicators.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMomentum" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=lnf5g_GnLLE&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=3\n\n&lt;b&gt;Momentum&lt;/b&gt; measures the rate of change in price over the selected &lt;b&gt;Period&lt;/b&gt; by comparing the current price to the price a set number of bars ago. Positive values indicate price is higher than it was at the lookback point, while negative values indicate it is lower. The magnitude reflects the strength of the price change over that period.</value>
+  <data name="NinjaScriptIndicatorDescriptionMomentum" xml:space="preserve">
+    <value>[Video Tutorial](VT:Momentum)\n\n&lt;b&gt;Momentum&lt;/b&gt; measures the rate of change in price over the selected &lt;b&gt;Period&lt;/b&gt; by comparing the current price to the price a set number of bars ago. Positive values indicate price is higher than it was at the lookback point, while negative values indicate it is lower. The magnitude reflects the strength of the price change over that period.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionNBarsDown" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionNBarsDown" xml:space="preserve">
     <value>&lt;b&gt;N Bars Down&lt;/b&gt; evaluates whether price has closed lower for the specified number of consecutive bars. When the defined sequence is met, the indicator plots a value of &lt;b&gt;1&lt;/b&gt; for that bar; otherwise, it plots &lt;b&gt;0&lt;/b&gt;. This output is intended for condition detection in analysis or strategy logic rather than visual pattern annotation.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionNBarsUp" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionNBarsUp" xml:space="preserve">
     <value>&lt;b&gt;N Bars Up&lt;/b&gt; evaluates whether price has closed higher for the specified number of consecutive bars. When the defined sequence is met, the indicator plots a value of &lt;b&gt;1&lt;/b&gt; for that bar; otherwise, it plots &lt;b&gt;0&lt;/b&gt;. This output is intended for condition detection in analysis or strategy logic rather than visual pattern annotation.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionOBV" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=ZORmQeOKyBs&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=10\n\n&lt;b&gt;OBV (On-Balance Volume)&lt;/b&gt; is a cumulative volume indicator that adds volume when price closes higher and subtracts volume when price closes lower. The resulting line reflects the net flow of volume over time. OBV is commonly compared to price movement to assess confirmation or divergence in buying and selling pressure.</value>
+  <data name="NinjaScriptIndicatorDescriptionOBV" xml:space="preserve">
+    <value>[Video Tutorial](VT:OBV)\n\n&lt;b&gt;OBV (On-Balance Volume)&lt;/b&gt; is a cumulative volume indicator that adds volume when price closes higher and subtracts volume when price closes lower. The resulting line reflects the net flow of volume over time. OBV is commonly compared to price movement to assess confirmation or divergence in buying and selling pressure.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionParabolicSAR" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=I5hQfS33D24&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=14\n\n&lt;b&gt;Parabolic SAR (Parabolic Stop and Reverse)&lt;/b&gt; plots trailing stop levels that move incrementally with price based on an acceleration factor. When price crosses the SAR value, the indicator reverses position and begins plotting on the opposite side of price. It is commonly used to visualize trend direction and trailing stop placement.</value>
+  <data name="NinjaScriptIndicatorDescriptionParabolicSAR" xml:space="preserve">
+    <value>[Video Tutorial](VT:ParabolicSAR)\n\n&lt;b&gt;Parabolic SAR (Parabolic Stop and Reverse)&lt;/b&gt; plots trailing stop levels that move incrementally with price based on an acceleration factor. When price crosses the SAR value, the indicator reverses position and begins plotting on the opposite side of price. It is commonly used to visualize trend direction and trailing stop placement.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPFE" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionPFE" xml:space="preserve">
     <value>&lt;b&gt;PFE (Polarized Fractal Efficiency)&lt;/b&gt; measures how efficiently price has moved from one point to another over the selected &lt;b&gt;Period&lt;/b&gt;. It compares the direct distance between two prices to the total path traveled, producing values that fluctuate above and below zero. Higher absolute readings indicate more directional movement, while values near zero reflect less efficient, more sideways movement.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPPO" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionPPO" xml:space="preserve">
     <value>&lt;b&gt;PPO (Percentage Price Oscillator)&lt;/b&gt; measures the percentage difference between a fast and slow &lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt;. It functions similarly to MACD but expresses the relationship as a percentage rather than a raw value. PPO fluctuates around zero, with positive readings indicating the fast EMA is above the slow EMA and negative readings indicating the opposite.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPriceOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionPriceOscillator" xml:space="preserve">
     <value>&lt;b&gt;Price Oscillator&lt;/b&gt; plots the difference between two moving averages of the selected input series. Positive values indicate the shorter-period average is above the longer-period average, while negative values indicate it is below. The oscillator reflects shifts in relative momentum between the two averages.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPriorDayOHLC" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionPriorDayOHLC" xml:space="preserve">
     <value>&lt;b&gt;Prior Day OHLC (Prior Day Open/High/Low/Close)&lt;/b&gt; plots the previous session's Open, High, Low, and Close levels on the current chart. These values remain fixed throughout the active session and provide reference points based on prior session price data.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRange" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRange" xml:space="preserve">
     <value>&lt;b&gt;Range&lt;/b&gt; plots the difference between the High and Low of each bar. The value reflects the total price movement within the bar, without regard to direction. Larger readings indicate wider price movement during the bar, while smaller readings reflect tighter price activity.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRegressionChannel" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRegressionChannel" xml:space="preserve">
     <value>&lt;b&gt;RegressionChannel&lt;/b&gt; plots a linear regression line over the selected &lt;b&gt;Period&lt;/b&gt; along with upper and lower channel lines based on standard deviation. The central line represents the best-fit trend, while the outer bands reflect typical variation around that trend. The channel expands and contracts with volatility within the regression window.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRIND" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRIND" xml:space="preserve">
     <value>&lt;b&gt;RIND (Relative Strength Index of Advancing/Declining Issues)&lt;/b&gt; is a market breadth indicator derived from advancing and declining issues. It applies an RSI-style calculation to breadth data rather than price, producing an oscillator that reflects the balance of advancing versus declining participation. Rising values indicate strengthening breadth, while falling values indicate weakening breadth.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionROC" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionROC" xml:space="preserve">
     <value>&lt;b&gt;ROC (Rate of Change)&lt;/b&gt; measures the percentage change in price over the selected &lt;b&gt;Period&lt;/b&gt;. Positive values indicate price is higher than it was at the lookback point, while negative values indicate it is lower. The magnitude reflects the speed of price change over that interval.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRSI" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=KKSC3ikwRHY&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=11\n\n&lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; is a 0–100 momentum oscillator that compares the magnitude of recent gains to recent losses over the selected &lt;b&gt;Period&lt;/b&gt;. Higher readings reflect stronger recent upward momentum, while lower readings reflect stronger recent downward momentum. The upper reference line is commonly associated with overbought conditions, and the lower reference line with oversold conditions. The indicator also plots &lt;b&gt;Avg&lt;/b&gt;, a smoothed version of RSI based on the &lt;b&gt;Smooth&lt;/b&gt; setting.</value>
+  <data name="NinjaScriptIndicatorDescriptionRSI" xml:space="preserve">
+    <value>[Video Tutorial](VT:RSI)\n\n&lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; is a 0–100 momentum oscillator that compares the magnitude of recent gains to recent losses over the selected &lt;b&gt;Period&lt;/b&gt;. Higher readings reflect stronger recent upward momentum, while lower readings reflect stronger recent downward momentum. The upper reference line is commonly associated with overbought conditions, and the lower reference line with oversold conditions. The indicator also plots &lt;b&gt;Avg&lt;/b&gt;, a smoothed version of RSI based on the &lt;b&gt;Smooth&lt;/b&gt; setting.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRSquared" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRSquared" xml:space="preserve">
     <value>&lt;b&gt;R Squared&lt;/b&gt; measures how closely price movement fits a linear regression line over the selected &lt;b&gt;Period&lt;/b&gt;. Values range from 0 to 1, with higher readings indicating price is moving in a more consistent, trend-like manner, and lower readings indicating more random or non-trending behavior. It reflects trend quality rather than direction.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRSS" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRSS" xml:space="preserve">
     <value>&lt;b&gt;RSS (Relative Spread Strength)&lt;/b&gt; measures the relative performance (spread) between two input series or instruments over the selected &lt;b&gt;Period&lt;/b&gt;. The indicator reflects how one series is performing compared to the other, with rising values indicating strengthening relative performance and falling values indicating weakening relative performance. RSS is commonly used for comparative or pair analysis.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRVI" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRVI" xml:space="preserve">
     <value>&lt;b&gt;RVI (Relative Vigor Index)&lt;/b&gt; compares the relationship between closing price and trading range over the selected &lt;b&gt;Period&lt;/b&gt;. It plots the &lt;b&gt;RVI&lt;/b&gt; along with a &lt;b&gt;Signal line&lt;/b&gt; for comparison. Values fluctuate around zero, with positive readings reflecting stronger upward price bias and negative readings reflecting stronger downward bias. Crossovers between the RVI and its signal line are commonly observed for momentum shifts.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionSMA" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=pcraBHC70B8&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=19\n\n&lt;b&gt;SMA (Simple Moving Average)&lt;/b&gt; calculates the arithmetic average of price over the selected &lt;b&gt;Period&lt;/b&gt;. Each value in the lookback window is weighted equally. SMA is commonly used to smooth price data and assess general trend direction.</value>
+  <data name="NinjaScriptIndicatorDescriptionSMA" xml:space="preserve">
+    <value>[Video Tutorial](VT:SMA)\n\n&lt;b&gt;SMA (Simple Moving Average)&lt;/b&gt; calculates the arithmetic average of price over the selected &lt;b&gt;Period&lt;/b&gt;. Each value in the lookback window is weighted equally. SMA is commonly used to smooth price data and assess general trend direction.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionStdDev" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionStdDev" xml:space="preserve">
     <value>&lt;b&gt;Std. Dev. (Standard Deviation)&lt;/b&gt; measures the dispersion of price values around their mean over the selected &lt;b&gt;Period&lt;/b&gt;. Higher values indicate greater variability, while lower values reflect more stable price movement. Standard Deviation is often used as a volatility measure and as a component of other indicators.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionStdError" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionStdError" xml:space="preserve">
     <value>&lt;b&gt;Std. Error (Standard Error)&lt;/b&gt; plots a &lt;b&gt;Linear Regression&lt;/b&gt; line over the selected &lt;b&gt;Period&lt;/b&gt; and two bands (&lt;b&gt;Upper&lt;/b&gt; and &lt;b&gt;Lower&lt;/b&gt;) offset by the calculated &lt;b&gt;standard error&lt;/b&gt; of price around that regression line. Wider bands indicate price has deviated more from the regression fit, while narrower bands indicate price has stayed closer to the regression line.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionStochastics" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=ES8UTUiHTaU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=4\n\n&lt;b&gt;Stochastics (Stochastics Oscillator)&lt;/b&gt; plots a smoothed %K and %D to measure the position of the close relative to the recent high-low range over the selected &lt;b&gt;Period&lt;/b&gt;. The %K line is smoothed by the &lt;b&gt;Smooth&lt;/b&gt; parameter, and %D is a moving average of %K. Values fluctuate between 0 and 100, with higher readings indicating price is closing near the top of its recent range and lower readings indicating it is closing near the bottom. Upper and lower reference lines are commonly associated with overbought and oversold conditions.</value>
+  <data name="NinjaScriptIndicatorDescriptionStochastics" xml:space="preserve">
+    <value>[Video Tutorial](VT:Stochastics)\n\n&lt;b&gt;Stochastics (Stochastics Oscillator)&lt;/b&gt; plots a smoothed %K and %D to measure the position of the close relative to the recent high-low range over the selected &lt;b&gt;Period&lt;/b&gt;. The %K line is smoothed by the &lt;b&gt;Smooth&lt;/b&gt; parameter, and %D is a moving average of %K. Values fluctuate between 0 and 100, with higher readings indicating price is closing near the top of its recent range and lower readings indicating it is closing near the bottom. Upper and lower reference lines are commonly associated with overbought and oversold conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionStochasticsFast" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=ES8UTUiHTaU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=4\n\n&lt;b&gt;Stochastics Fast&lt;/b&gt; plots the unsmoothed %K along with %D, a moving average of %K. Because %K is not internally smoothed, Fast Stochastics responds more quickly to price changes than the standard Stochastics indicator. Values range between 0 and 100 and reflect where the close sits within the recent high-low range. Upper and lower reference lines are commonly associated with overbought and oversold conditions.</value>
+  <data name="NinjaScriptIndicatorDescriptionStochasticsFast" xml:space="preserve">
+    <value>[Video Tutorial](VT:StochasticsFast)\n\n&lt;b&gt;Stochastics Fast&lt;/b&gt; plots the unsmoothed %K along with %D, a moving average of %K. Because %K is not internally smoothed, Fast Stochastics responds more quickly to price changes than the standard Stochastics indicator. Values range between 0 and 100 and reflect where the close sits within the recent high-low range. Upper and lower reference lines are commonly associated with overbought and oversold conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionStochRSI" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=ES8UTUiHTaU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=4\n\n&lt;b&gt;Stoch RSI (Stochastic RSI)&lt;/b&gt; applies the stochastic calculation to &lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; values rather than directly to price. This creates an oscillator that measures the position of RSI within its own recent range. The result fluctuates between 0 and 1 and is designed to highlight momentum shifts within RSI itself.</value>
+  <data name="NinjaScriptIndicatorDescriptionStochRSI" xml:space="preserve">
+    <value>[Video Tutorial](VT:StochRSI)\n\n&lt;b&gt;Stoch RSI (Stochastic RSI)&lt;/b&gt; applies the stochastic calculation to &lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; values rather than directly to price. This creates an oscillator that measures the position of RSI within its own recent range. The result fluctuates between 0 and 1 and is designed to highlight momentum shifts within RSI itself.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionSUM" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionSUM" xml:space="preserve">
     <value>&lt;b&gt;SUM&lt;/b&gt; returns the cumulative sum of the selected input series over the specified &lt;b&gt;Period&lt;/b&gt;. It updates each bar and reflects the rolling total within the lookback window. SUM is commonly used as a building block in custom calculations or strategy development.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionSwing" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=DlfyyIi-60M&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=15\n\n&lt;b&gt;Swing (Swing High/Low)&lt;/b&gt; identifies and plots swing highs and swing lows based on a specified &lt;b&gt;Strength&lt;/b&gt; setting. A swing high forms when a bar's high is greater than surrounding bars, and a swing low forms when a bar's low is lower than surrounding bars. The indicator updates once the required number of confirming bars has completed and is commonly used to visualize structural turning points.</value>
+  <data name="NinjaScriptIndicatorDescriptionSwing" xml:space="preserve">
+    <value>[Video Tutorial](VT:Swing)\n\n&lt;b&gt;Swing (Swing High/Low)&lt;/b&gt; identifies and plots swing highs and swing lows based on a specified &lt;b&gt;Strength&lt;/b&gt; setting. A swing high forms when a bar's high is greater than surrounding bars, and a swing low forms when a bar's low is lower than surrounding bars. The indicator updates once the required number of confirming bars has completed and is commonly used to visualize structural turning points.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionT3" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionT3" xml:space="preserve">
     <value>&lt;b&gt;T3 (T3 Moving Average)&lt;/b&gt; is a multi-stage smoothed moving average designed to reduce lag while maintaining smoothness. It applies a series of exponential smoothing calculations with a volume factor to control responsiveness. T3 is commonly used to track trend direction with less noise than traditional moving averages.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTEMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionTEMA" xml:space="preserve">
     <value>&lt;b&gt;TEMA (Triple Exponential Moving Average)&lt;/b&gt; reduces lag by combining multiple exponential moving average calculations into a single value. Compared to a standard EMA, TEMA responds more quickly to price changes while still smoothing short-term fluctuations. It is often used to identify trend direction with increased responsiveness.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionTMA" xml:space="preserve">
     <value>&lt;b&gt;TMA (Triangular Moving Average)&lt;/b&gt; is a double-smoothed moving average that applies a smoothing calculation twice, resulting in a very smooth line. Because of this additional smoothing, TMA reacts more slowly to price changes than SMA or EMA and is commonly used to highlight longer-term trend structure.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTRIX" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionTRIX" xml:space="preserve">
     <value>&lt;b&gt;TRIX (Triple Exponential Average Oscillator)&lt;/b&gt; measures the rate of change of a triple-smoothed exponential moving average. It fluctuates around zero, with positive values indicating upward momentum in the smoothed average and negative values indicating downward momentum. Because of the triple smoothing, TRIX filters shorter-term noise and emphasizes broader momentum shifts.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTSF" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionTSF" xml:space="preserve">
     <value>&lt;b&gt;TSF (Time Series Forecast)&lt;/b&gt; plots the projected value of a linear regression line at the current bar based on the selected &lt;b&gt;Period&lt;/b&gt;. Unlike a standard regression line, TSF extends the regression calculation forward to estimate the expected value at the end of the lookback window. It is commonly used to visualize trend direction and projected continuation based on regression analysis.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTSI" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionTSI" xml:space="preserve">
     <value>&lt;b&gt;TSI (True Strength Index)&lt;/b&gt; is a double-smoothed momentum oscillator that measures price change relative to its recent volatility. It fluctuates above and below zero, with positive readings reflecting stronger upward momentum and negative readings reflecting stronger downward momentum. A signal line is typically plotted for crossover comparison.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionUltimateOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionUltimateOscillator" xml:space="preserve">
     <value>&lt;b&gt;Ultimate Oscillator&lt;/b&gt; combines momentum calculations across three different lookback periods into a single bounded oscillator. Values range between 0 and 100 and reflect buying pressure relative to true range over multiple timeframes. It is designed to reduce the impact of relying on a single period and to provide a broader view of momentum conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVMA" xml:space="preserve">
     <value>&lt;b&gt;VMA (Variable Moving Average, VIDYA – Variable Index Dynamic Average)&lt;/b&gt; is an adaptive moving average that adjusts its smoothing factor based on market conditions. It becomes more responsive during stronger directional movement and smoother during quieter conditions. VMA is designed to balance responsiveness and noise reduction.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVOL" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVOL" xml:space="preserve">
     <value>&lt;b&gt;VOL (Volume)&lt;/b&gt; plots the total traded volume for each bar. The value reflects the number of contracts, shares, or units traded during the bar's interval. Volume is commonly used to assess participation and compare activity levels across bars.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVOLMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVOLMA" xml:space="preserve">
     <value>&lt;b&gt;VOLMA (Volume Moving Average)&lt;/b&gt; plots a moving average of &lt;b&gt;Volume (VOL)&lt;/b&gt; over the selected &lt;b&gt;Period&lt;/b&gt;. It smooths volume data to help identify relative increases or decreases in trading activity compared to its recent average.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVolumeOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVolumeOscillator" xml:space="preserve">
     <value>&lt;b&gt;Volume Oscillator&lt;/b&gt; measures the difference between a short-term and long-term moving average of volume. Positive values indicate the shorter average is above the longer average, reflecting relatively increasing activity, while negative values indicate relatively decreasing activity.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVROC" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVROC" xml:space="preserve">
     <value>&lt;b&gt;VROC (Volume Rate of Change)&lt;/b&gt; measures the percentage change in volume over the selected &lt;b&gt;Period&lt;/b&gt;. Positive values indicate volume has increased relative to the lookback point, while negative values indicate it has decreased. The magnitude reflects how quickly participation levels are changing.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVWMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVWMA" xml:space="preserve">
     <value>&lt;b&gt;VWMA (Volume Weighted Moving Average)&lt;/b&gt; calculates a moving average that weights each price by its corresponding volume over the selected &lt;b&gt;Period&lt;/b&gt;. Periods with higher volume have greater influence on the average. VWMA is commonly used to reflect price movement adjusted for trading activity.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionWilliamsR" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionWilliamsR" xml:space="preserve">
     <value>&lt;b&gt;Williams R (Williams %R)&lt;/b&gt; is a momentum oscillator that measures the position of the current close relative to the highest high and lowest low over the selected &lt;b&gt;Period&lt;/b&gt;. Values fluctuate between -100 and 0, with readings near 0 indicating price is closing near the top of its recent range and readings near -100 indicating it is closing near the bottom. Extreme readings are commonly associated with overbought or oversold conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionWMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionWMA" xml:space="preserve">
     <value>&lt;b&gt;WMA (Weighted Moving Average)&lt;/b&gt; calculates a moving average that assigns greater weight to more recent prices within the selected &lt;b&gt;Period&lt;/b&gt;. This weighting makes WMA more responsive to current price changes compared to a simple moving average.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionZigZag" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionZigZag" xml:space="preserve">
     <value>&lt;b&gt;Zig Zag&lt;/b&gt; identifies and connects significant swing highs and swing lows based on a user-defined deviation value (such as percentage or points). It filters out smaller price movements to emphasize larger directional swings. Because it adjusts as new price data forms, historical swing points may update until confirmed.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionZLEMA" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionZLEMA" xml:space="preserve">
     <value>&lt;b&gt;ZLEMA (Zero Lag Exponential Moving Average)&lt;/b&gt; is a modified exponential moving average designed to reduce lag by compensating for the delay inherent in traditional EMA calculations. It aims to track price more closely while maintaining smoothing characteristics.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionBarTimer" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionBarTimer" xml:space="preserve">
     <value>&lt;b&gt;Bar Timer&lt;/b&gt; displays the remaining time for the currently forming time-based bar. The countdown updates in real time and resets when a new bar begins. This indicator is intended for time-based bar types and helps monitor bar completion without affecting price calculations.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionBuySellVolume" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionBuySellVolume" xml:space="preserve">
     <value>&lt;b&gt;Buy Sell Volume&lt;/b&gt; separates total volume into estimated buying volume and selling volume based on trade direction or price movement within the bar. This helps illustrate whether activity is dominated by buyers or sellers during a given period. The indicator focuses on participation imbalance rather than price alone and is often used to assess momentum behind price moves.\n\nThis indicator relies on intrabar order flow data and will only display historically when &lt;b&gt;Tick Replay&lt;/b&gt; is enabled; otherwise, it plots in real-time only.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCandlestickPattern" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=ydDRqD99byE&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=5\n\n&lt;b&gt;Candlestick Pattern&lt;/b&gt; detects a wide range of predefined candlestick formations based on the &lt;b&gt;Select pattern&lt;/b&gt; setting. Only the user-selected pattern is evaluated. When the specified formation is confirmed, the indicator places text on the chart at the occurrence and colors the related bar(s) to visually highlight the pattern. It is designed to identify and emphasize recognized price formations.</value>
+  <data name="NinjaScriptIndicatorDescriptionCandlestickPattern" xml:space="preserve">
+    <value>[Video Tutorial](VT:CandlestickPattern)\n\n&lt;b&gt;Candlestick Pattern&lt;/b&gt; detects a wide range of predefined candlestick formations based on the &lt;b&gt;Select pattern&lt;/b&gt; setting. Only the user-selected pattern is evaluated. When the specified formation is confirmed, the indicator places text on the chart at the occurrence and colors the related bar(s) to visually highlight the pattern. It is designed to identify and emphasize recognized price formations.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionSampleCustomRender" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionSampleCustomRender" xml:space="preserve">
     <value>&lt;b&gt;Sample Custom Render&lt;/b&gt; is an example &lt;i&gt;NinjaTrader indicator&lt;/i&gt; that demonstrates &lt;b&gt;custom SharpDX rendering&lt;/b&gt; techniques (e.g., drawing your own visuals directly on the chart).\n\nIt’s designed for &lt;b&gt;education and development&lt;/b&gt;, use it as a reference for building, testing, and extending custom rendering workflows.\n\n    * &lt;b&gt;Purpose:&lt;/b&gt; Show how to implement &lt;i&gt;custom SharpDX rendering&lt;/i&gt; in an indicator\n    * &lt;b&gt;What it is not:&lt;/b&gt; &lt;b&gt;Not&lt;/b&gt; an analytical indicator and &lt;b&gt;does not&lt;/b&gt; generate trading signals\n    * &lt;b&gt;Best for:&lt;/b&gt; Developers learning rendering patterns, performance considerations, and chart-drawing structure\n\nFor more background on NinjaTrader and building custom tools, visit: https://ninjatrader.com/\n\n&lt;i&gt;Tip:&lt;/i&gt; Try pairing this example with your own colors, shapes, and update logic to explore rendering behavior under different chart conditions.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDarvas" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDarvas" xml:space="preserve">
     <value>&lt;b&gt;Darvas (Darvas Box)&lt;/b&gt; plots dynamic upper and lower price levels based on recent highs and lows to form "boxes" around consolidating price action. When price establishes a new high or low outside the prior box, the levels adjust to reflect the updated range. This indicator is commonly used to visualize breakout zones and structured price ranges.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPivots" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=ATddfGiV6SY&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=13\n\n&lt;b&gt;Pivots (Pivot Points)&lt;/b&gt; plots standard floor-trader pivot levels calculated from a prior period's high, low, and close. The indicator displays a central pivot along with projected support and resistance levels that update each new session or selected timeframe. These levels are commonly used as structured reference points for price movement.</value>
+  <data name="NinjaScriptIndicatorDescriptionPivots" xml:space="preserve">
+    <value>[Video Tutorial](VT:Pivots)\n\n&lt;b&gt;Pivots (Pivot Points)&lt;/b&gt; plots standard floor-trader pivot levels calculated from a prior period's high, low, and close. The indicator displays a central pivot along with projected support and resistance levels that update each new session or selected timeframe. These levels are commonly used as structured reference points for price movement.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRangeCounter" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRangeCounter" xml:space="preserve">
     <value>&lt;b&gt;Range Counter&lt;/b&gt; displays the remaining price range needed to complete the currently forming &lt;b&gt;range bar&lt;/b&gt;. The value updates in real time as the bar expands and resets when a new bar begins. This indicator is intended for range-based bar types and helps monitor bar completion without affecting price calculations.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTickCounter" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionTickCounter" xml:space="preserve">
     <value>&lt;b&gt;Tick Counter&lt;/b&gt; displays the remaining number of ticks needed to complete the currently forming &lt;b&gt;tick bar&lt;/b&gt;. The count updates in real time as new ticks arrive and resets when a new bar begins. This indicator is intended for tick-based bar types and helps monitor bar completion without affecting price calculations.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVolumeCounter" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVolumeCounter" xml:space="preserve">
     <value>&lt;b&gt;Volume Counter&lt;/b&gt; accumulates and displays the total volume traded within the current bar, updating in real time as new trades occur. The count resets when a new bar begins. This indicator is informational and focuses on intrabar volume tracking.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVolumeProfile" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVolumeProfile" xml:space="preserve">
     <value>&lt;b&gt;Volume Profile&lt;/b&gt; displays the distribution of traded volume at specific price levels over a selected range. It highlights areas of higher and lower participation, often identifying high-volume nodes and low-volume areas. Volume Profile is commonly used to visualize price levels where trading activity has been concentrated.\n\nThis indicator relies on intrabar order flow data and will only display historically when &lt;b&gt;Tick Replay&lt;/b&gt; is enabled; otherwise, it plots in real-time only.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVolumeZones" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVolumeZones" xml:space="preserve">
     <value>&lt;b&gt;Volume Zones&lt;/b&gt; draws a horizontal volume histogram using only the bars currently visible on the chart. The visible price range is divided into the number of slices defined by the &lt;b&gt;BarCount&lt;/b&gt; property, and volume is aggregated within each slice.\n\nFor each slice, volume is separated into &lt;b&gt;up volume&lt;/b&gt; (bars where Close &gt; Open) and &lt;b&gt;down volume&lt;/b&gt; (bars where Close ? Open), and the histogram is colored accordingly. This provides a visual reference of where trading activity has concentrated within the current chart view, rather than over a fixed historical period.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVolumeUpDown" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVolumeUpDown" xml:space="preserve">
     <value>&lt;b&gt;Volume Up Down&lt;/b&gt; separates total volume into up volume and down volume based on whether price closed higher or lower than the previous bar. This helps visualize buying versus selling activity within each period and compare relative participation on advancing versus declining bars.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMovingAverageRibbon" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMovingAverageRibbon" xml:space="preserve">
     <value>&lt;b&gt;Moving Average Ribbon&lt;/b&gt; plots multiple moving averages of increasing lengths on the same panel to visualize trend structure. When the averages are aligned and spaced apart, it suggests stronger directional movement; when they compress or cross frequently, it reflects consolidation. The ribbon provides a layered view of short-, medium-, and longer-term averages.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionNetChangeDisplay" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionNetChangeDisplay" xml:space="preserve">
     <value>&lt;b&gt;Net Change Display&lt;/b&gt; displays the net price change for the current session relative to the prior session's close. It presents the change as a value and/or percentage directly on the chart. This indicator is informational and does not calculate momentum or trend signals.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPriceLine" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionPriceLine" xml:space="preserve">
     <value>&lt;b&gt;PriceLine (Price Line)&lt;/b&gt; displays real-time horizontal reference lines for the current &lt;b&gt;Ask&lt;/b&gt;, &lt;b&gt;Bid&lt;/b&gt;, and/or &lt;b&gt;Last&lt;/b&gt; price directly on the chart. Each line can be enabled/disabled independently to keep key live pricing levels visible.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionDisparityIndex" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionDisparityIndex" xml:space="preserve">
     <value>&lt;b&gt;Disparity Index&lt;/b&gt; measures the percentage difference between the current price and moving average over the chosen &lt;b&gt;Period&lt;/b&gt;. Positive values indicate price is trading above the average, while negative values indicate it is below. Larger deviations reflect greater separation from the average, helping visualize relative extension from typical price levels.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMoneyFlowOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMoneyFlowOscillator" xml:space="preserve">
     <value>&lt;b&gt;Money Flow Oscillator&lt;/b&gt; measures buying and selling pressure by comparing positive and negative money flow over the selected &lt;b&gt;Period&lt;/b&gt;. It incorporates both price movement and volume to produce an oscillator that fluctuates around a central line. Positive values reflect stronger buying pressure, while negative values reflect stronger selling pressure.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionMcClellanOscillator" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionMcClellanOscillator" xml:space="preserve">
     <value>&lt;b&gt;McClellan Oscillator&lt;/b&gt; is a breadth indicator calculated from the difference between two exponential averages of advancing and declining issues. It fluctuates above and below zero, reflecting shifts in overall market participation strength. Rising values indicate improving breadth, while falling values indicate weakening breadth.\n\nThis indicator require ADV and DECL index data</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionVortex" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionVortex" xml:space="preserve">
     <value>&lt;b&gt;Vortex&lt;/b&gt; plots two lines, &lt;b&gt;VI+&lt;/b&gt; and &lt;b&gt;VI-&lt;/b&gt;, derived from upward and downward price movement over the selected &lt;b&gt;Period&lt;/b&gt;. When VI+ is above VI-, upward directional movement is stronger; when VI- is above VI+, downward movement is stronger. The separation between the lines reflects the strength of directional movement.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionPsychologicalLine" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionPsychologicalLine" xml:space="preserve">
     <value>&lt;b&gt;PSY (Psychological Line)&lt;/b&gt; measures the percentage of bars that closed higher than the previous bar over the selected &lt;b&gt;Period&lt;/b&gt;. Values range from 0 to 100, with higher readings indicating a greater proportion of up-closing bars and lower readings indicating more down-closing bars. It reflects short-term market sentiment based on closing direction frequency.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionChoppinessIndex" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionChoppinessIndex" xml:space="preserve">
     <value>&lt;b&gt;Choppiness Index&lt;/b&gt; quantifies whether the market is trending or moving sideways over the selected &lt;b&gt;Period&lt;/b&gt;. Higher values suggest choppier, range-bound conditions, while lower values indicate stronger directional movement. It is commonly used to assess overall market structure rather than predict direction.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionBlockVolume" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionBlockVolume" xml:space="preserve">
     <value>&lt;b&gt;Block Volume&lt;/b&gt; identifies and marks individual trades whose size meets or exceeds the specified volume threshold. Each qualifying trade is highlighted on the chart to make large transactions easier to spot. This indicator requires historical tick data to accurately detect and display block trades, as it evaluates individual executions rather than aggregated bar volume. It focuses on trade size and participation, not price direction.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCamarillaPivots" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionCamarillaPivots" xml:space="preserve">
     <value>&lt;b&gt;Camarilla Pivots&lt;/b&gt; plots a series of intraday support and resistance levels calculated from the prior session's high, low, and close. These levels are labeled R and S levels and are commonly used to frame potential reaction zones within the current session. The indicator automatically updates each session and is designed for session-based analysis rather than long-term trend evaluation.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionFibonacciPivots" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionFibonacciPivots" xml:space="preserve">
     <value>&lt;b&gt;Fibonacci Pivots&lt;/b&gt; plots session-based support and resistance levels derived from the prior period's high, low, and close using Fibonacci ratios. Levels are projected above and below a central pivot and update automatically at the start of each new session. These levels are commonly used as structured reference points for intraday price movement.</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionTrendLines" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=kOXxE6r5IE0&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=7\n\n&lt;b&gt;Trend Lines&lt;/b&gt; automatically detects and draws trend lines based on recent swing highs and swing lows. Lines update as new qualifying swing points form, helping visualize directional structure and potential areas of support or resistance. This indicator focuses on structural price relationships rather than momentum calculations.</value>
+  <data name="NinjaScriptIndicatorDescriptionTrendLines" xml:space="preserve">
+    <value>[Video Tutorial](VT:TrendLines)\n\n&lt;b&gt;Trend Lines&lt;/b&gt; automatically detects and draws trend lines based on recent swing highs and swing lows. Lines update as new qualifying swing points form, helping visualize directional structure and potential areas of support or resistance. This indicator focuses on structural price relationships rather than momentum calculations.</value>
   </data>
   <data name="NinjaScriptIndicatorNameADL" xml:space="preserve">
     <value>ADL</value>
@@ -1567,6 +1566,111 @@
   <data name="ShareServiceUserName" xml:space="preserve">
     <value>User name</value>
   </data>
+  <data name="DiscordServiceName" xml:space="preserve">
+    <value>Discord</value>
+  </data>
+  <data name="ShareDiscordWebhookName" xml:space="preserve">
+    <value>Webhook name</value>
+  </data>
+  <data name="ShareDiscordWebhookUrl" xml:space="preserve">
+    <value>Webhook URL</value>
+  </data>
+  <data name="ShareDiscordWebhookUrlDescription" xml:space="preserve">
+    <value>The Discord channel webhook URL to post to. Create one in your channel under Server Settings &gt; Integrations &gt; Webhooks.</value>
+  </data>
+  <data name="ShareDiscordConnected" xml:space="preserve">
+    <value>Discord share service connected to webhook '{0}'.</value>
+  </data>
+  <data name="ShareDiscordConnectError" xml:space="preserve">
+    <value>Discord share service could not validate the webhook URL: {0}</value>
+  </data>
+  <data name="ShareDiscordInvalidWebhook" xml:space="preserve">
+    <value>The Discord webhook URL is missing or invalid. Verify the URL copied from your channel's webhook settings.</value>
+  </data>
+  <data name="ShareDiscordNoWebhook" xml:space="preserve">
+    <value>Discord share service '{0}': no webhook URL is configured.</value>
+  </data>
+  <data name="ShareDiscordSentSuccessfully" xml:space="preserve">
+    <value>Message sent to Discord successfully via '{0}'.</value>
+  </data>
+  <data name="SlackServiceName" xml:space="preserve">
+    <value>Slack</value>
+  </data>
+  <data name="ShareSlackWorkspaceName" xml:space="preserve">
+    <value>Workspace</value>
+  </data>
+  <data name="ShareSlackBotToken" xml:space="preserve">
+    <value>Bot token</value>
+  </data>
+  <data name="ShareSlackBotTokenDescription" xml:space="preserve">
+    <value>The Slack Bot User OAuth Token (starts with xoxb-). Create a Slack app, add the chat:write and files:write scopes under OAuth &amp; Permissions, install it to your workspace, then copy the Bot User OAuth Token.</value>
+  </data>
+  <data name="ShareSlackChannel" xml:space="preserve">
+    <value>Channel ID</value>
+  </data>
+  <data name="ShareSlackChannelDescription" xml:space="preserve">
+    <value>The ID of the channel to post to (e.g. C0123ABCD). Invite your Slack app to that channel first. The ID is shown at the bottom of the channel's details dialog.</value>
+  </data>
+  <data name="ShareSlackConnected" xml:space="preserve">
+    <value>Slack share service connected to workspace '{0}'.</value>
+  </data>
+  <data name="ShareSlackConnectError" xml:space="preserve">
+    <value>Slack share service could not validate the bot token: {0}</value>
+  </data>
+  <data name="ShareSlackNoToken" xml:space="preserve">
+    <value>Slack share service '{0}': no bot token is configured.</value>
+  </data>
+  <data name="ShareSlackNoChannel" xml:space="preserve">
+    <value>Slack share service '{0}': no channel ID is configured.</value>
+  </data>
+  <data name="ShareSlackApiError" xml:space="preserve">
+    <value>Slack returned an error: {0}</value>
+  </data>
+  <data name="ShareSlackUploadError" xml:space="preserve">
+    <value>Slack file upload failed: {0}</value>
+  </data>
+  <data name="ShareSlackSentSuccessfully" xml:space="preserve">
+    <value>Message sent to Slack successfully via '{0}'.</value>
+  </data>
+  <data name="TelegramServiceName" xml:space="preserve">
+    <value>Telegram</value>
+  </data>
+  <data name="ShareTelegramBotName" xml:space="preserve">
+    <value>Bot</value>
+  </data>
+  <data name="ShareTelegramBotToken" xml:space="preserve">
+    <value>Bot token</value>
+  </data>
+  <data name="ShareTelegramBotTokenDescription" xml:space="preserve">
+    <value>The Telegram bot token issued by @BotFather (e.g. 123456789:ABC-DEF...). Message @BotFather in Telegram, create a bot with /newbot, then copy the token it provides.</value>
+  </data>
+  <data name="ShareTelegramChatId" xml:space="preserve">
+    <value>Chat ID</value>
+  </data>
+  <data name="ShareTelegramChatIdDescription" xml:space="preserve">
+    <value>The destination chat: a numeric chat ID or a public @channelusername. Add the bot to the chat, group, or channel first (as an administrator for channels).</value>
+  </data>
+  <data name="ShareTelegramConnected" xml:space="preserve">
+    <value>Telegram share service connected as bot '{0}'.</value>
+  </data>
+  <data name="ShareTelegramConnectError" xml:space="preserve">
+    <value>Telegram share service could not validate the bot token: {0}</value>
+  </data>
+  <data name="ShareTelegramChatError" xml:space="preserve">
+    <value>Telegram share service could not access the configured chat: {0}</value>
+  </data>
+  <data name="ShareTelegramNoToken" xml:space="preserve">
+    <value>Telegram share service '{0}': no bot token is configured.</value>
+  </data>
+  <data name="ShareTelegramNoChatId" xml:space="preserve">
+    <value>Telegram share service '{0}': no chat ID is configured.</value>
+  </data>
+  <data name="ShareTelegramApiError" xml:space="preserve">
+    <value>Telegram returned an error: {0}</value>
+  </data>
+  <data name="ShareTelegramSentSuccessfully" xml:space="preserve">
+    <value>Message sent to Telegram successfully via '{0}'.</value>
+  </data>
   <data name="StockTwitsServiceName" xml:space="preserve">
     <value>StockTwits</value>
   </data>
@@ -1647,6 +1751,12 @@
   </data>
   <data name="ShareNotAuthorized" xml:space="preserve">
     <value>The Share provider returned a Not Authorized message: '{0}'</value>
+  </data>
+  <data name="ShareReauthorizationRequired" xml:space="preserve">
+    <value>The '{0}' share service is no longer authorized. Its token may have been revoked or expired. Please reconnect the service under Tools &gt; Options &gt; Share to continue sharing.</value>
+  </data>
+  <data name="ShareReauthorizationRequiredCaption" xml:space="preserve">
+    <value>Share Service Authorization Required</value>
   </data>
   <data name="MailSubject" xml:space="preserve">
     <value>Subject:</value>
@@ -2295,8 +2405,8 @@
   </data>
   <data name="LineColor" xml:space="preserve">
     <value>Line color</value>
-  </data>	
-	<data name="NinjaScriptIndicatorNameBarTimer" xml:space="preserve">
+  </data>
+  <data name="NinjaScriptIndicatorNameBarTimer" xml:space="preserve">
     <value>Bar timer</value>
   </data>
   <data name="NinjaScriptIndicatorNameBuySellVolume" xml:space="preserve">
@@ -2392,7 +2502,7 @@
   <data name="VolumeUpColor" xml:space="preserve">
     <value>Volume up color</value>
   </data>
-	<data name="NinjaScriptIndicatorNameVolumeUpDown" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNameVolumeUpDown" xml:space="preserve">
     <value>Volume up down</value>
   </data>
   <data name="NinjaScriptStrategyDescriptionSampleATMStrategy" xml:space="preserve">
@@ -2824,7 +2934,7 @@
   <data name="NegativeColor" xml:space="preserve">
     <value>Negative color</value>
   </data>
-	<data name="NinjaScriptIndicatorNameMovingAverageRibbon" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNameMovingAverageRibbon" xml:space="preserve">
     <value>Moving average ribbon</value>
   </data>
   <data name="NinjaScriptIndicatorNameNetChangeDisplay" xml:space="preserve">
@@ -2857,7 +2967,7 @@
   <data name="Unit" xml:space="preserve">
     <value>Unit</value>
   </data>
-	<data name="NinjaScriptIndicatorDisparityLine" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDisparityLine" xml:space="preserve">
     <value>Disparity line</value>
   </data>
   <data name="NinjaScriptIndicatorMoneyFlowLine" xml:space="preserve">
@@ -2884,7 +2994,7 @@
   <data name="NetChangePosition_TopRight" xml:space="preserve">
     <value>Top right</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionRelativeVigorIndex" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionRelativeVigorIndex" xml:space="preserve">
     <value>&lt;b&gt;RVI (Relative Vigor Index)&lt;/b&gt; compares the relationship between closing price and trading range over the selected &lt;b&gt;Period&lt;/b&gt;. It plots the &lt;b&gt;RVI&lt;/b&gt; along with a &lt;b&gt;Signal line&lt;/b&gt; for comparison. Values fluctuate around zero, with positive readings reflecting stronger upward price bias and negative readings reflecting stronger downward bias. Crossovers between the RVI and its signal line are commonly observed for momentum shifts.</value>
   </data>
   <data name="NinjaScriptIndicatorNameRelativeVigorIndex" xml:space="preserve">
@@ -2899,7 +3009,7 @@
   <data name="FastPeriod" xml:space="preserve">
     <value>Fast period</value>
   </data>
-	<data name="NinjaScriptIndicatorMcClellanOscillatorLine" xml:space="preserve">
+  <data name="NinjaScriptIndicatorMcClellanOscillatorLine" xml:space="preserve">
     <value>McClellan Oscillator line</value>
   </data>
   <data name="NinjaScriptIndicatorNameMcClellanOscillator" xml:space="preserve">
@@ -2977,7 +3087,7 @@
   <data name="ChartSpan_Year" xml:space="preserve">
     <value>1 Year</value>
   </data>
-	<data name="NinjaScriptIndicatorNameVortex" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNameVortex" xml:space="preserve">
     <value>Vortex</value>
   </data>
   <data name="NinjaScriptIndicatorVIMinus" xml:space="preserve">
@@ -2986,16 +3096,16 @@
   <data name="NinjaScriptIndicatorVIPlus" xml:space="preserve">
     <value>VIPlus</value>
   </data>
-	<data name="NinjaScriptIndicatorNamePsychologicalLine" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNamePsychologicalLine" xml:space="preserve">
     <value>Psychological line</value>
   </data>
   <data name="NinjaScriptIndicatorNameChoppinessIndex" xml:space="preserve">
     <value>Choppiness index</value>
   </data>
-	<data name="BlockTradeSize" xml:space="preserve">
+  <data name="BlockTradeSize" xml:space="preserve">
     <value>Block trade size</value>
   </data>
-	<data name="NinjaScriptIndicatorNameBlockVolume" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNameBlockVolume" xml:space="preserve">
     <value>Block volume</value>
   </data>
   <data name="NinjaScriptIndicatorCount" xml:space="preserve">
@@ -3007,7 +3117,7 @@
   <data name="CountType_Volume" xml:space="preserve">
     <value>Volume</value>
   </data>
-	<data name="NinjaScriptIndicatorNameCamarillaPivots" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNameCamarillaPivots" xml:space="preserve">
     <value>Camarilla pivots</value>
   </data>
   <data name="NinjaScriptIndicatorNameFibonacciPivots" xml:space="preserve">
@@ -3136,7 +3246,7 @@
   <data name="NinjaScriptMarketAnalyzerColumnNameTSTrend" xml:space="preserve">
     <value>T &amp; S trend</value>
   </data>
-	<data name="DrawingToolIndicatorDescription" xml:space="preserve">
+  <data name="DrawingToolIndicatorDescription" xml:space="preserve">
     <value>&lt;b&gt;Drawing Tool Tile&lt;/b&gt; adds a floating toolbar to the chart that provides quick access to commonly used drawing tools. The tile can be customized to show specific tools and configured to appear only when the chart is in focus. It is designed for workflow convenience and does not affect price data or calculations.</value>
   </data>
   <data name="DrawingToolIndicatorName" xml:space="preserve">
@@ -3199,7 +3309,7 @@
   <data name="NinjaScriptStrategyGeneratorCandleStickPatternPrompt" xml:space="preserve">
     <value>1 candle stick pattern|{0} candle stick patterns|Add candle stick pattern...|Configure candle stick pattern...|Configure candle stick patterns...</value>
   </data>
-	<data name="NinjaScriptIndicatorNameTrendLines" xml:space="preserve">
+  <data name="NinjaScriptIndicatorNameTrendLines" xml:space="preserve">
     <value>Trend lines</value>
   </data>
   <data name="NumberOfTrendLines" xml:space="preserve">
@@ -3241,7 +3351,7 @@
   <data name="NinjaScriptYOffset" xml:space="preserve">
     <value>Y pixel offset</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCorrelation" xml:space="preserve">
+  <data name="NinjaScriptIndicatorDescriptionCorrelation" xml:space="preserve">
     <value>&lt;b&gt;Correlation&lt;/b&gt; measures the statistical relationship between the selected input series and a secondary instrument or data series over the chosen &lt;b&gt;Period&lt;/b&gt;. Values range from 1 to -1, indicating how closely the two series move together. Positive readings suggest the instruments tend to move in the same direction, negative readings suggest they move inversely, and values near zero indicate little consistent relationship.</value>
   </data>
   <data name="NinjaScriptIndicatorNameCorrelation" xml:space="preserve">
@@ -3250,8 +3360,8 @@
   <data name="MailServiceSenderDisplayName" xml:space="preserve">
     <value>From name</value>
   </data>
-	<data name="NinjaScriptIndicatorDescriptionCOT" xml:space="preserve">
-    <value>Video Tutorial: www.youtube.com/watch?v=PorVWVVRs6s&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=2\n\n&lt;b&gt;COT (Commitment of Traders)&lt;/b&gt; displays positioning data from the CFTC's weekly Commitment of Traders report, broken down by trader categories. The report is released each Friday and reflects positions as of the prior Tuesday. The indicator plots selected COT values to visualize changes in market participation over time. It is based on published report data (not real-time transactions) and is best viewed on a weekly chart. To receive the latest data, &lt;b&gt;"Download COTR data at startup"&lt;/b&gt; must be enabled in Settings.</value>
+  <data name="NinjaScriptIndicatorDescriptionCOT" xml:space="preserve">
+    <value>[Video Tutorial](VT:COT)\n\n&lt;b&gt;COT (Commitment of Traders)&lt;/b&gt; displays positioning data from the CFTC's weekly Commitment of Traders report, broken down by trader categories. The report is released each Friday and reflects positions as of the prior Tuesday. The indicator plots selected COT values to visualize changes in market participation over time. It is based on published report data (not real-time transactions) and is best viewed on a weekly chart. To receive the latest data, &lt;b&gt;"Download COTR data at startup"&lt;/b&gt; must be enabled in Settings.</value>
   </data>
   <data name="NinjaScriptIndicatorNameCOT" xml:space="preserve">
     <value>COT</value>
@@ -3352,6 +3462,42 @@
   <data name="NinjaScriptRecentColumnResetWhen" xml:space="preserve">
     <value>Reset when</value>
   </data>
+  <data name="NinjaScriptColumnHighlightChanges" xml:space="preserve">
+    <value>Highlight changes</value>
+  </data>
+  <data name="NinjaScriptColumnUpChangeColor" xml:space="preserve">
+    <value>Color for up changes</value>
+  </data>
+  <data name="NinjaScriptColumnDownChangeColor" xml:space="preserve">
+    <value>Color for down changes</value>
+  </data>
+  <data name="NinjaScriptDepthColumnAggregateDepth" xml:space="preserve">
+    <value>Aggregate depth levels</value>
+  </data>
+  <data name="NinjaScriptDepthColumnAskHistogram" xml:space="preserve">
+    <value>Ask histogram</value>
+  </data>
+  <data name="NinjaScriptDepthColumnBidHistogram" xml:space="preserve">
+    <value>Bid histogram</value>
+  </data>
+  <data name="NinjaScriptDepthColumnHistogram" xml:space="preserve">
+    <value>Histogram</value>
+  </data>
+  <data name="NinjaScriptDepthColumnHistogramAlignment" xml:space="preserve">
+    <value>Histogram alignment</value>
+  </data>
+  <data name="NinjaScriptDepthColumnNormalizeWithAsk" xml:space="preserve">
+    <value>Normalize histogram with ask</value>
+  </data>
+  <data name="NinjaScriptDepthColumnNormalizeWithBid" xml:space="preserve">
+    <value>Normalize histogram with bid</value>
+  </data>
+  <data name="NinjaScriptDepthColumnShowCumulativeDepth" xml:space="preserve">
+    <value>Show cumulative depth</value>
+  </data>
+  <data name="NinjaScriptDepthColumnShowHistogram" xml:space="preserve">
+    <value>Show histogram</value>
+  </data>
   <data name="NinjaScriptSetup" xml:space="preserve">
     <value>Setup</value>
   </data>
@@ -3387,6 +3533,12 @@
   </data>
   <data name="PullingStackingResetWhen_NoMoreData" xml:space="preserve">
     <value>No longer receiving depth data</value>
+  </data>
+  <data name="VolumeType_BuySell" xml:space="preserve">
+    <value>Buy Sell</value>
+  </data>
+  <data name="VolumeType_Standard" xml:space="preserve">
+    <value>Standard</value>
   </data>
   <data name="NinjaScriptDrawingToolPriceMarker" xml:space="preserve">
     <value>Price marker</value>
@@ -3454,7 +3606,7 @@
   <data name="FVGName" xml:space="preserve">
     <value>Fair Value Gap</value>
   </data>
-	<data name="FVGDescription" xml:space="preserve">
+  <data name="FVGDescription" xml:space="preserve">
     <value>&lt;b&gt;FVG (Fair Value Gap)&lt;/b&gt; examines three consecutive bars to identify and highlight a price gap between the high/low of the first and third bars. When the ranges of the first and third bars do not overlap, the resulting gap is drawn on the chart and can optionally extend forward. FVG regions are commonly observed as areas where price may revisit. The indicator supports filtering by minimum gap size and limiting the number of displayed gaps.</value>
   </data>
   <data name="FVGEnforceSameDirectionBars" xml:space="preserve">
@@ -3516,5 +3668,221 @@
   </data>
   <data name="NinjaScriptIndicatorDescriptionDetrendedPriceOscillator" xml:space="preserve">
     <value>&lt;b&gt;DPO (Detrended Price Oscillator)&lt;/b&gt; removes longer-term trend influence by comparing a past price value to a shifted simple moving average. The result oscillates around zero and is used to highlight shorter-term cycles and swings without the longer-term trend component.</value>
+  </data>
+  <data name="NinjaScriptAskTextAlignment" xml:space="preserve">
+    <value>Ask text alignment</value>
+  </data>
+  <data name="NinjaScriptBidTextAlignment" xml:space="preserve">
+    <value>Bid text alignment</value>
+  </data>
+  <data name="NinjaScriptTextAlignment" xml:space="preserve">
+    <value>Text alignment</value>
+  </data>
+  <data name="NinjaScriptBackColor" xml:space="preserve">
+    <value>Background</value>
+  </data>
+  <data name="NinjaScriptPositiveForeground" xml:space="preserve">
+    <value>Positive foreground</value>
+  </data>
+  <data name="NinjaScriptNegativeForeground" xml:space="preserve">
+    <value>Negative foreground</value>
+  </data>
+  <data name="NinjaScriptForeground" xml:space="preserve">
+    <value>Foreground</value>
+  </data>
+  <data name="NinjaScriptRecentColumnHighlightFade" xml:space="preserve">
+    <value>Highlight fade duration (seconds)</value>
+  </data>
+  <data name="NinjaScriptColumnBoldMostRecentCell" xml:space="preserve">
+    <value>Bold most recent cell</value>
+  </data>
+  <data name="NinjaScriptColumnEnableHighlightFade" xml:space="preserve">
+    <value>Enable highlight fade</value>
+  </data>
+  <data name="NinjaScriptColumnHighlightColor" xml:space="preserve">
+    <value>Highlight color</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionAskPrice" xml:space="preserve">
+    <value>&lt;b&gt;Ask Price&lt;/b&gt;\nThe current lowest price at which the instrument can be bought. Can optionally highlight in green or red when the price ticks up or down.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionAskSize" xml:space="preserve">
+    <value>&lt;b&gt;Ask Size&lt;/b&gt;\nThe quantity available at the current ask price.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionAverageDailyVolume" xml:space="preserve">
+    <value>&lt;b&gt;Average Daily Volume&lt;/b&gt;\nThe instrument's typical daily trading volume, based on historical data, useful for gauging normal liquidity. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionBeta" xml:space="preserve">
+    <value>&lt;b&gt;Beta&lt;/b&gt;\nMeasures how much an instrument's price tends to move relative to the overall market. A beta above 1 means it tends to swing more than the market; below 1 means it tends to move less. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionBidAskSpread" xml:space="preserve">
+    <value>&lt;b&gt;Bid/Ask Spread&lt;/b&gt;\nThe difference between the current ask price and current bid price, indicating how wide the market is at that moment.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionBidPrice" xml:space="preserve">
+    <value>&lt;b&gt;Bid Price&lt;/b&gt;\nThe current highest price at which the instrument can be sold. Can optionally highlight in green or red when the price ticks up or down.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionBidSize" xml:space="preserve">
+    <value>&lt;b&gt;Bid Size&lt;/b&gt;\nThe quantity available at the current bid price.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionCalendarYearHigh" xml:space="preserve">
+    <value>&lt;b&gt;Calendar Year High&lt;/b&gt;\nThe highest price the instrument has reached during the current calendar year. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionCalendarYearHighDate" xml:space="preserve">
+    <value>&lt;b&gt;Calendar Year High Date&lt;/b&gt;\nThe date on which the calendar-year high was reached. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionCalendarYearLow" xml:space="preserve">
+    <value>&lt;b&gt;Calendar Year Low&lt;/b&gt;\nThe lowest price the instrument has reached during the current calendar year. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionCalendarYearLowDate" xml:space="preserve">
+    <value>&lt;b&gt;Calendar Year Low Date&lt;/b&gt;\nThe date on which the calendar-year low was reached. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionChartMini" xml:space="preserve">
+    <value>&lt;b&gt;Chart Mini&lt;/b&gt;\nA small inline sparkline chart showing recent price movement for the instrument, with a configurable time span from 1 minute up to a full year.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionChartNetChange" xml:space="preserve">
+    <value>&lt;b&gt;Chart Net Change&lt;/b&gt;\nA small inline area chart showing the instrument's percentage change from the previous close throughout the current trading session, shaded green when up and red when down.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionCurrentRatio" xml:space="preserve">
+    <value>&lt;b&gt;Current Ratio&lt;/b&gt;\nA liquidity metric showing a company's current assets divided by its current liabilities, indicating how well it can cover short-term obligations. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDailyHigh" xml:space="preserve">
+    <value>&lt;b&gt;Daily High&lt;/b&gt;\nThe highest price traded so far in the current session.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDailyLow" xml:space="preserve">
+    <value>&lt;b&gt;Daily Low&lt;/b&gt;\nThe lowest price traded so far in the current session.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDailyVolume" xml:space="preserve">
+    <value>&lt;b&gt;Daily Volume&lt;/b&gt;\nThe total number of shares or contracts traded so far in the current session.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDaysUntilRollover" xml:space="preserve">
+    <value>&lt;b&gt;Days Until Rollover&lt;/b&gt;\nFor futures contracts, the number of days remaining until this contract rolls over to the next contract month.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDescription" xml:space="preserve">
+    <value>&lt;b&gt;Description&lt;/b&gt;\nThe descriptive name of the instrument, such as the company or contract name.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDividendAmount" xml:space="preserve">
+    <value>&lt;b&gt;Dividend Amount&lt;/b&gt;\nThe dollar amount of the company's most recent (or upcoming) dividend payment per share. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDividendPayDate" xml:space="preserve">
+    <value>&lt;b&gt;Dividend Pay Date&lt;/b&gt;\nThe date on which the next dividend payment is scheduled to be paid out. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionDividendYield" xml:space="preserve">
+    <value>&lt;b&gt;Dividend Yield&lt;/b&gt;\nThe company's annual dividend payment expressed as a percentage of its current share price. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionEarningsPerShare" xml:space="preserve">
+    <value>&lt;b&gt;Earnings Per Share&lt;/b&gt;\nThe company's most recently reported earnings per share. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionFiveYearsGrowthPercentage" xml:space="preserve">
+    <value>&lt;b&gt;Five-Year Growth Percentage&lt;/b&gt;\nThe company's average annual earnings growth rate over the past five years. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionGapDown" xml:space="preserve">
+    <value>&lt;b&gt;Gap Down&lt;/b&gt;\nThe size of a downward price gap, comparing the prior day's low to the current session's high.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionGapDownPercent" xml:space="preserve">
+    <value>&lt;b&gt;Gap Down %&lt;/b&gt;\nThe size of a downward price gap expressed as a percentage rather than a price amount.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionGapUp" xml:space="preserve">
+    <value>&lt;b&gt;Gap Up&lt;/b&gt;\nThe size of an upward price gap, comparing the prior day's high to the current session's low.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionGapUpPercent" xml:space="preserve">
+    <value>&lt;b&gt;Gap Up %&lt;/b&gt;\nThe size of an upward price gap expressed as a percentage rather than a price amount.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionHigh52Weeks" xml:space="preserve">
+    <value>&lt;b&gt;High (52-Week)&lt;/b&gt;\nThe highest price the instrument has traded at over the past 52 weeks. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionHigh52WeeksDate" xml:space="preserve">
+    <value>&lt;b&gt;High (52-Week) Date&lt;/b&gt;\nThe date on which the 52-week high occurred. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionHistoricalVolatility" xml:space="preserve">
+    <value>&lt;b&gt;Historical Volatility&lt;/b&gt;\nA statistical measure of how much an instrument's price has fluctuated over a recent period, on an annualized basis. Higher values indicate greater price swings. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionInstrument" xml:space="preserve">
+    <value>&lt;b&gt;Instrument&lt;/b&gt;\nThe symbol of the instrument.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionLastClose" xml:space="preserve">
+    <value>&lt;b&gt;Last Close&lt;/b&gt;\nThe instrument's closing price from the previous session.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionLastPrice" xml:space="preserve">
+    <value>&lt;b&gt;Last Price&lt;/b&gt;\nThe most recently traded price. Can optionally highlight in green or red when the price ticks up or down.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionLastSize" xml:space="preserve">
+    <value>&lt;b&gt;Last Size&lt;/b&gt;\nThe size (number of contracts or shares) of the most recent trade.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionLow52Weeks" xml:space="preserve">
+    <value>&lt;b&gt;Low (52-Week)&lt;/b&gt;\nThe lowest price the instrument has traded at over the past 52 weeks. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionLow52WeeksDate" xml:space="preserve">
+    <value>&lt;b&gt;Low (52-Week) Date&lt;/b&gt;\nThe date on which the 52-week low occurred. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionMarketCap" xml:space="preserve">
+    <value>&lt;b&gt;Market Cap&lt;/b&gt;\nThe company's total market value, calculated as share price times shares outstanding. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionNetChange" xml:space="preserve">
+    <value>&lt;b&gt;Net Change&lt;/b&gt;\nThe change in price from the previous close to the current price, shown as a percentage, in points, ticks, pips, or currency depending on your preference.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionNetChangeMaxDown" xml:space="preserve">
+    <value>&lt;b&gt;Net Change Max Down&lt;/b&gt;\nThe largest decline from the previous close to the session's low so far today, useful for seeing the worst intraday drawdown.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionNetChangeMaxUp" xml:space="preserve">
+    <value>&lt;b&gt;Net Change Max Up&lt;/b&gt;\nThe largest gain from the previous close to the session's high so far today, useful for seeing the best intraday move.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionNextYearsEarningsPerShare" xml:space="preserve">
+    <value>&lt;b&gt;Next Year's Earnings Per Share&lt;/b&gt;\nAnalysts' consensus estimate for the company's earnings per share over the next fiscal year. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionNotes" xml:space="preserve">
+    <value>&lt;b&gt;Notes&lt;/b&gt;\nA free-text, editable field where you can jot down your own notes about the instrument.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionOpenInterest" xml:space="preserve">
+    <value>&lt;b&gt;Open Interest&lt;/b&gt;\nFor futures and options, the total number of outstanding contracts that have not yet been settled or closed.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionOpening" xml:space="preserve">
+    <value>&lt;b&gt;Opening&lt;/b&gt;\nThe price at which the instrument opened for the current session.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionPercentHeldByInstitutions" xml:space="preserve">
+    <value>&lt;b&gt;Percent Held by Institutions&lt;/b&gt;\nThe percentage of the company's outstanding shares held by institutional investors. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionPositionAvgPrice" xml:space="preserve">
+    <value>&lt;b&gt;Position Avg Price&lt;/b&gt;\nThe average entry price of your current open position in this instrument for the selected account.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionPositionSize" xml:space="preserve">
+    <value>&lt;b&gt;Position Size&lt;/b&gt;\nYour current position size in this instrument for the selected account; positive for long, negative for short.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionPriceEarningsRatio" xml:space="preserve">
+    <value>&lt;b&gt;Price/Earnings Ratio&lt;/b&gt;\nThe current share price divided by earnings per share, a common valuation metric for comparing how expensive a stock is relative to its earnings. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionProfitLoss" xml:space="preserve">
+    <value>&lt;b&gt;Profit/Loss&lt;/b&gt;\nYour total profit or loss on this instrument for the selected account, combining both realized and unrealized amounts, updated in real time.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionRealizedProfitLoss" xml:space="preserve">
+    <value>&lt;b&gt;Realized Profit/Loss&lt;/b&gt;\nYour closed-trade profit or loss on this instrument for the selected account.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionRevenuePerShare" xml:space="preserve">
+    <value>&lt;b&gt;Revenue Per Share&lt;/b&gt;\nThe company's total revenue divided by its shares outstanding. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionSettlement" xml:space="preserve">
+    <value>&lt;b&gt;Settlement&lt;/b&gt;\nThe official settlement price for the instrument.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionSharesOutstanding" xml:space="preserve">
+    <value>&lt;b&gt;Shares Outstanding&lt;/b&gt;\nThe total number of shares currently issued by the company. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionShortInterest" xml:space="preserve">
+    <value>&lt;b&gt;Short Interest&lt;/b&gt;\nThe total number of shares of the company currently sold short. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionShortInterestRatio" xml:space="preserve">
+    <value>&lt;b&gt;Short Interest Ratio&lt;/b&gt;\nAlso known as "days to cover," the number of days it would take to buy back all currently shorted shares based on average daily trading volume. Requires fundamental data.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionTSTrend" xml:space="preserve">
+    <value>&lt;b&gt;TS Trend&lt;/b&gt;\nA scrolling visual strip showing the pattern of recent trades color-coded by where each trade occurred relative to the bid/ask spread, giving an at-a-glance read on short-term buying or selling pressure.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionTimeLastTick" xml:space="preserve">
+    <value>&lt;b&gt;Time of Last Tick&lt;/b&gt;\nThe time of the most recent trade.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionTradedContracts" xml:space="preserve">
+    <value>&lt;b&gt;Traded Contracts&lt;/b&gt;\nThe cumulative quantity you've traded in this instrument for the selected account during the current session.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionUnrealizedProfitLoss" xml:space="preserve">
+    <value>&lt;b&gt;Unrealized Profit/Loss&lt;/b&gt;\nYour open-position profit or loss on this instrument for the selected account, based on the current market price.</value>
+  </data>
+  <data name="NinjaScriptMarketAnalyzerColumnLongDescriptionVWAP" xml:space="preserve">
+    <value>&lt;b&gt;VWAP&lt;/b&gt;\nVolume Weighted Average Price; the average price of the instrument weighted by volume traded, commonly used as a benchmark for trade execution quality. Requires fundamental data.</value>
   </data>
 </root>

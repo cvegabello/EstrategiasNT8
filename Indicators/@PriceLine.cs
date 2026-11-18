@@ -18,7 +18,9 @@ namespace NinjaTrader.NinjaScript.Indicators
 {
 	/// <summary>
 	/// Displays ask, bid, and/or last lines on the chart.
+	/// Superseded by the Data Series price markers (NT-50212) - hidden from indicator pickers, kept compiled so existing user scripts and hosted instances keep working.
 	/// </summary>
+	[Browsable(false)]
 	public class PriceLine : Indicator
 	{
 		protected override void OnStateChange()

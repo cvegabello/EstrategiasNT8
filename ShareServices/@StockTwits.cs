@@ -25,6 +25,10 @@ namespace NinjaTrader.NinjaScript.ShareServices
 	{
 		private object icon;
 
+		// Per-service HttpClient. Intentionally NOT NinjaTrader.Core.Http: on .NET Framework, binding a
+		// System.Net.Http type through NinjaTrader.Core fails the NinjaScript compile (CS1705). See Core.Http.
+		private static readonly HttpClient httpClient = new();
+
 		/// <summary>
 		/// This MUST be overridden for any custom service properties to be copied over when instances of the service are created
 		/// </summary>
@@ -123,10 +127,9 @@ namespace NinjaTrader.NinjaScript.ShareServices
 
 						// Verify the user's account so we can display the UserName
 						string accountVerifyUri = $"https://api.stocktwits.com/api/2/account/verify.json?access_token={OAuthToken}";
-						using (HttpClient client = new())
 						{
-							HttpResponseMessage				verifyResponse	= await client.GetAsync(accountVerifyUri);
-							string							result			= await new StreamReader(verifyResponse.Content.ReadAsStreamAsync().Result).ReadToEndAsync();
+							using HttpResponseMessage			verifyResponse	= await httpClient.GetAsync(accountVerifyUri);
+							string							result			= await verifyResponse.Content.ReadAsStringAsync();
 
 							if (new JavaScriptSerializer().DeserializeObject(result) is not Dictionary<string, object> results)
 							{
@@ -221,13 +224,12 @@ namespace NinjaTrader.NinjaScript.ShareServices
 
 			if (string.IsNullOrEmpty(imageFilePath))
 			{
-				using HttpClient client = new();
 				string message = $"body={Core.Globals.UrlEncode(twit)}&sentiment={StockTwitsSentiment.ToString().ToLower()}";
 
 				byte[]				encodedPostData		= new ASCIIEncoding().GetBytes(message);
 				HttpContent			byteContent			= new ByteArrayContent(encodedPostData);
-				HttpResponseMessage stockTwitsResponse	= await client.PostAsync(stocktwitsCreateMessageUrl, byteContent);
-				string				result				= await new StreamReader(stockTwitsResponse.Content.ReadAsStreamAsync().Result).ReadToEndAsync();
+				using HttpResponseMessage stockTwitsResponse	= await httpClient.PostAsync(stocktwitsCreateMessageUrl, byteContent);
+				string				result				= await stockTwitsResponse.Content.ReadAsStringAsync();
 				if (!stockTwitsResponse.IsSuccessStatusCode)
 				{
 					LogErrorResponse(result, stockTwitsResponse);
@@ -245,7 +247,6 @@ namespace NinjaTrader.NinjaScript.ShareServices
 					return;
 				}
 
-				using HttpClient client = new();
 				using MultipartFormDataContent formData = new();
 				string		url				= $"{stocktwitsCreateMessageUrl}&body={Core.Globals.UrlEncode(twit)}&sentiment={StockTwitsSentiment.ToString().ToLower()}";
 				byte[]		imageBytes		= File.ReadAllBytes(imageFilePath);
@@ -253,8 +254,8 @@ namespace NinjaTrader.NinjaScript.ShareServices
 				imageContent.Headers.Add("Content-Type", "image/png");
 				formData.Add(imageContent, "chart", "photo.png");	//Be sure to include a file name
 
-				HttpResponseMessage stockTwitsResponse	= await client.PostAsync(url, formData);
-				string				result				= await new StreamReader(stockTwitsResponse.Content.ReadAsStreamAsync().Result).ReadToEndAsync();
+				using HttpResponseMessage stockTwitsResponse	= await httpClient.PostAsync(url, formData);
+				string				result				= await stockTwitsResponse.Content.ReadAsStringAsync();
 
 				if (!stockTwitsResponse.IsSuccessStatusCode)
 				{

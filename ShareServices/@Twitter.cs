@@ -22,7 +22,11 @@ namespace NinjaTrader.NinjaScript.ShareServices
 {
 	public class Twitter : ShareService
 	{
-		private			object icon;
+		// Per-service HttpClient. Intentionally NOT NinjaTrader.Core.Http: on .NET Framework, binding a
+		// System.Net.Http type through NinjaTrader.Core fails the NinjaScript compile (CS1705). See Core.Http.
+		private			static readonly HttpClient	httpClient	= new HttpClient();
+
+		private			object					icon;
 		private const	string oauthConsumerKey	= "jq8MT2wxw93NVhcLrdjg";
 
 		/// <summary>
@@ -381,18 +385,19 @@ namespace NinjaTrader.NinjaScript.ShareServices
 
 				try
 				{
-					using HttpClient client = new();
 					string				postData				= "status=" + Core.Globals.UrlEncode(tweet);
 					byte[]				encodedPostData			= new ASCIIEncoding().GetBytes(postData);
 					HttpContent			byteContent				= new ByteArrayContent(encodedPostData);
 
 					byteContent.Headers.ContentType				= new MediaTypeHeaderValue("application/x-www-form-urlencoded");
-					client.DefaultRequestHeaders.Authorization	= new AuthenticationHeaderValue("OAuth", header);
-					client.DefaultRequestHeaders.ExpectContinue = false;
 
-					HttpResponseMessage twitterResponse			= await client.PostAsync(twitterUpdateUrl, byteContent);
+					using HttpRequestMessage request			= new(HttpMethod.Post, twitterUpdateUrl) { Content = byteContent };
+					request.Headers.Authorization				= new AuthenticationHeaderValue("OAuth", header);
+					request.Headers.ExpectContinue				= false;
 
-					string result = await new StreamReader(twitterResponse.Content.ReadAsStreamAsync().Result).ReadToEndAsync();
+					using HttpResponseMessage twitterResponse			= await httpClient.SendAsync(request);
+
+					string result = await twitterResponse.Content.ReadAsStringAsync();
 					// true if StatusCode was in the range 200-299; otherwise false.
 					if (!twitterResponse.IsSuccessStatusCode)
 						LogErrorResponse(result, twitterResponse);
@@ -447,15 +452,15 @@ namespace NinjaTrader.NinjaScript.ShareServices
 				{
 					HttpContent tweetContent				= new StringContent(tweet);
 					HttpContent imageContent				= new ByteArrayContent(imageBytes);
-					using HttpClient client					= new();
 					using MultipartFormDataContent formData	= new() { { tweetContent, "status" }, { imageContent, "media" } };
 
-					client.DefaultRequestHeaders.Connection.Add("Keep-Alive");
-					client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("OAuth", header);
-					client.DefaultRequestHeaders.ExpectContinue = false;
-					HttpResponseMessage twitterResponse = await client.PostAsync(twitterUpdateWithMediaUrl, formData);
+					using HttpRequestMessage request = new(HttpMethod.Post, twitterUpdateWithMediaUrl) { Content = formData };
+					request.Headers.Connection.Add("Keep-Alive");
+					request.Headers.Authorization = new AuthenticationHeaderValue("OAuth", header);
+					request.Headers.ExpectContinue = false;
+					using HttpResponseMessage twitterResponse = await httpClient.SendAsync(request);
 
-					string result = await new StreamReader(twitterResponse.Content.ReadAsStreamAsync().Result).ReadToEndAsync();
+					string result = await twitterResponse.Content.ReadAsStringAsync();
 					// true if StatusCode was in the range 200-299; otherwise false.
 					if (!twitterResponse.IsSuccessStatusCode)
 						LogErrorResponse(result, twitterResponse);

@@ -265,7 +265,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetMinLowSeparationTicks                = 8;      // Separación mínima en ticks entre la vela 4 y el Swing (8 ticks por defecto)
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
-                CascadaEnabled                              = true;   // Activar As 4 Cascada Surfer (Switch Maestro v5.0)
+                CascadaEnabled                              = false;  // Activar As 4 Cascada Surfer (Desactivado por defecto en v5.0 para operar inicialmente solo con Ratchet)
                 CascadaStartTime                            = 100000; // 10:00 AM EST - Sincronizado con apertura institucional 10:00 AM
                 CascadaFirstEntryContracts                  = 1;      // Modo exploratorio (1 contrato)
                 CascadaMinBars                              = 25;     // 25 barras consecutivas requeridas (compatibilidad)

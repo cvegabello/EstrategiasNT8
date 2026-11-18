@@ -5,6 +5,7 @@
 #region Using declarations
 
 using System.ComponentModel.DataAnnotations;
+using System.Windows.Media;
 using NinjaTrader.Cbi;
 using NinjaTrader.Data;
 using NinjaTrader.NinjaScript.DrawingTools;
@@ -53,7 +54,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 				? (CountDown ? Custom.Resource.VolumeCounterVolumeRemaining + volumeCount : Custom.Resource.VolumeCounterVolumeCount + volumeCount) + (ShowPercent ? "%" : "")
 				: Custom.Resource.VolumeCounterBarError;
 
-			Draw.TextFixedFine(this, "NinjaScriptInfo", volume1, TextPositionFine);
+			Draw.TextFixedFine(this, "NinjaScriptInfo", volume1, TextPositionFine, ChartControl.Properties.ChartText, ChartControl.Properties.LabelFont, Brushes.Transparent, Brushes.Transparent, 0);
 		}
 
 		#region Properties

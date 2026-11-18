@@ -55,7 +55,7 @@ public class SampleCustomRender : Indicator
 		{
 
 			// This sample should be used along side the help guide educational resource on this topic:
-			// http://www.ninjatrader.com/support/helpGuides/nt8/en-us/?using_sharpdx_for_custom_chart_rendering.htm
+			// https://static.ninjatrader.com/support/helpGuides/nt8/using_sharpdx_for_custom_chart_rendering.htm
 
 			// Default plotting in base class. Uncomment if indicators holds at least one plot
 			// in this case we would expect NOT to see the SMA plot we have as well in this sample script

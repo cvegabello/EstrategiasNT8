@@ -19,7 +19,7 @@ namespace NinjaTrader.Custom {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "18.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Resource {
@@ -1020,6 +1020,15 @@ namespace NinjaTrader.Custom {
         public static string DeviationValue {
             get {
                 return ResourceManager.GetString("DeviationValue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Discord.
+        /// </summary>
+        public static string DiscordServiceName {
+            get {
+                return ResourceManager.GetString("DiscordServiceName", resourceCulture);
             }
         }
         
@@ -2131,6 +2140,24 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Ask text alignment.
+        /// </summary>
+        public static string NinjaScriptAskTextAlignment {
+            get {
+                return ResourceManager.GetString("NinjaScriptAskTextAlignment", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Background.
+        /// </summary>
+        public static string NinjaScriptBackColor {
+            get {
+                return ResourceManager.GetString("NinjaScriptBackColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Background.
         /// </summary>
         public static string NinjaScriptBackground {
@@ -2298,6 +2325,15 @@ namespace NinjaTrader.Custom {
         public static string NinjaScriptBarsTypeWeek {
             get {
                 return ResourceManager.GetString("NinjaScriptBarsTypeWeek", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bid text alignment.
+        /// </summary>
+        public static string NinjaScriptBidTextAlignment {
+            get {
+                return ResourceManager.GetString("NinjaScriptBidTextAlignment", resourceCulture);
             }
         }
         
@@ -2625,6 +2661,141 @@ namespace NinjaTrader.Custom {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Bold most recent cell.
+        /// </summary>
+        public static string NinjaScriptColumnBoldMostRecentCell {
+            get {
+                return ResourceManager.GetString("NinjaScriptColumnBoldMostRecentCell", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color for down changes.
+        /// </summary>
+        public static string NinjaScriptColumnDownChangeColor {
+            get {
+                return ResourceManager.GetString("NinjaScriptColumnDownChangeColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enable highlight fade.
+        /// </summary>
+        public static string NinjaScriptColumnEnableHighlightFade {
+            get {
+                return ResourceManager.GetString("NinjaScriptColumnEnableHighlightFade", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Highlight changes.
+        /// </summary>
+        public static string NinjaScriptColumnHighlightChanges {
+            get {
+                return ResourceManager.GetString("NinjaScriptColumnHighlightChanges", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Highlight color.
+        /// </summary>
+        public static string NinjaScriptColumnHighlightColor {
+            get {
+                return ResourceManager.GetString("NinjaScriptColumnHighlightColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color for up changes.
+        /// </summary>
+        public static string NinjaScriptColumnUpChangeColor {
+            get {
+                return ResourceManager.GetString("NinjaScriptColumnUpChangeColor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Aggregate depth levels.
+        /// </summary>
+        public static string NinjaScriptDepthColumnAggregateDepth {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnAggregateDepth", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ask histogram.
+        /// </summary>
+        public static string NinjaScriptDepthColumnAskHistogram {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnAskHistogram", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bid histogram.
+        /// </summary>
+        public static string NinjaScriptDepthColumnBidHistogram {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnBidHistogram", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Histogram.
+        /// </summary>
+        public static string NinjaScriptDepthColumnHistogram {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnHistogram", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Histogram alignment.
+        /// </summary>
+        public static string NinjaScriptDepthColumnHistogramAlignment {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnHistogramAlignment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Normalize histogram with ask.
+        /// </summary>
+        public static string NinjaScriptDepthColumnNormalizeWithAsk {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnNormalizeWithAsk", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Normalize histogram with bid.
+        /// </summary>
+        public static string NinjaScriptDepthColumnNormalizeWithBid {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnNormalizeWithBid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show cumulative depth.
+        /// </summary>
+        public static string NinjaScriptDepthColumnShowCumulativeDepth {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnShowCumulativeDepth", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show histogram.
+        /// </summary>
+        public static string NinjaScriptDepthColumnShowHistogram {
+            get {
+                return ResourceManager.GetString("NinjaScriptDepthColumnShowHistogram", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Anchor.
         /// </summary>
@@ -3742,6 +3913,15 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Foreground.
+        /// </summary>
+        public static string NinjaScriptForeground {
+            get {
+                return ResourceManager.GetString("NinjaScriptForeground", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to General.
         /// </summary>
         public static string NinjaScriptGeneral {
@@ -3922,7 +4102,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=xbjJRaL81qo&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=19&amp;pp=iAQB\n\n&lt;b&gt;ADL (Accumulation/Distribution Line)&lt;/b&gt; is a cumulative volume-based indicator that relates price movement within each bar to its volume. When price closes in the upper portion of its range, volume is added; when it closes in the lower portion, volume is subtracted. The resulting line is intended to reflect buying or selling pressure over time and is often compared to price movement to evaluat [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:ADL)\n\n&lt;b&gt;ADL (Accumulation/Distribution Line)&lt;/b&gt; is a cumulative volume-based indicator that relates price movement within each bar to its volume. When price closes in the upper portion of its range, volume is added; when it closes in the lower portion, volume is subtracted. The resulting line is intended to reflect buying or selling pressure over time and is often compared to price movement to evaluate confirmation or divergence..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionADL {
             get {
@@ -3931,7 +4111,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=WdM2JlFJx7Q&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=17&amp;pp=iAQB\n\n&lt;b&gt;ADX (Average Directional Index)&lt;/b&gt; measures the strength of a trend without indicating its direction. Higher values reflect stronger directional movement, while lower values suggest weaker or range-bound conditions. ADX is derived from positive and negative directional movement components (&lt;b&gt;+DI&lt;/b&gt; and &lt;b&gt;-DI&lt;/b&gt;), which are used to assess directional bias while ADX reflects overall trend st [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:ADX)\n\n&lt;b&gt;ADX (Average Directional Index)&lt;/b&gt; measures the strength of a trend without indicating its direction. Higher values reflect stronger directional movement, while lower values suggest weaker or range-bound conditions. ADX is derived from positive and negative directional movement components (&lt;b&gt;+DI&lt;/b&gt; and &lt;b&gt;-DI&lt;/b&gt;), which are used to assess directional bias while ADX reflects overall trend strength.\n\nWhen ADX rises above the lower reference line, it is commonly interpreted [rest of string was truncated]&quot;;.
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionADX {
             get {
@@ -3949,7 +4129,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=Mzep8oQDZyA&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=9\n\n&lt;b&gt;APZ (Adaptive Price Zone)&lt;/b&gt; plots dynamic upper and lower bands around a moving average using market volatility. As volatility increases, the bands widen; as volatility contracts, they narrow. Price movement near or beyond the outer bands can indicate relatively extended conditions compared to recent price behavior. APZ is commonly used to visualize changing volatility and potential price expansion or [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:APZ)\n\n&lt;b&gt;APZ (Adaptive Price Zone)&lt;/b&gt; plots dynamic upper and lower bands around a moving average using market volatility. As volatility increases, the bands widen; as volatility contracts, they narrow. Price movement near or beyond the outer bands can indicate relatively extended conditions compared to recent price behavior. APZ is commonly used to visualize changing volatility and potential price expansion or contraction zones..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionAPZ {
             get {
@@ -3958,7 +4138,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=2XnAxkMpQHs&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=17\n\n&lt;b&gt;Aroon&lt;/b&gt; consists of &lt;b&gt;Aroon Up&lt;/b&gt; and &lt;b&gt;Aroon Down&lt;/b&gt;, which measure the number of bars since the most recent high and low within the selected &lt;b&gt;Period&lt;/b&gt;. Values near the upper range suggest recent highs or lows occurred more recently, while lower values indicate they occurred further back in time. The relationship between Aroon Up and Aroon Down is often used to assess emerging trends or weak [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:Aroon)\n\n&lt;b&gt;Aroon&lt;/b&gt; consists of &lt;b&gt;Aroon Up&lt;/b&gt; and &lt;b&gt;Aroon Down&lt;/b&gt;, which measure the number of bars since the most recent high and low within the selected &lt;b&gt;Period&lt;/b&gt;. Values near the upper range suggest recent highs or lows occurred more recently, while lower values indicate they occurred further back in time. The relationship between Aroon Up and Aroon Down is often used to assess emerging trends or weakening momentum..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionAroon {
             get {
@@ -4003,7 +4183,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=7UwjifDcW28&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=6\n\n&lt;b&gt;Bollinger (Bollinger Bands)&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of standard deviation. The bands expand as volatility increases and contract as volatility decreases. Price interacting with the outer bands can indicate relatively high or low levels compared to recent activity. Bollinger Bands are often used to visualize volatility shifts and relative price extremes..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:Bollinger)\n\n&lt;b&gt;Bollinger (Bollinger Bands)&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of standard deviation. The bands expand as volatility increases and contract as volatility decreases. Price interacting with the outer bands can indicate relatively high or low levels compared to recent activity. Bollinger Bands are often used to visualize volatility shifts and relative price extremes..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionBollinger {
             get {
@@ -4057,7 +4237,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=ydDRqD99byE&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=5\n\n&lt;b&gt;Candlestick Pattern&lt;/b&gt; detects a wide range of predefined candlestick formations based on the &lt;b&gt;Select pattern&lt;/b&gt; setting. Only the user-selected pattern is evaluated. When the specified formation is confirmed, the indicator places text on the chart at the occurrence and colors the related bar(s) to visually highlight the pattern. It is designed to identify and emphasize recognized price formations..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:CandlestickPattern)\n\n&lt;b&gt;Candlestick Pattern&lt;/b&gt; detects a wide range of predefined candlestick formations based on the &lt;b&gt;Select pattern&lt;/b&gt; setting. Only the user-selected pattern is evaluated. When the specified formation is confirmed, the indicator places text on the chart at the occurrence and colors the related bar(s) to visually highlight the pattern. It is designed to identify and emphasize recognized price formations..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionCandlestickPattern {
             get {
@@ -4138,7 +4318,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=PorVWVVRs6s&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=2\n\n&lt;b&gt;COT (Commitment of Traders)&lt;/b&gt; displays positioning data from the CFTC&apos;s weekly Commitment of Traders report, broken down by trader categories. The report is released each Friday and reflects positions as of the prior Tuesday. The indicator plots selected COT values to visualize changes in market participation over time. It is based on published report data (not real-time transactions) and is best view [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:COT)\n\n&lt;b&gt;COT (Commitment of Traders)&lt;/b&gt; displays positioning data from the CFTC&apos;s weekly Commitment of Traders report, broken down by trader categories. The report is released each Friday and reflects positions as of the prior Tuesday. The indicator plots selected COT values to visualize changes in market participation over time. It is based on published report data (not real-time transactions) and is best viewed on a weekly chart. To receive the latest data, &lt;b&gt;&quot;Download COTR data at [rest of string was truncated]&quot;;.
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionCOT {
             get {
@@ -4147,7 +4327,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=C5_spt0Yvhs&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=16\n\n&lt;b&gt;Current Day OHL (Current Day Open/High/Low)&lt;/b&gt; plots the current session&apos;s Open, High, and Low levels directly on the chart. The High and Low update throughout the session as new extremes are made, while the Open remains fixed at the session start. This indicator provides a clear reference to the active session&apos;s price range..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:CurrentDayOHL)\n\n&lt;b&gt;Current Day OHL (Current Day Open/High/Low)&lt;/b&gt; plots the current session&apos;s Open, High, and Low levels directly on the chart. The High and Low update throughout the session as new extremes are made, while the Open remains fixed at the session start. This indicator provides a clear reference to the active session&apos;s price range..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionCurrentDayOHL {
             get {
@@ -4219,7 +4399,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=3EhlGcyT3QU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=21\n\n&lt;b&gt;Donchian Channel&lt;/b&gt; plots upper and lower bands based on the highest high and lowest low over the selected &lt;b&gt;Period&lt;/b&gt;. The channel expands and contracts as new highs and lows are established. It is commonly used to visualize breakout levels and the current price range relative to recent extremes..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:DonchianChannel)\n\n&lt;b&gt;Donchian Channel&lt;/b&gt; plots upper and lower bands based on the highest high and lowest low over the selected &lt;b&gt;Period&lt;/b&gt;. The channel expands and contracts as new highs and lows are established. It is commonly used to visualize breakout levels and the current price range relative to recent extremes..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionDonchianChannel {
             get {
@@ -4246,7 +4426,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=pcraBHC70B8&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=19\n\n&lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt; is a moving average that places greater weight on recent prices, allowing it to respond more quickly to current market changes than a simple moving average. The slope and position of the EMA are often used to assess trend direction and short-term momentum..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:EMA)\n\n&lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt; is a moving average that places greater weight on recent prices, allowing it to respond more quickly to current market changes than a simple moving average. The slope and position of the EMA are often used to assess trend direction and short-term momentum..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionEMA {
             get {
@@ -4318,7 +4498,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=BRNYtRuy6QQ&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=12\n\n&lt;b&gt;Keltner Channel&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of &lt;b&gt;ATR (Average True Range)&lt;/b&gt;. The bands expand and contract based on volatility. Price interaction with the outer bands is commonly observed to assess relative extension and volatility conditions..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:KeltnerChannel)\n\n&lt;b&gt;Keltner Channel&lt;/b&gt; plots a moving average with upper and lower bands offset by a multiple of &lt;b&gt;ATR (Average True Range)&lt;/b&gt;. The bands expand and contract based on volatility. Price interaction with the outer bands is commonly observed to assess relative extension and volatility conditions..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionKeltnerChannel {
             get {
@@ -4372,7 +4552,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=2CgisquYX7A&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=22\n\n&lt;b&gt;MACD (Moving Average Convergence Divergence)&lt;/b&gt; plots the difference between a fast and slow &lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt;, along with a &lt;b&gt;Signal&lt;/b&gt; line (an EMA of the MACD) and a histogram that represents the distance between the MACD and Signal lines.\n\nWhen the MACD value is above zero, the fast EMA is positioned above the slow EMA, indicating shorter-term momentum is stronger than th [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:MACD)\n\n&lt;b&gt;MACD (Moving Average Convergence Divergence)&lt;/b&gt; plots the difference between a fast and slow &lt;b&gt;EMA (Exponential Moving Average)&lt;/b&gt;, along with a &lt;b&gt;Signal&lt;/b&gt; line (an EMA of the MACD) and a histogram that represents the distance between the MACD and Signal lines.\n\nWhen the MACD value is above zero, the fast EMA is positioned above the slow EMA, indicating shorter-term momentum is stronger than the longer-term average. When below zero, the fast EMA is positioned below th [rest of string was truncated]&quot;;.
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionMACD {
             get {
@@ -4444,7 +4624,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=lnf5g_GnLLE&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=3\n\n&lt;b&gt;Momentum&lt;/b&gt; measures the rate of change in price over the selected &lt;b&gt;Period&lt;/b&gt; by comparing the current price to the price a set number of bars ago. Positive values indicate price is higher than it was at the lookback point, while negative values indicate it is lower. The magnitude reflects the strength of the price change over that period..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:Momentum)\n\n&lt;b&gt;Momentum&lt;/b&gt; measures the rate of change in price over the selected &lt;b&gt;Period&lt;/b&gt; by comparing the current price to the price a set number of bars ago. Positive values indicate price is higher than it was at the lookback point, while negative values indicate it is lower. The magnitude reflects the strength of the price change over that period..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionMomentum {
             get {
@@ -4498,7 +4678,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=ZORmQeOKyBs&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=10\n\n&lt;b&gt;OBV (On-Balance Volume)&lt;/b&gt; is a cumulative volume indicator that adds volume when price closes higher and subtracts volume when price closes lower. The resulting line reflects the net flow of volume over time. OBV is commonly compared to price movement to assess confirmation or divergence in buying and selling pressure..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:OBV)\n\n&lt;b&gt;OBV (On-Balance Volume)&lt;/b&gt; is a cumulative volume indicator that adds volume when price closes higher and subtracts volume when price closes lower. The resulting line reflects the net flow of volume over time. OBV is commonly compared to price movement to assess confirmation or divergence in buying and selling pressure..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionOBV {
             get {
@@ -4507,7 +4687,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=I5hQfS33D24&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=14\n\n&lt;b&gt;Parabolic SAR (Parabolic Stop and Reverse)&lt;/b&gt; plots trailing stop levels that move incrementally with price based on an acceleration factor. When price crosses the SAR value, the indicator reverses position and begins plotting on the opposite side of price. It is commonly used to visualize trend direction and trailing stop placement..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:ParabolicSAR)\n\n&lt;b&gt;Parabolic SAR (Parabolic Stop and Reverse)&lt;/b&gt; plots trailing stop levels that move incrementally with price based on an acceleration factor. When price crosses the SAR value, the indicator reverses position and begins plotting on the opposite side of price. It is commonly used to visualize trend direction and trailing stop placement..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionParabolicSAR {
             get {
@@ -4543,7 +4723,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=ATddfGiV6SY&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=13\n\n&lt;b&gt;Pivots (Pivot Points)&lt;/b&gt; plots standard floor-trader pivot levels calculated from a prior period&apos;s high, low, and close. The indicator displays a central pivot along with projected support and resistance levels that update each new session or selected timeframe. These levels are commonly used as structured reference points for price movement..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:Pivots)\n\n&lt;b&gt;Pivots (Pivot Points)&lt;/b&gt; plots standard floor-trader pivot levels calculated from a prior period&apos;s high, low, and close. The indicator displays a central pivot along with projected support and resistance levels that update each new session or selected timeframe. These levels are commonly used as structured reference points for price movement..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionPivots {
             get {
@@ -4660,7 +4840,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=KKSC3ikwRHY&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=11\n\n&lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; is a 0–100 momentum oscillator that compares the magnitude of recent gains to recent losses over the selected &lt;b&gt;Period&lt;/b&gt;. Higher readings reflect stronger recent upward momentum, while lower readings reflect stronger recent downward momentum. The upper reference line is commonly associated with overbought conditions, and the lower reference line with oversold condit [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:RSI)\n\n&lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; is a 0–100 momentum oscillator that compares the magnitude of recent gains to recent losses over the selected &lt;b&gt;Period&lt;/b&gt;. Higher readings reflect stronger recent upward momentum, while lower readings reflect stronger recent downward momentum. The upper reference line is commonly associated with overbought conditions, and the lower reference line with oversold conditions. The indicator also plots &lt;b&gt;Avg&lt;/b&gt;, a smoothed version of RSI based o [rest of string was truncated]&quot;;.
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionRSI {
             get {
@@ -4705,7 +4885,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=pcraBHC70B8&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=19\n\n&lt;b&gt;SMA (Simple Moving Average)&lt;/b&gt; calculates the arithmetic average of price over the selected &lt;b&gt;Period&lt;/b&gt;. Each value in the lookback window is weighted equally. SMA is commonly used to smooth price data and assess general trend direction..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:SMA)\n\n&lt;b&gt;SMA (Simple Moving Average)&lt;/b&gt; calculates the arithmetic average of price over the selected &lt;b&gt;Period&lt;/b&gt;. Each value in the lookback window is weighted equally. SMA is commonly used to smooth price data and assess general trend direction..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionSMA {
             get {
@@ -4732,7 +4912,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=ES8UTUiHTaU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=4\n\n&lt;b&gt;Stochastics (Stochastics Oscillator)&lt;/b&gt; plots a smoothed %K and %D to measure the position of the close relative to the recent high-low range over the selected &lt;b&gt;Period&lt;/b&gt;. The %K line is smoothed by the &lt;b&gt;Smooth&lt;/b&gt; parameter, and %D is a moving average of %K. Values fluctuate between 0 and 100, with higher readings indicating price is closing near the top of its recent range and lower readings ind [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:Stochastics)\n\n&lt;b&gt;Stochastics (Stochastics Oscillator)&lt;/b&gt; plots a smoothed %K and %D to measure the position of the close relative to the recent high-low range over the selected &lt;b&gt;Period&lt;/b&gt;. The %K line is smoothed by the &lt;b&gt;Smooth&lt;/b&gt; parameter, and %D is a moving average of %K. Values fluctuate between 0 and 100, with higher readings indicating price is closing near the top of its recent range and lower readings indicating it is closing near the bottom. Upper and lower reference li [rest of string was truncated]&quot;;.
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionStochastics {
             get {
@@ -4741,7 +4921,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=ES8UTUiHTaU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=4\n\n&lt;b&gt;Stochastics Fast&lt;/b&gt; plots the unsmoothed %K along with %D, a moving average of %K. Because %K is not internally smoothed, Fast Stochastics responds more quickly to price changes than the standard Stochastics indicator. Values range between 0 and 100 and reflect where the close sits within the recent high-low range. Upper and lower reference lines are commonly associated with overbought and oversold con [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to [Video Tutorial](VT:StochasticsFast)\n\n&lt;b&gt;Stochastics Fast&lt;/b&gt; plots the unsmoothed %K along with %D, a moving average of %K. Because %K is not internally smoothed, Fast Stochastics responds more quickly to price changes than the standard Stochastics indicator. Values range between 0 and 100 and reflect where the close sits within the recent high-low range. Upper and lower reference lines are commonly associated with overbought and oversold conditions..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionStochasticsFast {
             get {
@@ -4750,7 +4930,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=ES8UTUiHTaU&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=4\n\n&lt;b&gt;Stoch RSI (Stochastic RSI)&lt;/b&gt; applies the stochastic calculation to &lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; values rather than directly to price. This creates an oscillator that measures the position of RSI within its own recent range. The result fluctuates between 0 and 1 and is designed to highlight momentum shifts within RSI itself..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:StochRSI)\n\n&lt;b&gt;Stoch RSI (Stochastic RSI)&lt;/b&gt; applies the stochastic calculation to &lt;b&gt;RSI (Relative Strength Index)&lt;/b&gt; values rather than directly to price. This creates an oscillator that measures the position of RSI within its own recent range. The result fluctuates between 0 and 1 and is designed to highlight momentum shifts within RSI itself..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionStochRSI {
             get {
@@ -4768,7 +4948,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=DlfyyIi-60M&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=15\n\n&lt;b&gt;Swing (Swing High/Low)&lt;/b&gt; identifies and plots swing highs and swing lows based on a specified &lt;b&gt;Strength&lt;/b&gt; setting. A swing high forms when a bar&apos;s high is greater than surrounding bars, and a swing low forms when a bar&apos;s low is lower than surrounding bars. The indicator updates once the required number of confirming bars has completed and is commonly used to visualize structural turning points..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:Swing)\n\n&lt;b&gt;Swing (Swing High/Low)&lt;/b&gt; identifies and plots swing highs and swing lows based on a specified &lt;b&gt;Strength&lt;/b&gt; setting. A swing high forms when a bar&apos;s high is greater than surrounding bars, and a swing low forms when a bar&apos;s low is lower than surrounding bars. The indicator updates once the required number of confirming bars has completed and is commonly used to visualize structural turning points..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionSwing {
             get {
@@ -4813,7 +4993,7 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Video Tutorial: www.youtube.com/watch?v=kOXxE6r5IE0&amp;list=PL3-s3qsUnfLSgA63mRRrNJv3lX4flD1UH&amp;index=7\n\n&lt;b&gt;Trend Lines&lt;/b&gt; automatically detects and draws trend lines based on recent swing highs and swing lows. Lines update as new qualifying swing points form, helping visualize directional structure and potential areas of support or resistance. This indicator focuses on structural price relationships rather than momentum calculations..
+        ///   Looks up a localized string similar to [Video Tutorial](VT:TrendLines)\n\n&lt;b&gt;Trend Lines&lt;/b&gt; automatically detects and draws trend lines based on recent swing highs and swing lows. Lines update as new qualifying swing points form, helping visualize directional structure and potential areas of support or resistance. This indicator focuses on structural price relationships rather than momentum calculations..
         /// </summary>
         public static string NinjaScriptIndicatorDescriptionTrendLines {
             get {
@@ -7468,6 +7648,15 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Negative foreground.
+        /// </summary>
+        public static string NinjaScriptNegativeForeground {
+            get {
+                return ResourceManager.GetString("NinjaScriptNegativeForeground", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Rows.
         /// </summary>
         public static string NinjaScriptNumberOfRows {
@@ -7900,6 +8089,15 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Positive foreground.
+        /// </summary>
+        public static string NinjaScriptPositiveForeground {
+            get {
+                return ResourceManager.GetString("NinjaScriptPositiveForeground", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Ask background.
         /// </summary>
         public static string NinjaScriptRecentColumnAskBackground {
@@ -7941,6 +8139,15 @@ namespace NinjaTrader.Custom {
         public static string NinjaScriptRecentColumnDiplay {
             get {
                 return ResourceManager.GetString("NinjaScriptRecentColumnDiplay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Highlight fade duration (seconds).
+        /// </summary>
+        public static string NinjaScriptRecentColumnHighlightFade {
+            get {
+                return ResourceManager.GetString("NinjaScriptRecentColumnHighlightFade", resourceCulture);
             }
         }
         
@@ -8265,6 +8472,15 @@ namespace NinjaTrader.Custom {
         public static string NinjaScriptSuperDomColumnVolume {
             get {
                 return ResourceManager.GetString("NinjaScriptSuperDomColumnVolume", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text alignment.
+        /// </summary>
+        public static string NinjaScriptTextAlignment {
+            get {
+                return ResourceManager.GetString("NinjaScriptTextAlignment", resourceCulture);
             }
         }
         
@@ -9025,6 +9241,78 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Discord share service connected to webhook &apos;{0}&apos;..
+        /// </summary>
+        public static string ShareDiscordConnected {
+            get {
+                return ResourceManager.GetString("ShareDiscordConnected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Discord share service could not validate the webhook URL: {0}.
+        /// </summary>
+        public static string ShareDiscordConnectError {
+            get {
+                return ResourceManager.GetString("ShareDiscordConnectError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The Discord webhook URL is missing or invalid. Verify the URL copied from your channel&apos;s webhook settings..
+        /// </summary>
+        public static string ShareDiscordInvalidWebhook {
+            get {
+                return ResourceManager.GetString("ShareDiscordInvalidWebhook", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Discord share service &apos;{0}&apos;: no webhook URL is configured..
+        /// </summary>
+        public static string ShareDiscordNoWebhook {
+            get {
+                return ResourceManager.GetString("ShareDiscordNoWebhook", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Message sent to Discord successfully via &apos;{0}&apos;..
+        /// </summary>
+        public static string ShareDiscordSentSuccessfully {
+            get {
+                return ResourceManager.GetString("ShareDiscordSentSuccessfully", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Webhook name.
+        /// </summary>
+        public static string ShareDiscordWebhookName {
+            get {
+                return ResourceManager.GetString("ShareDiscordWebhookName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Webhook URL.
+        /// </summary>
+        public static string ShareDiscordWebhookUrl {
+            get {
+                return ResourceManager.GetString("ShareDiscordWebhookUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The Discord channel webhook URL to post to. Create one in your channel under Server Settings &gt; Integrations &gt; Webhooks..
+        /// </summary>
+        public static string ShareDiscordWebhookUrlDescription {
+            get {
+                return ResourceManager.GetString("ShareDiscordWebhookUrlDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to A WebException was thrown. Status: &apos;{0}&apos; Message: &apos;{1}&apos;.
         /// </summary>
         public static string ShareException {
@@ -9232,6 +9520,24 @@ namespace NinjaTrader.Custom {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The &apos;{0}&apos; share service is no longer authorized. Its token may have been revoked or expired. Please reconnect the service under Tools &gt; Options &gt; Share to continue sharing.
+        /// </summary>
+        public static string ShareReauthorizationRequired {
+            get {
+                return ResourceManager.GetString("ShareReauthorizationRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Share Service Authorization Required.
+        /// </summary>
+        public static string ShareReauthorizationRequiredCaption {
+            get {
+                return ResourceManager.GetString("ShareReauthorizationRequiredCaption", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Credentials.
         /// </summary>
         public static string ShareServiceParameters {
@@ -9266,7 +9572,115 @@ namespace NinjaTrader.Custom {
                 return ResourceManager.GetString("ShareServiceUserName", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack returned an error: {0}.
+        /// </summary>
+        public static string ShareSlackApiError {
+            get {
+                return ResourceManager.GetString("ShareSlackApiError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bot token.
+        /// </summary>
+        public static string ShareSlackBotToken {
+            get {
+                return ResourceManager.GetString("ShareSlackBotToken", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The Slack Bot User OAuth Token (starts with xoxb-). Create a Slack app, add the chat:write and files:write scopes under OAuth &amp; Permissions, install it to your workspace, then copy the Bot User OAuth Token..
+        /// </summary>
+        public static string ShareSlackBotTokenDescription {
+            get {
+                return ResourceManager.GetString("ShareSlackBotTokenDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Channel ID.
+        /// </summary>
+        public static string ShareSlackChannel {
+            get {
+                return ResourceManager.GetString("ShareSlackChannel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The ID of the channel to post to (e.g. C0123ABCD). Invite your Slack app to that channel first. The ID is shown at the bottom of the channel&apos;s details dialog..
+        /// </summary>
+        public static string ShareSlackChannelDescription {
+            get {
+                return ResourceManager.GetString("ShareSlackChannelDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack share service connected to workspace &apos;{0}&apos;..
+        /// </summary>
+        public static string ShareSlackConnected {
+            get {
+                return ResourceManager.GetString("ShareSlackConnected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack share service could not validate the bot token: {0}.
+        /// </summary>
+        public static string ShareSlackConnectError {
+            get {
+                return ResourceManager.GetString("ShareSlackConnectError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack share service &apos;{0}&apos;: no channel ID is configured..
+        /// </summary>
+        public static string ShareSlackNoChannel {
+            get {
+                return ResourceManager.GetString("ShareSlackNoChannel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack share service &apos;{0}&apos;: no bot token is configured..
+        /// </summary>
+        public static string ShareSlackNoToken {
+            get {
+                return ResourceManager.GetString("ShareSlackNoToken", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Message sent to Slack successfully via &apos;{0}&apos;..
+        /// </summary>
+        public static string ShareSlackSentSuccessfully {
+            get {
+                return ResourceManager.GetString("ShareSlackSentSuccessfully", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack file upload failed: {0}.
+        /// </summary>
+        public static string ShareSlackUploadError {
+            get {
+                return ResourceManager.GetString("ShareSlackUploadError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Workspace.
+        /// </summary>
+        public static string ShareSlackWorkspaceName {
+            get {
+                return ResourceManager.GetString("ShareSlackWorkspaceName", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to StockTwits account could not be verified.
         /// </summary>
@@ -9282,6 +9696,114 @@ namespace NinjaTrader.Custom {
         public static string ShareStockTwitsSentSuccessfully {
             get {
                 return ResourceManager.GetString("ShareStockTwitsSentSuccessfully", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram returned an error: {0}.
+        /// </summary>
+        public static string ShareTelegramApiError {
+            get {
+                return ResourceManager.GetString("ShareTelegramApiError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bot.
+        /// </summary>
+        public static string ShareTelegramBotName {
+            get {
+                return ResourceManager.GetString("ShareTelegramBotName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bot token.
+        /// </summary>
+        public static string ShareTelegramBotToken {
+            get {
+                return ResourceManager.GetString("ShareTelegramBotToken", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The Telegram bot token issued by @BotFather (e.g. 123456789:ABC-DEF...). Message @BotFather in Telegram, create a bot with /newbot, then copy the token it provides..
+        /// </summary>
+        public static string ShareTelegramBotTokenDescription {
+            get {
+                return ResourceManager.GetString("ShareTelegramBotTokenDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram share service could not access the configured chat: {0}.
+        /// </summary>
+        public static string ShareTelegramChatError {
+            get {
+                return ResourceManager.GetString("ShareTelegramChatError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chat ID.
+        /// </summary>
+        public static string ShareTelegramChatId {
+            get {
+                return ResourceManager.GetString("ShareTelegramChatId", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The destination chat: a numeric chat ID or a public @channelusername. Add the bot to the chat, group, or channel first (as an administrator for channels)..
+        /// </summary>
+        public static string ShareTelegramChatIdDescription {
+            get {
+                return ResourceManager.GetString("ShareTelegramChatIdDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram share service connected as bot &apos;{0}&apos;..
+        /// </summary>
+        public static string ShareTelegramConnected {
+            get {
+                return ResourceManager.GetString("ShareTelegramConnected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram share service could not validate the bot token: {0}.
+        /// </summary>
+        public static string ShareTelegramConnectError {
+            get {
+                return ResourceManager.GetString("ShareTelegramConnectError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram share service &apos;{0}&apos;: no chat ID is configured..
+        /// </summary>
+        public static string ShareTelegramNoChatId {
+            get {
+                return ResourceManager.GetString("ShareTelegramNoChatId", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram share service &apos;{0}&apos;: no bot token is configured..
+        /// </summary>
+        public static string ShareTelegramNoToken {
+            get {
+                return ResourceManager.GetString("ShareTelegramNoToken", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Message sent to Telegram successfully via &apos;{0}&apos;..
+        /// </summary>
+        public static string ShareTelegramSentSuccessfully {
+            get {
+                return ResourceManager.GetString("ShareTelegramSentSuccessfully", resourceCulture);
             }
         }
         
@@ -9509,7 +10031,16 @@ namespace NinjaTrader.Custom {
                 return ResourceManager.GetString("SignalPeriod", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Slack.
+        /// </summary>
+        public static string SlackServiceName {
+            get {
+                return ResourceManager.GetString("SlackServiceName", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Slow.
         /// </summary>
@@ -9723,6 +10254,15 @@ namespace NinjaTrader.Custom {
         public static string TCount {
             get {
                 return ResourceManager.GetString("TCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Telegram.
+        /// </summary>
+        public static string TelegramServiceName {
+            get {
+                return ResourceManager.GetString("TelegramServiceName", resourceCulture);
             }
         }
         
@@ -10146,6 +10686,24 @@ namespace NinjaTrader.Custom {
         public static string VolumeNeutralColor {
             get {
                 return ResourceManager.GetString("VolumeNeutralColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Buy Sell.
+        /// </summary>
+        public static string VolumeType_BuySell {
+            get {
+                return ResourceManager.GetString("VolumeType_BuySell", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Standard.
+        /// </summary>
+        public static string VolumeType_Standard {
+            get {
+                return ResourceManager.GetString("VolumeType_Standard", resourceCulture);
             }
         }
         

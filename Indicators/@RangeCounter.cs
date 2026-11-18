@@ -5,6 +5,7 @@
 #region Using declarations
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.Windows.Media;
 using NinjaTrader.Data;
 using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
@@ -63,7 +64,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 			else
 				rangeString = Custom.Resource.RangeCounterBarError;
 
-			Draw.TextFixedFine(this, "NinjaScriptInfo", rangeString, TextPositionFine);
+			Draw.TextFixedFine(this, "NinjaScriptInfo", rangeString, TextPositionFine, ChartControl.Properties.ChartText, ChartControl.Properties.LabelFont, Brushes.Transparent, Brushes.Transparent, 0);
 		}
 
 		#region Properties

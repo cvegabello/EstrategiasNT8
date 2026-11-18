@@ -163,8 +163,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 				// If the current volume has dropped below the previous value, update APQ value 
 				lock (SuperDom.Rows)
 				{
-					PriceRow row = SuperDom.Rows.FirstOrDefault(r => Math.Abs(r.Price - mu.Price) < 0.000000000000001);
-					if (row != null)  
+					if (SuperDom.TryGetRowForPrice(mu.Price, out PriceRow row))
 					{
 						if (row.BuyOrders.Count > 0)
 						{
@@ -240,8 +239,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 					{
 						foreach (LadderRow bid in SuperDom.MarketDepth.Bids)
 						{
-							PriceRow row = SuperDom.Rows.FirstOrDefault(r => Math.Abs(r.Price - bid.Price) < 0.000000000000001);
-							if (row == null) continue;
+							if (!SuperDom.TryGetRowForPrice(bid.Price, out PriceRow row)) continue;
 
 							bool gotCurrentApq = priceApqValues.TryGetValue(bid.Price, out long currentApqValue);
 
@@ -272,8 +270,7 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 					{
 						foreach (LadderRow ask in SuperDom.MarketDepth.Asks)
 						{
-							PriceRow row = SuperDom.Rows.FirstOrDefault(r => Math.Abs(r.Price - ask.Price) < 0.000000000000001);
-							if (row == null) continue;
+							if (!SuperDom.TryGetRowForPrice(ask.Price, out PriceRow row)) continue;
 
 							bool gotCurrentApq = priceApqValues.TryGetValue(ask.Price, out long currentApqValue);
 

@@ -28,6 +28,9 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 {
 	public class Notes : MarketAnalyzerColumnBase
 	{
+		[Browsable(false)]
+		public override string LongDescription => MarketAnalyzerColumn.LookupLongDescription(GetType());
+
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)

@@ -47,5 +47,13 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 					indicator.IsDataSeriesRequired = value;
 			}
 		}
+
+		[Browsable(false)]
+		public override string LongDescription => LookupLongDescription(GetType());
+
+		// Columns which do not derive from MarketAnalyzerColumn (see @Description, @Instrument, @Notes and the
+		// MarketAnalyzerColumnRenderBase columns) override LongDescription and call this, so the resource key
+		// convention lives in one place. An absent key returns null, which leaves the description panel empty.
+		internal static string LookupLongDescription(Type type) => NinjaTrader.Custom.Resource.ResourceManager.GetString($"NinjaScriptMarketAnalyzerColumnLongDescription{type.Name}", NinjaTrader.Custom.Resource.Culture);
 	}
 }

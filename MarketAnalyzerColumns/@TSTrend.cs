@@ -42,6 +42,9 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 		private List<Tuple<Brush, Pen>> trendColors		= null;
 
 
+		[Browsable(false)]
+		public override string LongDescription => MarketAnalyzerColumn.LookupLongDescription(GetType());
+
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)

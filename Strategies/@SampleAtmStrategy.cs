@@ -29,7 +29,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 			if (CurrentBar < BarsRequiredToTrade)
 				return;
 
-			// HELP DOCUMENTATION REFERENCE: Please see the Help Guide section "Using ATM Strategies" under NinjaScript--> Educational Resources--> http://ninjatrader.com/support/helpGuides/nt8/en-us/using_atm_strategies.htm
+			// HELP DOCUMENTATION REFERENCE: Please see the Help Guide section "Using ATM Strategies" under NinjaScript--> Educational Resources--> https://static.ninjatrader.com/support/helpGuides/nt8/using_atm_strategies.htm
 
 			// Make sure this strategy does not execute against historical data
 			if(State == State.Historical)

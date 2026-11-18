@@ -1,17 +1,33 @@
-// 
+//
 // Copyright (C) 2026, NinjaTrader LLC <www.ninjatrader.com>.
 // NinjaTrader reserves the right to modify or overwrite this NinjaScript component with each release.
 //
+// PullingStacking.cs
+// SuperDOM Column - Displays pulling/stacking for both bid and ask depth in a single column.
+//
+//   Ask side (best ask and above):  current ask depth minus base ask depth
+//   Bid side (best bid and below):  current bid depth minus base bid depth
+//   Spread cells (between bid/ask): transparent background, no value
+//
+//   Positive value (stacking) → current depth is larger than the base
+//   Negative value (pulling)  → current depth is smaller than the base
+//
+// Base value behaviour:
+//   - Captured once on the first time a price enters the depth window
+//   - Never overwritten while the price remains in the window
+//   - Only evicted after the price has been absent for 1 second
+//   - Re-captured fresh the next time the price re-enters the window
+//
+// Click the column header to reset all base values.
+//
 #region Using declarations
 using NinjaTrader.Core.FloatingPoint;
-using NinjaTrader.Data;
 using NinjaTrader.Gui.SuperDom;
-
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Input;
@@ -23,332 +39,306 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 {
 	public class PullingStacking : SuperDomColumn
 	{
-		private				Dictionary<double, Timer>				askNoDataResetTimers;
-		private				Dictionary<double, Timer>				bidNoDataResetTimers;	
-		private				Dictionary<double, Tuple<long, long>>	askPriceDepthMap;
-		private				Dictionary<double, Tuple<long, long>>	bidPriceDepthMap;
-		private				Timer									bidAskResetTimer;
-		private readonly	object									collectionSync				= new();
-		private				FontFamily								fontFamily;
-		private				FontStyle								fontStyle;
-		private				FontWeight								fontWeight;
-		private				Pen										gridPen;			
-		private				double									halfPenWidth;
-		private				bool									heightUpdateNeeded;
-		private				Dictionary<string, double>				mmAskPriceMap;
-		private				Dictionary<string, double>				mmBidPriceMap;
-		private				double									previousAsk					= double.MinValue;
-		private				double									previousBid					= double.MinValue;
-		private				double									textHeight;
-		private				Typeface								typeFace;
+		public enum HAlign { Left, Center, Right }
+		private const int EvictionDelayMs = 1000;
+
+		private bool		eventsSubscribed;
+		private FontFamily	fontFamily;
+		private Pen			gridPen;
+		private double		halfPenWidth;
+		private Typeface	typeFace;
+
+		// Separate base-depth dictionaries for ask and bid sides
+		private ConcurrentDictionary<double, long>	askBaseDepth;
+		private ConcurrentDictionary<double, long>	bidBaseDepth;
+
+		// Separate eviction timers for ask and bid sides
+		private ConcurrentDictionary<double, Timer>	askEvictionTimers;
+		private ConcurrentDictionary<double, Timer>	bidEvictionTimers;
+
+		// Reusable per-render snapshots of the visible depth window; OnRender runs on the UI thread only
+		private Dictionary<double, long>			askVolumeSnapshot;
+		private Dictionary<double, long>			bidVolumeSnapshot;
 
 		public override void OnColumnLabelClicked(object sender, MouseButtonEventArgs e)
 		{
-			lock (collectionSync)
+			foreach (Timer t in askEvictionTimers.Values) t.Dispose();
+			askEvictionTimers.Clear();
+			askBaseDepth.Clear();
+
+			foreach (Timer t in bidEvictionTimers.Values) t.Dispose();
+			bidEvictionTimers.Clear();
+			bidBaseDepth.Clear();
+
+			SeedFromCurrentDepth();		// re-capture the base immediately so the column doesn't blank until the next depth update
+			OnPropertyChanged();
+		}
+
+		private void OnMarketDepthUpdate(object sender, Data.MarketDepthEventArgs e)
+		{
+			Data.MarketDepth<LadderRow>	marketDepth		= SuperDom?.MarketDepth;
+			List<LadderRow>				marketDepthAsks	= marketDepth?.Asks;
+			List<LadderRow>				marketDepthBids	= marketDepth?.Bids;
+
+			if (marketDepth == null) return;
+
+			int levels = SuperDom.DepthLevels;
+
+			lock (marketDepth.Instrument.SyncMarketDepth)
 			{
-				askNoDataResetTimers.Clear();
-				bidNoDataResetTimers.Clear();
-				askPriceDepthMap.Clear();
-				bidPriceDepthMap.Clear();
-				mmAskPriceMap.Clear();
-				mmBidPriceMap.Clear();
+				if (marketDepthAsks != null)
+				{
+					HashSet<double> activePrices = new HashSet<double>();
+					for (int i = 0; i < Math.Min(marketDepthAsks.Count, levels); i++)
+					{
+						LadderRow row = marketDepthAsks[i];
+						if (row.Volume <= 0) continue;
 
-				if (SuperDom.MarketDepth == null)
-					return;
+						activePrices.Add(row.Price);
 
+						if (askEvictionTimers.TryRemove(row.Price, out Timer existing))
+							existing.Dispose();
+
+						askBaseDepth.TryAdd(row.Price, row.Volume);
+					}
+
+					foreach (double price in askBaseDepth.Keys)
+						if (!activePrices.Contains(price))
+							askEvictionTimers.GetOrAdd(price, p =>
+								new Timer(OnAskEvictionTimer, p, EvictionDelayMs, Timeout.Infinite));
+				}
+
+				if (marketDepthBids != null)
+				{
+					HashSet<double> activePrices = new HashSet<double>();
+					for (int i = 0; i < Math.Min(marketDepthBids.Count, levels); i++)
+					{
+						LadderRow row = marketDepthBids[i];
+						if (row.Volume <= 0) continue;
+
+						activePrices.Add(row.Price);
+
+						if (bidEvictionTimers.TryRemove(row.Price, out Timer existing))
+							existing.Dispose();
+
+						bidBaseDepth.TryAdd(row.Price, row.Volume);
+					}
+
+					foreach (double price in bidBaseDepth.Keys)
+						if (!activePrices.Contains(price))
+							bidEvictionTimers.GetOrAdd(price, p =>
+								new Timer(OnBidEvictionTimer, p, EvictionDelayMs, Timeout.Infinite));
+				}
+			}
+
+			// Always repaint so the difference values stay current
+			OnPropertyChanged();
+		}
+
+		private void OnAskEvictionTimer(object state)
+		{
+			double price = (double)state;
+
+			if (SuperDom?.MarketDepth?.Asks != null)
+			{
+				int levels = SuperDom.DepthLevels;
 				lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-				{
-					for (int i = 0; i < SuperDom.MarketDepth.Asks.Count; i++)
-						askPriceDepthMap.Add(SuperDom.MarketDepth.Asks[i].Price, Tuple.Create(SuperDom.MarketDepth.Asks[i].Volume, 0L));
+					for (int i = 0; i < Math.Min(SuperDom.MarketDepth.Asks.Count, levels); i++)
+						if (SuperDom.MarketDepth.Asks[i].Price.ApproxCompare(price) == 0)
+						{
+							if (askEvictionTimers.TryRemove(price, out Timer t)) t.Dispose();
+							return;
+						}
+			}
 
-					for (int i = 0; i < SuperDom.MarketDepth.Bids.Count; i++)
-						bidPriceDepthMap.Add(SuperDom.MarketDepth.Bids[i].Price, Tuple.Create(SuperDom.MarketDepth.Bids[i].Volume, 0L));
-				}
+			askEvictionTimers.TryRemove(price, out Timer timer);
+			timer?.Dispose();
+
+			if (askBaseDepth.TryRemove(price, out _))
 				OnPropertyChanged();
-			}
 		}
 
-		protected override void OnMarketData(MarketDataEventArgs marketData)
+		private void OnBidEvictionTimer(object state)
 		{
-			if (marketData.MarketDataType == MarketDataType.Last)
-			{
-				lock (collectionSync)
-				{
-					if (askPriceDepthMap.TryGetValue(marketData.Price, out Tuple<long, long> depthTuple))
-						askPriceDepthMap[marketData.Price] = Tuple.Create(depthTuple.Item1 - marketData.Volume, depthTuple.Item2 - marketData.Volume);
-					if (bidPriceDepthMap.TryGetValue(marketData.Price, out depthTuple))
-						bidPriceDepthMap[marketData.Price] = Tuple.Create(depthTuple.Item1 - marketData.Volume, depthTuple.Item2 - marketData.Volume);
-				}
-			}
-			else if (ResetWhen == PullingStackingResetWhen.BidAskChange) 
-			{
-				if (marketData.MarketDataType == MarketDataType.Ask
-					&& (previousAsk <= double.MinValue || previousAsk.ApproxCompare(marketData.Price) != 0))
-				{
-					if (previousAsk > double.MinValue)
-					{
-						bidAskResetTimer?.Dispose();
+			double price = (double)state;
 
-						bidAskResetTimer = new(OnBidAskResetTimerCallback, Tuple.Create(marketData.Price, marketData.MarketDataType), ResetTolerance, Timeout.Infinite);
-					}
-					previousAsk = marketData.Price;
-				}
-				else if (marketData.MarketDataType == MarketDataType.Bid
-					&& (previousBid <= double.MinValue || previousBid.ApproxCompare(marketData.Price) != 0))
-				{
-					if (previousBid > double.MinValue)
-					{
-						bidAskResetTimer?.Dispose();
-
-						bidAskResetTimer = new(OnBidAskResetTimerCallback, Tuple.Create(marketData.Price, marketData.MarketDataType), ResetTolerance, Timeout.Infinite);
-					}
-					previousBid = marketData.Price;
-				}
+			if (SuperDom?.MarketDepth?.Bids != null)
+			{
+				int levels = SuperDom.DepthLevels;
+				lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
+					for (int i = 0; i < Math.Min(SuperDom.MarketDepth.Bids.Count, levels); i++)
+						if (SuperDom.MarketDepth.Bids[i].Price.ApproxCompare(price) == 0)
+						{
+							if (bidEvictionTimers.TryRemove(price, out Timer t)) t.Dispose();
+							return;
+						}
 			}
+
+			bidEvictionTimers.TryRemove(price, out Timer timer);
+			timer?.Dispose();
+
+			if (bidBaseDepth.TryRemove(price, out _))
+				OnPropertyChanged();
 		}
 
-		protected override void OnMarketDepth(MarketDepthEventArgs marketDepth)
+		private void SeedFromCurrentDepth()
 		{
-			if (marketDepth.IsReset)
+			if (SuperDom?.MarketDepth == null) return;
+
+			bool changed = false;
+			int  levels  = SuperDom.DepthLevels;
+
+			lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
 			{
-				lock (collectionSync)
-				{
-					askNoDataResetTimers.Clear();
-					bidNoDataResetTimers.Clear();
-					askPriceDepthMap.Clear();
-					bidPriceDepthMap.Clear();
-					mmAskPriceMap.Clear();
-					mmBidPriceMap.Clear();
-					OnPropertyChanged();
-					return;
-				}
+				if (SuperDom.MarketDepth.Asks != null)
+					for (int i = 0; i < Math.Min(SuperDom.MarketDepth.Asks.Count, levels); i++)
+					{
+						LadderRow row = SuperDom.MarketDepth.Asks[i];
+						if (row.Volume <= 0) continue;
+						if (askBaseDepth.TryAdd(row.Price, row.Volume)) changed = true;
+					}
+
+				if (SuperDom.MarketDepth.Bids != null)
+					for (int i = 0; i < Math.Min(SuperDom.MarketDepth.Bids.Count, levels); i++)
+					{
+						LadderRow row = SuperDom.MarketDepth.Bids[i];
+						if (row.Volume <= 0) continue;
+						if (bidBaseDepth.TryAdd(row.Price, row.Volume)) changed = true;
+					}
 			}
 
-			if (marketDepth.Position >= SuperDom.DepthLevels)
-				return;
-
-			lock (collectionSync)
-				if (marketDepth.MarketDataType == MarketDataType.Ask)
-				{
-					if (marketDepth.Operation == Cbi.Operation.Add)
-					{
-						if (marketDepth.Price.ApproxCompare(0) == 0 && marketDepth.Volume == 0)
-							return;
-
-						PriceRow row;
-						lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-							row = SuperDom.Rows.FirstOrDefault(r => r.Price.ApproxCompare(marketDepth.Price) == 0);
-
-						if (!string.IsNullOrEmpty(marketDepth.MarketMaker))
-							mmAskPriceMap[marketDepth.MarketMaker] = marketDepth.Price;
-
-						if (askPriceDepthMap.TryGetValue(marketDepth.Price, out Tuple<long, long> existingDepth) && existingDepth.Item1 > 0)
-							askPriceDepthMap[marketDepth.Price] = Tuple.Create(existingDepth.Item1, marketDepth.Volume - existingDepth.Item1);
-						else
-							askPriceDepthMap[marketDepth.Price] = Tuple.Create(row.AskVolume, 0L);
-					}
-					else if (marketDepth.Operation == Cbi.Operation.Update)
-					{
-						if (askPriceDepthMap.TryGetValue(marketDepth.Price, out Tuple<long, long> depthTuple))
-							askPriceDepthMap[marketDepth.Price] = Tuple.Create(depthTuple.Item1, marketDepth.Volume - depthTuple.Item1);
-						else
-							askPriceDepthMap[marketDepth.Price] = Tuple.Create(marketDepth.Volume, 0L);
-					}
-					else if (ResetWhen == PullingStackingResetWhen.NoMoreData)
-					{
-						double price = marketDepth.Price;
-						if (!string.IsNullOrEmpty(marketDepth.MarketMaker))
-						{
-							if (mmAskPriceMap.TryGetValue(marketDepth.MarketMaker, out double mmPrice))
-								price = mmPrice;
-						}
-
-						PriceRow row;
-						lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-							row = SuperDom.Rows.FirstOrDefault(r => r.Price.ApproxCompare(price) == 0);
-
-						if (row == null)
-							return;
-
-						if (row.AskVolume > 0)
-							return;
-
-						if (askNoDataResetTimers.TryGetValue(price, out Timer existingTimer))
-							existingTimer.Dispose();
-
-						askNoDataResetTimers[price] = new(OnNoDataResetTimerCallback, Tuple.Create(price, MarketDataType.Ask), ResetTolerance, Timeout.Infinite);
-					}
-				}
-				else if (marketDepth.MarketDataType == MarketDataType.Bid)
-				{
-					if (marketDepth.Operation == Cbi.Operation.Add)
-					{
-						if (marketDepth.Price.ApproxCompare(0) == 0 && marketDepth.Volume == 0)
-							return;
-
-						PriceRow row;
-						lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-							row = SuperDom.Rows.FirstOrDefault(r => r.Price.ApproxCompare(marketDepth.Price) == 0);
-
-						if (!string.IsNullOrEmpty(marketDepth.MarketMaker))
-							mmBidPriceMap[marketDepth.MarketMaker] = marketDepth.Price;
-
-						if (bidPriceDepthMap.TryGetValue(marketDepth.Price, out Tuple<long, long> existingDepth) && existingDepth.Item1 > 0)
-							bidPriceDepthMap[marketDepth.Price] = Tuple.Create(existingDepth.Item1, marketDepth.Volume - existingDepth.Item1);
-						else
-							bidPriceDepthMap[marketDepth.Price] = Tuple.Create(row.BidVolume, 0L);
-					}
-					else if (marketDepth.Operation == Cbi.Operation.Update)
-					{
-						if (bidPriceDepthMap.TryGetValue(marketDepth.Price, out Tuple<long, long> depthTuple))
-							bidPriceDepthMap[marketDepth.Price] = Tuple.Create(depthTuple.Item1, marketDepth.Volume - depthTuple.Item1);
-						else
-							bidPriceDepthMap[marketDepth.Price] = Tuple.Create(marketDepth.Volume, 0L);
-					}
-					else if (ResetWhen == PullingStackingResetWhen.NoMoreData)
-					{
-						double price = marketDepth.Price;
-						if (!string.IsNullOrEmpty(marketDepth.MarketMaker))
-						{
-							if (mmBidPriceMap.TryGetValue(marketDepth.MarketMaker, out double mmPrice))
-								price = mmPrice;
-						}
-
-						PriceRow row;
-						lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-							row = SuperDom.Rows.FirstOrDefault(r => r.Price.ApproxCompare(price) == 0);
-
-						if (row == null)
-							return;
-
-						if (row.BidVolume > 0)
-							return;
-
-						if (bidNoDataResetTimers.TryGetValue(price, out Timer existingTimer))
-							existingTimer.Dispose();
-
-						bidNoDataResetTimers[price] = new(OnNoDataResetTimerCallback, Tuple.Create(price, MarketDataType.Bid), ResetTolerance, Timeout.Infinite);
-					}
-				}
+			if (changed)
+				OnPropertyChanged();
 		}
 
 		protected override void OnRender(DrawingContext dc, double renderWidth)
 		{
-			// This may be true if the UI for a column hasn't been loaded yet (e.g., restoring multiple tabs from workspace won't load each tab until it's clicked by the user)
+			if (!IsVisible) return;
+
 			if (gridPen == null)
 			{
 				if (UiWrapper != null && PresentationSource.FromVisual(UiWrapper)?.CompositionTarget is { } target)
 				{
-					Matrix m			= target.TransformToDevice;
-					double dpiFactor	= 1 / m.M11;
-					gridPen				= new(Application.Current.TryFindResource("BorderThinBrush") as Brush,  1 * dpiFactor);
-					halfPenWidth		= gridPen.Thickness * 0.5;
+					Matrix m		= target.TransformToDevice;
+					double dpiFactor= 1 / m.M11;
+					gridPen			= new Pen(Application.Current.TryFindResource("BorderThinBrush") as Brush, 1 * dpiFactor);
+					halfPenWidth	= gridPen.Thickness * 0.5;
 				}
 			}
 
-			if (!Equals(fontFamily, SuperDom.Font.Family)
-				|| (SuperDom.Font.Italic && fontStyle != FontStyles.Italic)
-				|| (!SuperDom.Font.Italic && fontStyle == FontStyles.Italic)
-				|| (SuperDom.Font.Bold && fontWeight != FontWeights.Bold)
-				|| (!SuperDom.Font.Bold && fontWeight == FontWeights.Bold))
-			{
-				// Only update this if something has changed
-				fontFamily			= SuperDom.Font.Family;
-				fontStyle			= SuperDom.Font.Italic ? FontStyles.Italic : FontStyles.Normal;
-				fontWeight			= SuperDom.Font.Bold ? FontWeights.Bold : FontWeights.Normal;
-				typeFace			= new(fontFamily, fontStyle, fontWeight, FontStretches.Normal);
-				heightUpdateNeeded	= true;
-			}
-			double verticalOffset	= -gridPen?.Thickness ?? 0;
+			if (gridPen == null) return;
+
+			double verticalOffset	= -gridPen.Thickness;
 			double pixelsPerDip		= VisualTreeHelper.GetDpi(UiWrapper).PixelsPerDip;
+
+			// Snapshot best bid/ask and the visible depth window once per render pass so each row below is an O(1) dictionary lookup
+			double	bestBid		= double.MinValue;
+			double	bestAsk		= double.MaxValue;
+			int		depthLevels	= SuperDom.DepthLevels;
+
+			askVolumeSnapshot.Clear();
+			bidVolumeSnapshot.Clear();
+
+			// Snapshot MarketDepth so a concurrent shutdown/disconnect cannot null it between the check and the lock
+			Data.MarketDepth<LadderRow> marketDepth = SuperDom.MarketDepth;
+			if (marketDepth != null)
+			{
+				lock (marketDepth.Instrument.SyncMarketDepth)
+				{
+					List<LadderRow> asks = marketDepth.Asks;
+					List<LadderRow> bids = marketDepth.Bids;
+
+					if (bids?.Count > 0)
+						bestBid = bids[0].Price;
+					if (asks?.Count > 0)
+						bestAsk = asks[0].Price;
+
+if (asks != null)
+{
+	int askCount = Math.Min(asks.Count, depthLevels);
+	for (int i = 0; i < askCount; i++)
+		askVolumeSnapshot[asks[i].Price] = asks[i].Volume;
+}
+
+if (bids != null)
+{
+	int bidCount = Math.Min(bids.Count, depthLevels);
+	for (int i = 0; i < bidCount; i++)
+		bidVolumeSnapshot[bids[i].Price] = bids[i].Volume;
+}
+				}
+			}
 
 			lock (SuperDom.Rows)
 				foreach (PriceRow row in SuperDom.Rows)
 				{
 					if (renderWidth - halfPenWidth >= 0)
 					{
-						// Draw cell
 						Rect rect = new(-halfPenWidth, verticalOffset, renderWidth - halfPenWidth, SuperDom.ActualRowHeight);
 
-						// Create a guidelines set
 						GuidelineSet guidelines = new();
-						guidelines.GuidelinesX.Add(rect.Left	+ halfPenWidth);
-						guidelines.GuidelinesX.Add(rect.Right	+ halfPenWidth);
-						guidelines.GuidelinesY.Add(rect.Top		+ halfPenWidth);
-						guidelines.GuidelinesY.Add(rect.Bottom	+ halfPenWidth);
+						guidelines.GuidelinesX.Add(rect.Left   + halfPenWidth);
+						guidelines.GuidelinesX.Add(rect.Right  + halfPenWidth);
+						guidelines.GuidelinesY.Add(rect.Top    + halfPenWidth);
+						guidelines.GuidelinesY.Add(rect.Bottom + halfPenWidth);
 
 						dc.PushGuidelineSet(guidelines);
 
-						// Draw the Ask and Bid rectangles
-						if (DisplayType == PullingStackingDisplayType.BidAsk)
-						{
-							Rect bidRect = new(-halfPenWidth, verticalOffset, renderWidth / 2 - halfPenWidth, SuperDom.ActualRowHeight);
-							Rect askRect = new(renderWidth / 2 - halfPenWidth, verticalOffset, renderWidth / 2 - halfPenWidth, SuperDom.ActualRowHeight);
-							dc.DrawRectangle(BidBackColor, null, bidRect);
-							dc.DrawRectangle(AskBackColor, null, askRect);
-						}
-						else if (DisplayType == PullingStackingDisplayType.Ask)
-						{
-							dc.DrawRectangle(AskBackColor, null, rect);
-						}
-						else if (DisplayType == PullingStackingDisplayType.Bid)
-						{
-							dc.DrawRectangle(BidBackColor, null, rect);
-						}
+						// ── Background: bid zone, ask zone, or transparent spread ──
+						bool isAskZone = bestAsk < double.MaxValue && row.Price.ApproxCompare(bestAsk) >= 0;
+						bool isBidZone = bestBid > double.MinValue && row.Price.ApproxCompare(bestBid) <= 0;
 
-						dc.DrawLine(gridPen, new(-gridPen?.Thickness ?? 0, rect.Bottom), new(renderWidth - halfPenWidth, rect.Bottom));
-						dc.DrawLine(gridPen, new(rect.Right, verticalOffset), new(rect.Right, rect.Bottom));
+						Brush cellBackground = isAskZone ? AskBackColor
+							                 : isBidZone ? BidBackColor
+							                 : Brushes.Transparent;
 
-						// Write bid/ask pulling/stacking values
-						if (SuperDom.IsConnected
-							&& !SuperDom.IsReloading
-							&& State == State.Active)
+						dc.DrawRectangle(cellBackground, null, rect);
+						dc.DrawLine(gridPen, new Point(-gridPen.Thickness, rect.Bottom), new Point(renderWidth - halfPenWidth, rect.Bottom));
+						dc.DrawLine(gridPen, new Point(rect.Right, verticalOffset), new Point(rect.Right, rect.Bottom));
+
+						// ── Value: look up live volume from the per-render snapshot, ask side first ──
+						bool isAskDepth = askVolumeSnapshot.TryGetValue(row.Price, out long currentVol) && currentVol > 0;
+						if (!isAskDepth)
+							bidVolumeSnapshot.TryGetValue(row.Price, out currentVol);
+
+						// Only render text if there is live depth AND a stored base for this price
+						long baseVol = 0;
+						bool hasBase = isAskDepth
+							? askBaseDepth.TryGetValue(row.Price, out baseVol)
+							: bidBaseDepth.TryGetValue(row.Price, out baseVol);
+
+						if (currentVol > 0 && hasBase && baseVol > 0)
 						{
-							lock (collectionSync)
+							long  diff	= currentVol - baseVol;
+							Brush fg	= diff >= 0 ? PositiveForeColor : NegativeForeColor;
+
+							fontFamily	= SuperDom.Font.Family;
+							typeFace	= new Typeface(fontFamily,
+								SuperDom.Font.Italic ? FontStyles.Italic : FontStyles.Normal,
+								SuperDom.Font.Bold   ? FontWeights.Bold  : FontWeights.Normal,
+								FontStretches.Normal);
+
+							if (renderWidth - 8 > 0)
 							{
-								if (DisplayType == PullingStackingDisplayType.BidAsk || DisplayType == PullingStackingDisplayType.Bid)
+								HAlign align = isAskDepth ? AskTextAlignment : BidTextAlignment;
+								FormattedText text = new(
+									diff.ToString(Core.Globals.GeneralOptions.CurrentCulture),
+									Core.Globals.GeneralOptions.CurrentCulture,
+									FlowDirection.LeftToRight,
+									typeFace,
+									SuperDom.Font.Size,
+									fg,
+									pixelsPerDip)
 								{
-									if (bidPriceDepthMap.TryGetValue(row.Price, out Tuple<long, long> bidVolume) && row.BidVolume > 0)
-									{
-										fontFamily	= SuperDom.Font.Family;
-										typeFace	= new(fontFamily, SuperDom.Font.Italic ? FontStyles.Italic : FontStyles.Normal, SuperDom.Font.Bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal);
+									MaxLineCount  = 1,
+									MaxTextWidth  = renderWidth - 8,
+									Trimming      = TextTrimming.CharacterEllipsis,
+									TextAlignment = align == HAlign.Left  ? System.Windows.TextAlignment.Left
+													: align == HAlign.Right ? System.Windows.TextAlignment.Right
+													: System.Windows.TextAlignment.Center
+								};
 
-										if (renderWidth - 6 > 0)
-										{
-											FormattedText bidText = new(bidVolume.Item2.ToString(Core.Globals.GeneralOptions.CurrentCulture), Core.Globals.GeneralOptions.CurrentCulture, FlowDirection.LeftToRight, typeFace, SuperDom.Font.Size, BidForeColor, pixelsPerDip) { MaxLineCount = 1, MaxTextWidth = renderWidth / 2 - 6, Trimming = TextTrimming.CharacterEllipsis };
-											// Getting the text height is expensive, so only update it if something's changed
-											if (heightUpdateNeeded)
-											{
-												textHeight = bidText.Height;
-												heightUpdateNeeded = false;
-											}
-
-											dc.DrawText(bidText, new(0 + 4, verticalOffset + (SuperDom.ActualRowHeight - textHeight) / 2));
-										}
-									}
-								}
-
-								if (DisplayType == PullingStackingDisplayType.BidAsk || DisplayType == PullingStackingDisplayType.Ask)
-								{
-									if (askPriceDepthMap.TryGetValue(row.Price, out Tuple<long, long> askVolume) && row.AskVolume > 0)
-									{
-										fontFamily	= SuperDom.Font.Family;
-										typeFace	= new(fontFamily, SuperDom.Font.Italic ? FontStyles.Italic : FontStyles.Normal, SuperDom.Font.Bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal);
-
-										if (renderWidth - 6 > 0)
-										{
-											FormattedText askText = new(askVolume.Item2.ToString(Core.Globals.GeneralOptions.CurrentCulture), Core.Globals.GeneralOptions.CurrentCulture, FlowDirection.LeftToRight, typeFace, SuperDom.Font.Size, AskForeColor, pixelsPerDip) { MaxLineCount = 1, MaxTextWidth = renderWidth / 2 - 6, Trimming = TextTrimming.CharacterEllipsis };
-											// Getting the text height is expensive, so only update it if something's changed
-											if (heightUpdateNeeded)
-											{
-												textHeight = askText.Height;
-												heightUpdateNeeded = false;
-											}
-
-											dc.DrawText(askText, new(renderWidth / 2 + 4, verticalOffset + (SuperDom.ActualRowHeight - textHeight) / 2));
-										}
-									}
-								}
+								dc.DrawText(text, new Point(4, verticalOffset + (SuperDom.ActualRowHeight - text.Height) / 2));
 							}
 						}
 
@@ -362,143 +352,83 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 		{
 			if (State == State.SetDefaults)
 			{
-				Name							= Gui.Resource.NinjaScriptSuperDomColumnPullingStackingLabel;
-				Description						= Gui.Resource.NinjaScriptSuperdomColumnPullingStackingDescription;
-				DefaultWidth					= 100;
-				PreviousWidth					= -1;
-				IsDataSeriesRequired			= false;
-				AskBackColor					= Application.Current.TryFindResource("brushPriceColumnBackground") as Brush;
-				AskForeColor					= Application.Current.TryFindResource("brushVolumeColumnForeground") as SolidColorBrush;
-				BidBackColor					= Application.Current.TryFindResource("brushPriceColumnBackground") as Brush;
-				BidForeColor					= Application.Current.TryFindResource("brushVolumeColumnForeground") as SolidColorBrush;
-				askNoDataResetTimers			= new();
-				bidNoDataResetTimers			= new();
-				askPriceDepthMap				= new();
-				bidPriceDepthMap				= new();
-				mmAskPriceMap					= new();
-				mmBidPriceMap					= new();
-				DisplayType						= PullingStackingDisplayType.BidAsk;
-				ResetWhen						= PullingStackingResetWhen.BidAskChange;
-				ResetTolerance					= 2500;
+				Name					= Gui.Resource.NinjaScriptSuperDomColumnPullingStackingLabel;
+				Description				= Gui.Resource.NinjaScriptSuperdomColumnPullingStackingDescription;
+				DefaultWidth			= 80;
+				PreviousWidth			= -1;
+				IsDataSeriesRequired	= false;
+				AskBackColor			= new SolidColorBrush(Color.FromArgb(0x25, 0xFF, 0x66, 0x66));
+				BidBackColor			= new SolidColorBrush(Color.FromArgb(0x25, 0x64, 0x95, 0xED));
+				PositiveForeColor		= Application.Current.TryFindResource("FontControlBrush") as Brush;
+				NegativeForeColor		= new SolidColorBrush(Color.FromArgb(0xFF, 0xFF, 0x00, 0x00));
+				AskTextAlignment		= HAlign.Left;
+				BidTextAlignment		= HAlign.Left;
+				IsVisible				= true;
+				askBaseDepth			= new ConcurrentDictionary<double, long>();
+				bidBaseDepth			= new ConcurrentDictionary<double, long>();
+				askEvictionTimers		= new ConcurrentDictionary<double, Timer>();
+				bidEvictionTimers		= new ConcurrentDictionary<double, Timer>();
+				askVolumeSnapshot		= new Dictionary<double, long>();
+				bidVolumeSnapshot		= new Dictionary<double, long>();
 			}
 			else if (State == State.Configure)
 			{
 				if (UiWrapper != null && PresentationSource.FromVisual(UiWrapper)?.CompositionTarget is { } target)
-				{ 
-					Matrix m			= target.TransformToDevice;
-					double dpiFactor	= 1 / m.M11;
-					gridPen				= new(Application.Current.TryFindResource("BorderThinBrush") as Brush,  1 * dpiFactor);
-					halfPenWidth		= gridPen.Thickness * 0.5;
+				{
+					Matrix m		= target.TransformToDevice;
+					double dpiFactor= 1 / m.M11;
+					gridPen			= new Pen(Application.Current.TryFindResource("BorderThinBrush") as Brush, 1 * dpiFactor);
+					halfPenWidth	= gridPen.Thickness * 0.5;
 				}
 			}
-			else if (State == State.Terminated) { }
-		}
-
-		private void OnBidAskResetTimerCallback(object state)
-		{
-			// This resets the entire column when the bid or ask changes after a tolerance period
-			lock (collectionSync)
+			else if (State == State.Active)
 			{
-				if (SuperDom.Instrument == null || SuperDom.Instrument.MarketData.Ask == null || SuperDom.Instrument.MarketData.Bid == null)
+				SeedFromCurrentDepth();
+
+				if (!eventsSubscribed && SuperDom?.MarketDepth != null)
 				{
-					askPriceDepthMap.Clear();
-					bidPriceDepthMap.Clear();
-					mmAskPriceMap.Clear();
-					mmBidPriceMap.Clear();
-					return;
-				}
-
-				Tuple<double, MarketDataType> priorPrice = (Tuple<double, MarketDataType>)state;
-				if (priorPrice.Item2 == MarketDataType.Ask)
-				{
-					if (priorPrice.Item1.ApproxCompare(SuperDom.Instrument.MarketData.Ask.Price) == 0)
-						return;
-				} 
-				else if (priorPrice.Item2 == MarketDataType.Bid)
-				{
-					if (priorPrice.Item1.ApproxCompare(SuperDom.Instrument.MarketData.Bid.Price) == 0)
-						return;
-				}
-
-				askPriceDepthMap.Clear();
-				bidPriceDepthMap.Clear();
-				mmAskPriceMap.Clear();
-				mmBidPriceMap.Clear();
-
-				if (SuperDom.MarketDepth == null)
-					return;
-
-				lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-				{
-					for (int i = 0; i < SuperDom.MarketDepth.Asks.Count; i++)
-						askPriceDepthMap[SuperDom.MarketDepth.Asks[i].Price] = Tuple.Create(SuperDom.MarketDepth.Asks[i].Volume, 0L);
-
-					for (int i = 0; i < SuperDom.MarketDepth.Bids.Count; i++)
-						bidPriceDepthMap[SuperDom.MarketDepth.Bids[i].Price] = Tuple.Create(SuperDom.MarketDepth.Bids[i].Volume, 0L);
+					WeakEventManager<Data.MarketDepth<LadderRow>, Data.MarketDepthEventArgs>
+						.AddHandler(SuperDom.MarketDepth, "Update", OnMarketDepthUpdate);
+					eventsSubscribed = true;
 				}
 			}
-		}
-
-		private void OnNoDataResetTimerCallback(object state)
-		{
-			// This resets only the bid or ask price level when no data has been received after a tolerance period
-			if (SuperDom.MarketDepth == null)
-				return;
-
-			lock (collectionSync)
+			else if (State == State.Terminated)
 			{
-				Tuple<double, MarketDataType> priorPrice = (Tuple<double, MarketDataType>)state;
-				lock (SuperDom.MarketDepth.Instrument.SyncMarketDepth)
-					if (priorPrice.Item2 == MarketDataType.Ask)
-					{
-						MarketDepthRow row = SuperDom.MarketDepth.Asks.FirstOrDefault(a => a.Price.ApproxCompare(priorPrice.Item1) == 0);
-						if (row == null || row.Volume == 0)
-							askPriceDepthMap[priorPrice.Item1] = Tuple.Create(0L, 0L);
-					}
-					else if (priorPrice.Item2 == MarketDataType.Bid)
-					{
-						MarketDepthRow row = SuperDom.MarketDepth.Bids.FirstOrDefault(a => a.Price.ApproxCompare(priorPrice.Item1) == 0);
-						if (row == null || row.Volume == 0)
-							bidPriceDepthMap[priorPrice.Item1] = Tuple.Create(0L, 0L);
-					}
+				if (eventsSubscribed && SuperDom?.MarketDepth != null)
+				{
+					WeakEventManager<Data.MarketDepth<LadderRow>, Data.MarketDepthEventArgs>
+						.RemoveHandler(SuperDom.MarketDepth, "Update", OnMarketDepthUpdate);
+					eventsSubscribed = false;
+				}
+
+				foreach (Timer t in askEvictionTimers.Values) t.Dispose();
+				askEvictionTimers.Clear();
+				askBaseDepth.Clear();
+
+				foreach (Timer t in bidEvictionTimers.Values) t.Dispose();
+				bidEvictionTimers.Clear();
+				bidBaseDepth.Clear();
 			}
 		}
 
 		#region Properties
+		// Setup
+		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptAskTextAlignment", GroupName = "NinjaScriptSetup", Order = 100)]
+		public HAlign AskTextAlignment { get; set; }
 
-		#region Setup
-		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptRecentColumnDiplay", GroupName = "NinjaScriptSetup", Order = 100)]
-		public PullingStackingDisplayType DisplayType { get; set; }
+		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptBidTextAlignment", GroupName = "NinjaScriptSetup", Order = 110)]
+		public HAlign BidTextAlignment { get; set; }
 
-		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptRecentColumnResetWhen", GroupName = "NinjaScriptSetup", Order = 110)]
-		public PullingStackingResetWhen ResetWhen { get; set; }
-
-		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptRecentColumnResetTolerance", GroupName = "NinjaScriptSetup", Order = 115)]
-		[Range(1, int.MaxValue)]
-		public int ResetTolerance { get; set; }
-		#endregion
-
-		#region Colors
+		// Visual
 		[XmlIgnore]
 		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptRecentColumnAskBackground", GroupName = "PropertyCategoryVisual", Order = 105)]
 		public Brush AskBackColor { get; set; }
 
 		[Browsable(false)]
-		public string AskBackgroundBrushSerialize
+		public string AskBackColorSerialize
 		{
 			get => Gui.Serialize.BrushToString(AskBackColor, "brushAskPriceColumnBackground");
 			set => AskBackColor = Gui.Serialize.StringToBrush(value, "brushAskPriceColumnBackground");
-		}
-
-		[XmlIgnore]
-		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptRecentColumnAskForeground", GroupName = "PropertyCategoryVisual", Order = 111)]
-		public Brush AskForeColor { get; set; }
-
-		[Browsable(false)]
-		public string AskForeColorSerialize
-		{
-			get => Gui.Serialize.BrushToString(AskForeColor);
-			set => AskForeColor = Gui.Serialize.StringToBrush(value);
 		}
 
 		[XmlIgnore]
@@ -506,38 +436,33 @@ namespace NinjaTrader.NinjaScript.SuperDomColumns
 		public Brush BidBackColor { get; set; }
 
 		[Browsable(false)]
-		public string BidBackgroundBrushSerialize
+		public string BidBackColorSerialize
 		{
 			get => Gui.Serialize.BrushToString(BidBackColor, "brushBidPriceColumnBackground");
 			set => BidBackColor = Gui.Serialize.StringToBrush(value, "brushBidPriceColumnBackground");
 		}
 
 		[XmlIgnore]
-		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptRecentColumnBidForeground", GroupName = "PropertyCategoryVisual", Order = 121)]
-		public Brush BidForeColor { get; set; }
+		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptPositiveForeground", GroupName = "PropertyCategoryVisual", Order = 135)]
+		public Brush PositiveForeColor { get; set; }
 
 		[Browsable(false)]
-		public string BidForeColorSerialize
+		public string PositiveForeColorSerialize
 		{
-			get => Gui.Serialize.BrushToString(BidForeColor);
-			set => BidForeColor = Gui.Serialize.StringToBrush(value);
-		}
-		#endregion
-		#endregion
-
-		[TypeConverter("NinjaTrader.Custom.ResourceEnumConverter")]
-		public enum PullingStackingDisplayType
-		{
-			Ask,
-			Bid,
-			BidAsk
+			get => Gui.Serialize.BrushToString(PositiveForeColor, "FontControlBrush");
+			set => PositiveForeColor = Gui.Serialize.StringToBrush(value, "FontControlBrush");
 		}
 
-		[TypeConverter("NinjaTrader.Custom.ResourceEnumConverter")]
-		public enum PullingStackingResetWhen
+		[XmlIgnore]
+		[Display(ResourceType = typeof(Custom.Resource), Name = "NinjaScriptNegativeForeground", GroupName = "PropertyCategoryVisual", Order = 140)]
+		public Brush NegativeForeColor { get; set; }
+
+		[Browsable(false)]
+		public string NegativeForeColorSerialize
 		{
-			NoMoreData,
-			BidAskChange
+			get => Gui.Serialize.BrushToString(NegativeForeColor);
+			set => NegativeForeColor = Gui.Serialize.StringToBrush(value);
 		}
+		#endregion
 	}
 }
