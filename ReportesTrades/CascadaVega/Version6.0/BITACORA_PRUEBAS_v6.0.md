@@ -18,6 +18,8 @@ Esta bitácora documenta las pruebas comparativas A/B realizadas en NinjaTrader 
 | :---: | :---: | :---: | :---: | :---: | :--- |
 | **10/11/2026** | Cascada Apertura (10:00) | 1 (Long) | **+$470.64** | 51 segundos | Francotirador exacto en apertura. Se fue a esquiar. |
 | **10/11/2026** | Ratchet Solo | 0 | **$0.00** | Sin trades | Filtro descartó short a 32 ticks del swing. **Evitó pérdida de -$1,213.08**. |
+| **16/11/2026** | Con Cascada Todo el Día | 4 trades | **+$753.20** | 11:07 AM | Cascada a las 10:50 AM sumó +$245.64 clave. Ese colchón protegió el trade de las 11:06 AM (+345). **Diferencia de +$566.86 a favor**. |
+| **16/11/2026** | Solo Ratchet | 4 trades | **+$186.34** | 11:10 AM | Sin Cascada, el trade de las 11:06 AM devolvió 2 contratos en MidLine (-$133), cerrando con apenas +$186.34. |
 | **17/11/2026** | Ratchet Solo | 1 (Short 3 contratos) | **+$1,624.42** | 8 min (10:32 AM) | Trade de 10:14 descartado (31 ticks). A las 10:24 entró con 3 contratos plenos: C1 +$245, C2 +$533, C3 +$845. Candado diario bloqueó trade perdedor de las 11:56 AM. |
 | **18/11/2026** | Cascada Apertura | 1 (Long) | **+$400+** | Temprano | Meta cumplida en apertura, bloqueo "A Esquiar". |
 | **18/11/2026** | Ratchet Solo | 2 (Shorts) | **+$261.92** | Mañana | Trade 10:51 AM dio Tranca. Trade 11:51 AM (45 ticks del swing) descartado, **evitando reversión violenta en V de +30 puntos**. |
