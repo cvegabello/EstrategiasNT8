@@ -44,6 +44,16 @@ Antes de que se envíe la orden de 3 contratos, el algoritmo revisa estos 3 filt
 | **1. Anti-Chiripa (Despegue Mínimo)** | `RatchetMinLowSeparationTicks` | **8 Ticks** (2.0 pts) | Evita entrar si el giro está "pegado" al pivote sin fuerza real. |
 | **2. Anti-Persecución (Tope al Swing)** | `RatchetMaxSeparationTicks` | **24 Ticks** (6.0 pts) | **Regla de Oro v6.0:** Si el precio ya corrió más de 6 puntos desde el swing, descarta la entrada para no comprar techos ni vender suelos tardíos. |
 | **3. Anti-Kamikaze (Agotamiento Exterior)** | Filtro de Keltner 3.5 | Cierre $< \text{Banda 3.5}$ | Si la vela 4 ya cerró por fuera de la Banda Grande 3.5, se cancela para no disparar contra un clímax agotado. |
+| **4. Enfriamiento Post-Pérdida (Anti-Ametralladora)** | `RatchetLossCooldownBars` | **20 Barras** (~7-10 min) | Tras un Stop Loss o aborto por asfixia, congela nuevas entradas en la misma dirección para evitar ciclos de revancha (revenge-trading). |
+
+---
+
+## 4. GESTIÓN ACTIVA Y CHEQUEO DE SALUD (HEALTH-CHECK)
+
+> [!TIP]
+> **Chequeo de Salud a las 10 Barras (Salida por Asfixia):**  
+> Si a las **10 barras** (`RatchetHealthCheckBars = 10`) el Contrato 1 NO ha podido cobrar su Tranca, la posición va en pérdida o ganancia insignificante ($\le 4\text{ ticks}$), **Y la pendiente de la Línea Media está en contra** ($\le 0$ para compras o $\ge 0$ para ventas):  
+> $\longrightarrow$ El algoritmo aborta la posición de inmediato con etiqueta `Exit_Ratchet_Asfixia10b` y activa el enfriamiento de 20 barras, **ahorrando hasta un 70% del valor de un Stop Loss completo**.
 
 ---
 

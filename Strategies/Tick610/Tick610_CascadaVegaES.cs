@@ -113,6 +113,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool   ratchetC1Exited = false;         // Contrato 1 (El Cajero) liquidado en Tranca + Bonus
         private bool   ratchetC2Exited = false;         // Contrato 2 (El Francotirador) liquidado en Banda 3.5 + 2 ticks
         private int    ratchetStartingZone = 0;         // 0 = Zona Opuesta (<= Midline o >= Midline), 1 = Zona Media (Midline a Azul), 2 = Modo Cohete (> Azul o < Azul)
+        private int    ratchetEntryBar = -1;            // Barra absoluta en la que entró la posición de Ratchet (v6.0)
+        private int    ratchetLongCooldownUntilBar = -1;// Barra hasta la cual están bloqueadas las compras Long tras stop/asfixia (v6.0)
+        private int    ratchetShortCooldownUntilBar = -1;// Barra hasta la cual están bloqueadas las ventas Short tras stop/asfixia (v6.0)
 
         // === VARIABLES DEL AS 4: CASCADA (CAZADOR DE RÁPIDOS POR PENDIENTE NORMALIZADA + CANDADO SUELO $50) ===
         private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks (conteo de fondo)
@@ -271,6 +274,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetC2UpperBigOffsetTicks                = 2;      // Offset en ticks sobre Banda 3.5 para liquidar Contrato 2 (Francotirador)
                 RatchetMinLowSeparationTicks                = 8;      // Separación mínima en ticks entre la vela 4 y el Swing (8 ticks por defecto)
                 RatchetMaxSeparationTicks                   = 24;     // Filtro Anti-Persecución: Separación máxima en ticks entre la vela 4 y el Swing (24 ticks por defecto v6.0)
+                RatchetHealthCheckEnabled                   = true;   // Activar Chequeo de Salud / Salida por Asfixia (v6.0)
+                RatchetHealthCheckBars                      = 10;     // Barras en la posición para evaluar Chequeo de Salud (10 barras por defecto v6.0)
+                RatchetHealthCheckMaxPnlTicks               = 4;      // Ganancia máxima en ticks para considerar estancamiento (4 ticks = 1 pt por defecto v6.0)
+                RatchetLossCooldownBars                     = 20;     // Barras de enfriamiento obligatorio tras Stop Loss o Asfixia (20 barras por defecto v6.0)
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
                 CascadaEnabled                              = true;   // Activar As 4 Cascada Surfer (v6.0)
@@ -470,6 +477,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ratchetChokeActive = false;
                 ratchetLastSwingLowBar = -1;
                 ratchetLastSwingHighBar = -1;
+                ratchetEntryBar = -1;
+                ratchetLongCooldownUntilBar = -1;
+                ratchetShortCooldownUntilBar = -1;
                 sobbArmedLong = false;
                 sobbArmedShort = false;
                 sobbHasFloatedLong = false;
@@ -1269,6 +1279,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (!RatchetEnabled) return;
 
+            // 0. CANDADO DE ENFRIAMIENTO POST-STOP / ASFIXIA (v6.0):
+            // Evita ametrallamiento en caídas libres o mercados picados tras ser sacados con pérdida
+            if (CurrentBar < ratchetLongCooldownUntilBar)
+            {
+                // Desbloqueo inteligente: Si el precio cerró por encima de la Línea Media,
+                // los compradores recuperaron el control institucional y se perdona el cooldown
+                if (Close[0] > keltnerBig.Midline[0])
+                {
+                    ratchetLongCooldownUntilBar = -1;
+                }
+                else
+                {
+                    return;
+                }
+            }
+
             // Requerimos suficientes barras para evaluar el swing
             int strength = Math.Max(1, RatchetSwingStrength);
             if (CurrentBar < (strength * 2) + 5) return;
@@ -1362,6 +1388,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // ¡GATILLO A MERCADO SIN MIEDO!
             ratchetLastSwingLowBar = absoluteSwingBar;
+            ratchetEntryBar = CurrentBar; // Registro de barra de entrada para Chequeo de Salud (v6.0)
             ratchetPisoConquistado = 0;
             ratchetChokeActive = false;
             ratchetC1Exited = false;
@@ -1381,6 +1408,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void EvaluateAs3_Ratchet_Short()
         {
             if (!RatchetEnabled || !RatchetShortsEnabled) return;
+
+            // 0. CANDADO DE ENFRIAMIENTO POST-STOP / ASFIXIA (v6.0):
+            // Evita ametrallamiento en rallies alcistas o mercados picados tras ser sacados con pérdida
+            if (CurrentBar < ratchetShortCooldownUntilBar)
+            {
+                // Desbloqueo inteligente: Si el precio cerró por debajo de la Línea Media,
+                // los vendedores recuperaron el control institucional y se perdona el cooldown
+                if (Close[0] < keltnerBig.Midline[0])
+                {
+                    ratchetShortCooldownUntilBar = -1;
+                }
+                else
+                {
+                    return;
+                }
+            }
 
             // Requerimos suficientes barras para evaluar el swing
             int strength = Math.Max(1, RatchetSwingStrength);
@@ -1475,6 +1518,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // ¡GATILLO A MERCADO SIN MIEDO!
             ratchetLastSwingHighBar = absoluteSwingBar;
+            ratchetEntryBar = CurrentBar; // Registro de barra de entrada para Chequeo de Salud (v6.0)
             ratchetPisoConquistado = 0;
             ratchetChokeActive = false;
             ratchetC1Exited = false;
@@ -2442,6 +2486,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // 2. EJECUCIÓN DE SALIDAS (LIQUIDA TODOS LOS CONTRATOS RESTANTES SI SE PIERDE EL PISO)
+                    // FASE 0.5: CHEQUEO DE SALUD DEL TRADE (HEALTH-CHECK TRAS N BARRAS - v6.0)
+                    // Si han pasado RatchetHealthCheckBars (ej. 10 barras), el Contrato 1 NO ha podido cobrar Tranca,
+                    // la posición va en pérdida o ganancia insignificante (<= RatchetHealthCheckMaxPnlTicks),
+                    // Y la pendiente de la Línea Media está en contra (<= 0): Se aborta inmediatamente para evitar un Stop Loss mayor.
+                    int barsInTradeLong = (ratchetEntryBar > 0) ? (CurrentBar - ratchetEntryBar) : 0;
+                    if (RatchetHealthCheckEnabled && barsInTradeLong >= RatchetHealthCheckBars && !ratchetC1Exited)
+                    {
+                        double currentPnlTicks = (Close[0] - entryPrice) / TickSize;
+                        double normSlopeHealth = GetNormalizedSlope(keltnerBig.Midline);
+                        if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth <= 0)
+                        {
+                            ExitLong("Exit_Ratchet_Asfixia10b", "Ratchet_Long");
+                            ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            Print(string.Format("{0} - [RATCHET v6.0 | SALIDA ASFIXIA 10 BARRAS LONG] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} <= 0). Aborto de seguridad ejecutado. Cooldown de compras activo hasta barra {5}.",
+                                Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeLong, normSlopeHealth, ratchetLongCooldownUntilBar));
+                            return;
+                        }
+                    }
+
                     // A) Si Fase 4 Choke está activo: Salida ceñida a 4 ticks del High
                     if (ratchetChokeActive)
                     {
@@ -2499,6 +2562,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (High[0] < midline)
                         {
                             ExitLong("Exit_Ratchet_PisoMidline", "Ratchet_Long");
+                            if (Close[0] <= entryPrice)
+                                ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             Print(string.Format("{0} - [RATCHET v6.0 | SALIDA PISO LÍNEA MEDIA] Barra completa perforó Línea Media hacia abajo ({1:F2} < {2:F2}). Contratos restantes protegidos en Línea Media.",
                                 Time[0], High[0], midline));
                             return;
@@ -2511,8 +2576,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (Close[0] <= effectiveInitialSl || Low[0] <= effectiveInitialSl)
                         {
                             ExitLong("Exit_Ratchet_SlInicial", "Ratchet_Long");
-                            Print(string.Format("{0} - [RATCHET v6.0 | SL INICIAL EJECUTADO] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada.",
-                                Time[0], effectiveInitialSl, RatchetMaxSlTicks));
+                            ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            Print(string.Format("{0} - [RATCHET v6.0 | SL INICIAL EJECUTADO] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cooldown activado hasta barra {3}.",
+                                Time[0], effectiveInitialSl, RatchetMaxSlTicks, ratchetLongCooldownUntilBar));
                             return;
                         }
                     }
@@ -3038,6 +3104,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // 2. EJECUCIÓN DE SALIDAS (LIQUIDA TODOS LOS CONTRATOS RESTANTES SI SE PIERDE EL TECHO)
+                    // FASE 0.5: CHEQUEO DE SALUD DEL TRADE (HEALTH-CHECK TRAS N BARRAS - v6.0)
+                    // Si han pasado RatchetHealthCheckBars (ej. 10 barras), el Contrato 1 NO ha podido cobrar Tranca,
+                    // la posición va en pérdida o ganancia insignificante (<= RatchetHealthCheckMaxPnlTicks),
+                    // Y la pendiente de la Línea Media está en contra (>= 0): Se aborta inmediatamente para evitar un Stop Loss mayor.
+                    int barsInTradeShort = (ratchetEntryBar > 0) ? (CurrentBar - ratchetEntryBar) : 0;
+                    if (RatchetHealthCheckEnabled && barsInTradeShort >= RatchetHealthCheckBars && !ratchetC1Exited)
+                    {
+                        double currentPnlTicks = (entryPrice - Close[0]) / TickSize;
+                        double normSlopeHealth = GetNormalizedSlope(keltnerBig.Midline);
+                        if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth >= 0)
+                        {
+                            ExitShort("Exit_Ratchet_Asfixia10b", "Ratchet_Short");
+                            ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            Print(string.Format("{0} - [RATCHET v6.0 | SALIDA ASFIXIA 10 BARRAS SHORT] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} >= 0). Aborto de seguridad ejecutado. Cooldown de ventas activo hasta barra {5}.",
+                                Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeShort, normSlopeHealth, ratchetShortCooldownUntilBar));
+                            return;
+                        }
+                    }
+
                     // A) Si Fase 4 Choke está activo: Salida ceñida a 4 ticks del Low extremo
                     if (ratchetChokeActive)
                     {
@@ -3095,6 +3180,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (Low[0] > midline)
                         {
                             ExitShort("Exit_Ratchet_PisoMidline", "Ratchet_Short");
+                            if (Close[0] >= entryPrice)
+                                ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             Print(string.Format("{0} - [RATCHET v6.0 | SALIDA TECHO LÍNEA MEDIA] Barra completa perforó Línea Media hacia arriba ({1:F2} > {2:F2}). Contratos restantes protegidos en Línea Media.",
                                 Time[0], Low[0], midline));
                             return;
@@ -3107,8 +3194,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (Close[0] >= effectiveInitialSl || High[0] >= effectiveInitialSl)
                         {
                             ExitShort("Exit_Ratchet_InitialSL", "Ratchet_Short");
-                            Print(string.Format("{0} - [RATCHET v6.0 | SL INICIAL EJECUTADO SHORT] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada.",
-                                Time[0], effectiveInitialSl, RatchetMaxSlTicks));
+                            ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            Print(string.Format("{0} - [RATCHET v6.0 | SL INICIAL EJECUTADO SHORT] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cooldown activado hasta barra {3}.",
+                                Time[0], effectiveInitialSl, RatchetMaxSlTicks, ratchetShortCooldownUntilBar));
                             return;
                         }
                     }
@@ -4041,6 +4129,25 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(10, 50)]
         [Display(Name = "9. Filtro Anti-Persecución: Distancia Máxima al Swing (Ticks)", Description = "Separación máxima en ticks entre la vela 4 y el Swing para descartar persecuciones tardías (24 ticks = 6 pts por defecto v6.0)", GroupName = "6. As 3: Ratchet v6.0", Order = 10)]
         public int RatchetMaxSeparationTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "10. Activar Chequeo de Salud (Health-Check)", Description = "Evalúa si el trade arrancó con fuerza tras N barras; si está estancado y la pendiente de Línea Media está en contra, aborta para evitar pérdidas mayores (v6.0)", GroupName = "6. As 3: Ratchet v6.0", Order = 11)]
+        public bool RatchetHealthCheckEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(5, 30)]
+        [Display(Name = "11. Barras Chequeo de Salud", Description = "Número de barras transcurridas en la posición para evaluar el Chequeo de Salud (10 barras por defecto v6.0)", GroupName = "6. As 3: Ratchet v6.0", Order = 12)]
+        public int RatchetHealthCheckBars { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(0, 16)]
+        [Display(Name = "12. Ganancia Máxima Estancamiento (Ticks)", Description = "Ganancia máxima en ticks para considerar el trade estancado (4 ticks = 1 pt por defecto; si PnL <= este valor y pendiente en contra, aborta v6.0)", GroupName = "6. As 3: Ratchet v6.0", Order = 13)]
+        public int RatchetHealthCheckMaxPnlTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(5, 60)]
+        [Display(Name = "13. Barras de Enfriamiento tras Pérdida", Description = "Barras de congelamiento obligatorio tras un Stop Loss o aborto por asfixia en la misma dirección (20 barras por defecto v6.0)", GroupName = "6. As 3: Ratchet v6.0", Order = 14)]
+        public int RatchetLossCooldownBars { get; set; }
         #endregion
 
         [NinjaScriptProperty]
