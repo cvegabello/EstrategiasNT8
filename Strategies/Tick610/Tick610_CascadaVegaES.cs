@@ -114,8 +114,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool   ratchetC2Exited = false;         // Contrato 2 (El Francotirador) liquidado en Banda 3.5 + 2 ticks
         private int    ratchetStartingZone = 0;         // 0 = Zona Opuesta (<= Midline o >= Midline), 1 = Zona Media (Midline a Azul), 2 = Modo Cohete (> Azul o < Azul)
         private int    ratchetEntryBar = -1;            // Barra absoluta en la que entró la posición de Ratchet (v7.0)
-        private int    ratchetLongCooldownUntilBar = -1;// Barra hasta la cual están bloqueadas las compras Long tras stop/asfixia (v7.0)
-        private int    ratchetShortCooldownUntilBar = -1;// Barra hasta la cual están bloqueadas las ventas Short tras stop/asfixia (v7.0)
+        private bool   ratchetEarlySwingPassed = false; // Flag para indicar que superó la prueba de Swing Temprano (v7.0)
+        private int    ratchetLongCooldownUntilBar = -1;// Barra hasta la cual están bloqueadas las compras Long tras stop/aborto (v7.0)
+        private int    ratchetShortCooldownUntilBar = -1;// Barra hasta la cual están bloqueadas las ventas Short tras stop/aborto (v7.0)
 
         // === VARIABLES DEL AS 4: CASCADA (CAZADOR DE RÁPIDOS POR PENDIENTE NORMALIZADA + CANDADO SUELO $50) ===
         private int barsCascadaShortCount = 0;     // Barras con EMA200 > Upper 3.5 + 4 ticks (conteo de fondo)
@@ -277,9 +278,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetHealthCheckEnabled                   = true;   // Activar Chequeo de Salud / Salida por Asfixia (v7.0)
                 RatchetHealthCheckBars                      = 10;     // Barras en la posición para evaluar Chequeo de Salud (10 barras por defecto v7.0)
                 RatchetHealthCheckMaxPnlTicks               = 4;      // Ganancia máxima en ticks para considerar estancamiento (4 ticks = 1 pt por defecto v7.0)
-                RatchetLossCooldownBars                     = 20;     // Barras de enfriamiento obligatorio tras Stop Loss o Asfixia (20 barras por defecto v7.0)
+                RatchetLossCooldownBars                     = 40;     // Barras de enfriamiento obligatorio tras Stop Loss o Aborto (40 barras por defecto v7.0)
                 RatchetEarlySwingAbortEnabled               = true;   // Activar Aborto Temprano por Swing Prematuro (v7.0)
-                RatchetEarlySwingMaxBars                    = 8;      // Ventana máxima de barras tras la entrada para evaluar Swing Prematuro (8 barras por defecto v7.0)
+                RatchetEarlySwingMaxBars                    = 6;      // Ventana de barras tras la entrada para evaluar Swing Prematuro (6 barras por defecto v7.0)
                 RatchetEarlySwingConfirmTicks               = 0;      // Margen de tolerancia en ticks para confirmar quiebre de Swing (0 ticks por defecto v7.0)
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
@@ -481,6 +482,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ratchetLastSwingLowBar = -1;
                 ratchetLastSwingHighBar = -1;
                 ratchetEntryBar = -1;
+                ratchetEarlySwingPassed = false;
                 ratchetLongCooldownUntilBar = -1;
                 ratchetShortCooldownUntilBar = -1;
                 sobbArmedLong = false;
@@ -1282,20 +1284,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (!RatchetEnabled) return;
 
-            // 0. CANDADO DE ENFRIAMIENTO POST-STOP / ASFIXIA (v7.0):
-            // Evita ametrallamiento en caídas libres o mercados picados tras ser sacados con pérdida
+            // 0. CANDADO DE ENFRIAMIENTO POST-STOP / ABORTO PREMATURO (v7.0):
+            // Cuarentena estricta obligatoria tras Stop Loss o Aborto Prematuro. Evita ametrallamiento.
             if (CurrentBar < ratchetLongCooldownUntilBar)
             {
-                // Desbloqueo inteligente: Si el precio cerró por encima de la Línea Media,
-                // los compradores recuperaron el control institucional y se perdona el cooldown
-                if (Close[0] > keltnerBig.Midline[0])
-                {
-                    ratchetLongCooldownUntilBar = -1;
-                }
-                else
-                {
-                    return;
-                }
+                return;
             }
 
             // Requerimos suficientes barras para evaluar el swing
@@ -1392,6 +1385,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // ¡GATILLO A MERCADO SIN MIEDO!
             ratchetLastSwingLowBar = absoluteSwingBar;
             ratchetEntryBar = CurrentBar; // Registro de barra de entrada para Chequeo de Salud (v7.0)
+            ratchetEarlySwingPassed = false; // Reinicia chequeo de Swing Prematuro (v7.0)
             ratchetPisoConquistado = 0;
             ratchetChokeActive = false;
             ratchetC1Exited = false;
@@ -1412,20 +1406,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (!RatchetEnabled || !RatchetShortsEnabled) return;
 
-            // 0. CANDADO DE ENFRIAMIENTO POST-STOP / ASFIXIA (v7.0):
-            // Evita ametrallamiento en rallies alcistas o mercados picados tras ser sacados con pérdida
+            // 0. CANDADO DE ENFRIAMIENTO POST-STOP / ABORTO PREMATURO (v7.0):
+            // Cuarentena estricta obligatoria tras Stop Loss o Aborto Prematuro. Evita ametrallamiento.
             if (CurrentBar < ratchetShortCooldownUntilBar)
             {
-                // Desbloqueo inteligente: Si el precio cerró por debajo de la Línea Media,
-                // los vendedores recuperaron el control institucional y se perdona el cooldown
-                if (Close[0] < keltnerBig.Midline[0])
-                {
-                    ratchetShortCooldownUntilBar = -1;
-                }
-                else
-                {
-                    return;
-                }
+                return;
             }
 
             // Requerimos suficientes barras para evaluar el swing
@@ -1522,6 +1507,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // ¡GATILLO A MERCADO SIN MIEDO!
             ratchetLastSwingHighBar = absoluteSwingBar;
             ratchetEntryBar = CurrentBar; // Registro de barra de entrada para Chequeo de Salud (v7.0)
+            ratchetEarlySwingPassed = false; // Reinicia chequeo de Swing Prematuro (v7.0)
             ratchetPisoConquistado = 0;
             ratchetChokeActive = false;
             ratchetC1Exited = false;
@@ -2492,25 +2478,47 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int barsInTradeLong = (ratchetEntryBar > 0) ? (CurrentBar - ratchetEntryBar) : 0;
 
                     // FASE 0.3: ABORTO TEMPRANO POR SWING HIGH PREMATURO (v7.0 - ACCIÓN DEL PRECIO PURA)
-                    // Si estamos en la ventana de arranque (barsInTradeLong entre 4 y RatchetEarlySwingMaxBars) y C1 aún no ha salido:
-                    // Verificamos si se confirmó un Swing High cuyo pico ocurrió DESPUÉS de la entrada (swingHighBarAgo < barsInTradeLong).
-                    // Si el precio actual no logró superar con claridad ese techo (Close[0] <= swingHighPrice + offset),
-                    // significa que el rebote fracasó y el mercado se devolvió. ¡Salida inmediata para evitar pérdidas mayores!
-                    if (RatchetEarlySwingAbortEnabled && barsInTradeLong >= 4 && barsInTradeLong <= RatchetEarlySwingMaxBars && !ratchetC1Exited)
+                    // Si alcanzamos la barra N (barsInTradeLong >= RatchetEarlySwingMaxBars, ej. 6) y C1 aún no ha salido:
+                    // Verificamos el techo Swing High más reciente en la gráfica (puntos cian).
+                    // Si el precio actual está por debajo o tocando ese techo (Close[0] <= thresholdPrice),
+                    // significa que el precio fracasó en romper el techo visible. ¡Salida inmediata para evitar pérdidas mayores!
+                    if (RatchetEarlySwingAbortEnabled && barsInTradeLong >= RatchetEarlySwingMaxBars && !ratchetEarlySwingPassed && !ratchetC1Exited)
                     {
                         int strength = Math.Max(1, RatchetSwingStrength);
-                        int swingHighBarAgo = swing4.SwingHighBar(0, 1, strength * 4);
-                        if (swingHighBarAgo >= 0 && swingHighBarAgo < barsInTradeLong)
+                        int swingHighBarAgo = swing4.SwingHighBar(0, 1, 60);
+                        if (swingHighBarAgo >= 0)
                         {
                             double swingHighPrice = High[swingHighBarAgo];
-                            double thresholdPrice = swingHighPrice + (RatchetEarlySwingConfirmTicks * TickSize);
-                            if (Close[0] <= thresholdPrice)
+                            
+                            // Relevancia: El swing se confirmó durante el trade (o justo en su gestación: swingHighBarAgo - strength <= barsInTradeLong),
+                            // o es el techo inmediato contra el que está chocando (a menos de 16 ticks por encima de la entrada)
+                            bool isRelevantCeiling = (swingHighBarAgo - strength <= barsInTradeLong) || 
+                                                    (swingHighPrice >= entryPrice && swingHighPrice <= entryPrice + (16 * TickSize));
+                            
+                            if (isRelevantCeiling)
                             {
-                                ExitLong("Exit_Ratchet_SwingPrematuro", "Ratchet_Long");
-                                ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                                Print(string.Format("{0} - [RATCHET v7.0 | ABORTO TEMPRANO SWING PREMATURO LONG] Techo confirmado en {1:F2} ({2}b atrás, ocurrido dentro del trade). Precio actual ({3:F2} <= {4:F2}) no logró superarlo. Salida ejecutada en barra {5}. Cooldown activo hasta barra {6}.",
-                                    Time[0], swingHighPrice, swingHighBarAgo, Close[0], thresholdPrice, barsInTradeLong, ratchetLongCooldownUntilBar));
-                                return;
+                                double thresholdPrice = swingHighPrice + (RatchetEarlySwingConfirmTicks * TickSize);
+                                if (Close[0] <= thresholdPrice)
+                                {
+                                    ExitLong("Exit_Ratchet_SwingPrematuro", "Ratchet_Long");
+                                    ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                                    ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                                    Print(string.Format("{0} - [RATCHET v7.0 | ABORTO TEMPRANO SWING PREMATURO LONG] Barra {1} tras entrada. Techo Swing High en {2:F2} ({3}b atrás). Precio actual ({4:F2} <= {5:F2}) no logró superarlo. Aborto ejecutado. Cuarentena de {6} barras activa hasta barra {7}.",
+                                        Time[0], barsInTradeLong, swingHighPrice, swingHighBarAgo, Close[0], thresholdPrice, RatchetLossCooldownBars, ratchetLongCooldownUntilBar));
+                                    return;
+                                }
+                                else
+                                {
+                                    // La vela completica logró cerrar por encima del techo: ¡Prueba superada, dejamos correr el trade libremente!
+                                    ratchetEarlySwingPassed = true;
+                                    Print(string.Format("{0} - [RATCHET v7.0 | SWING TEMPRANO SUPERADO LONG] Barra {1}. Precio ({2:F2} > {3:F2}) rompió el techo. Prueba superada, trade continúa libre.",
+                                        Time[0], barsInTradeLong, Close[0], thresholdPrice));
+                                }
+                            }
+                            else
+                            {
+                                // No hay techo reciente inmediato estorbando: Prueba superada
+                                ratchetEarlySwingPassed = true;
                             }
                         }
                     }
@@ -2527,8 +2535,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitLong("Exit_Ratchet_Asfixia", "Ratchet_Long");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                            Print(string.Format("{0} - [RATCHET v7.0 | SALIDA ASFIXIA LONG] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} <= 0). Aborto de seguridad ejecutado. Cooldown de compras activo hasta barra {5}.",
-                                Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeLong, normSlopeHealth, ratchetLongCooldownUntilBar));
+                            ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            Print(string.Format("{0} - [RATCHET v7.0 | SALIDA ASFIXIA LONG] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} <= 0). Aborto de seguridad ejecutado. Cuarentena de {5} barras activa hasta barra {6}.",
+                                Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeLong, normSlopeHealth, RatchetLossCooldownBars, ratchetLongCooldownUntilBar));
                             return;
                         }
                     }
@@ -2591,7 +2600,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitLong("Exit_Ratchet_PisoMidline", "Ratchet_Long");
                             if (Close[0] <= entryPrice)
+                            {
                                 ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                                ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            }
                             Print(string.Format("{0} - [RATCHET v7.0 | SALIDA PISO LÍNEA MEDIA] Barra completa perforó Línea Media hacia abajo ({1:F2} < {2:F2}). Contratos restantes protegidos en Línea Media.",
                                 Time[0], High[0], midline));
                             return;
@@ -2605,8 +2617,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitLong("Exit_Ratchet_SlInicial", "Ratchet_Long");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                            Print(string.Format("{0} - [RATCHET v7.0 | SL INICIAL EJECUTADO] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cooldown activado hasta barra {3}.",
-                                Time[0], effectiveInitialSl, RatchetMaxSlTicks, ratchetLongCooldownUntilBar));
+                            ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            Print(string.Format("{0} - [RATCHET v7.0 | SL INICIAL EJECUTADO] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cuarentena de {3} barras activada hasta barra {4}.",
+                                Time[0], effectiveInitialSl, RatchetMaxSlTicks, RatchetLossCooldownBars, ratchetLongCooldownUntilBar));
                             return;
                         }
                     }
@@ -3135,25 +3148,47 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int barsInTradeShort = (ratchetEntryBar > 0) ? (CurrentBar - ratchetEntryBar) : 0;
 
                     // FASE 0.3: ABORTO TEMPRANO POR SWING LOW PREMATURO (v7.0 - ACCIÓN DEL PRECIO PURA)
-                    // Si estamos en la ventana de arranque (barsInTradeShort entre 4 y RatchetEarlySwingMaxBars) y C1 aún no ha salido:
-                    // Verificamos si se confirmó un Swing Low cuyo valle ocurrió DESPUÉS de la entrada (swingLowBarAgo < barsInTradeShort).
-                    // Si el precio actual no logró romper con claridad ese suelo hacia abajo (Close[0] >= swingLowPrice - offset),
-                    // significa que la caída fracasó y el mercado rebotó. ¡Salida inmediata para evitar pérdidas mayores!
-                    if (RatchetEarlySwingAbortEnabled && barsInTradeShort >= 4 && barsInTradeShort <= RatchetEarlySwingMaxBars && !ratchetC1Exited)
+                    // Si alcanzamos la barra N (barsInTradeShort >= RatchetEarlySwingMaxBars, ej. 6) y C1 aún no ha salido:
+                    // Verificamos el suelo Swing Low más reciente en la gráfica (puntos amarillos).
+                    // Si el precio actual está por encima o tocando ese suelo (Close[0] >= thresholdPrice),
+                    // significa que el precio fracasó en romper el suelo visible. ¡Salida inmediata para evitar pérdidas mayores!
+                    if (RatchetEarlySwingAbortEnabled && barsInTradeShort >= RatchetEarlySwingMaxBars && !ratchetEarlySwingPassed && !ratchetC1Exited)
                     {
                         int strength = Math.Max(1, RatchetSwingStrength);
-                        int swingLowBarAgo = swing4.SwingLowBar(0, 1, strength * 4);
-                        if (swingLowBarAgo >= 0 && swingLowBarAgo < barsInTradeShort)
+                        int swingLowBarAgo = swing4.SwingLowBar(0, 1, 60);
+                        if (swingLowBarAgo >= 0)
                         {
                             double swingLowPrice = Low[swingLowBarAgo];
-                            double thresholdPrice = swingLowPrice - (RatchetEarlySwingConfirmTicks * TickSize);
-                            if (Close[0] >= thresholdPrice)
+                            
+                            // Relevancia: El swing se confirmó durante el trade (o justo en su gestación: swingLowBarAgo - strength <= barsInTradeShort),
+                            // o es el suelo inmediato contra el que está chocando (a menos de 16 ticks por debajo de la entrada)
+                            bool isRelevantFloor = (swingLowBarAgo - strength <= barsInTradeShort) || 
+                                                  (swingLowPrice <= entryPrice && swingLowPrice >= entryPrice - (16 * TickSize));
+                            
+                            if (isRelevantFloor)
                             {
-                                ExitShort("Exit_Ratchet_SwingPrematuro", "Ratchet_Short");
-                                ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                                Print(string.Format("{0} - [RATCHET v7.0 | ABORTO TEMPRANO SWING PREMATURO SHORT] Suelo confirmado en {1:F2} ({2}b atrás, ocurrido dentro del trade). Precio actual ({3:F2} >= {4:F2}) no logró romperlo. Salida ejecutada en barra {5}. Cooldown activo hasta barra {6}.",
-                                    Time[0], swingLowPrice, swingLowBarAgo, Close[0], thresholdPrice, barsInTradeShort, ratchetShortCooldownUntilBar));
-                                return;
+                                double thresholdPrice = swingLowPrice - (RatchetEarlySwingConfirmTicks * TickSize);
+                                if (Close[0] >= thresholdPrice)
+                                {
+                                    ExitShort("Exit_Ratchet_SwingPrematuro", "Ratchet_Short");
+                                    ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                                    ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                                    Print(string.Format("{0} - [RATCHET v7.0 | ABORTO TEMPRANO SWING PREMATURO SHORT] Barra {1} tras entrada. Suelo Swing Low en {2:F2} ({3}b atrás). Precio actual ({4:F2} >= {5:F2}) no logró perforarlo. Aborto ejecutado. Cuarentena de {6} barras activa hasta barra {7}.",
+                                        Time[0], barsInTradeShort, swingLowPrice, swingLowBarAgo, Close[0], thresholdPrice, RatchetLossCooldownBars, ratchetShortCooldownUntilBar));
+                                    return;
+                                }
+                                else
+                                {
+                                    // La vela completica logró cerrar por debajo del suelo: ¡Prueba superada, dejamos correr el trade libremente!
+                                    ratchetEarlySwingPassed = true;
+                                    Print(string.Format("{0} - [RATCHET v7.0 | SWING TEMPRANO SUPERADO SHORT] Barra {1}. Precio ({2:F2} < {3:F2}) perforó el suelo. Prueba superada, trade continúa libre.",
+                                        Time[0], barsInTradeShort, Close[0], thresholdPrice));
+                                }
+                            }
+                            else
+                            {
+                                // No hay suelo reciente inmediato estorbando: Prueba superada
+                                ratchetEarlySwingPassed = true;
                             }
                         }
                     }
@@ -3169,9 +3204,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth >= 0)
                         {
                             ExitShort("Exit_Ratchet_Asfixia", "Ratchet_Short");
+                            ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                            Print(string.Format("{0} - [RATCHET v7.0 | SALIDA ASFIXIA SHORT] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} >= 0). Aborto de seguridad ejecutado. Cooldown de ventas activo hasta barra {5}.",
-                                Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeShort, normSlopeHealth, ratchetShortCooldownUntilBar));
+                            Print(string.Format("{0} - [RATCHET v7.0 | SALIDA ASFIXIA SHORT] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} >= 0). Aborto de seguridad ejecutado. Cuarentena de {5} barras activa hasta barra {6}.",
+                                Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeShort, normSlopeHealth, RatchetLossCooldownBars, ratchetShortCooldownUntilBar));
                             return;
                         }
                     }
@@ -3234,7 +3270,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             ExitShort("Exit_Ratchet_PisoMidline", "Ratchet_Short");
                             if (Close[0] >= entryPrice)
+                            {
+                                ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                                 ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
+                            }
                             Print(string.Format("{0} - [RATCHET v7.0 | SALIDA TECHO LÍNEA MEDIA] Barra completa perforó Línea Media hacia arriba ({1:F2} > {2:F2}). Contratos restantes protegidos en Línea Media.",
                                 Time[0], Low[0], midline));
                             return;
@@ -3247,9 +3286,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (Close[0] >= effectiveInitialSl || High[0] >= effectiveInitialSl)
                         {
                             ExitShort("Exit_Ratchet_InitialSL", "Ratchet_Short");
+                            ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                            Print(string.Format("{0} - [RATCHET v7.0 | SL INICIAL EJECUTADO SHORT] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cooldown activado hasta barra {3}.",
-                                Time[0], effectiveInitialSl, RatchetMaxSlTicks, ratchetShortCooldownUntilBar));
+                            Print(string.Format("{0} - [RATCHET v7.0 | SL INICIAL EJECUTADO SHORT] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cuarentena de {3} barras activada hasta barra {4}.",
+                                Time[0], effectiveInitialSl, RatchetMaxSlTicks, RatchetLossCooldownBars, ratchetShortCooldownUntilBar));
                             return;
                         }
                     }
@@ -4198,22 +4238,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int RatchetHealthCheckMaxPnlTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(5, 60)]
-        [Display(Name = "13. Barras de Enfriamiento tras Pérdida", Description = "Barras de congelamiento obligatorio tras un Stop Loss o aborto por asfixia en la misma dirección (20 barras por defecto v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 14)]
+        [Range(5, 100)]
+        [Display(Name = "13. Barras de Enfriamiento tras Pérdida", Description = "Barras de congelamiento obligatorio tras un Stop Loss o aborto prematuro para Ratchet (40 barras por defecto v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 14)]
         public int RatchetLossCooldownBars { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "14. Activar Aborto por Swing Prematuro", Description = "Si en las primeras N barras tras entrar se confirma un Swing en contra y el precio no lo rompió, aborta inmediatamente (v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 15)]
+        [Display(Name = "14. Activar Aborto por Swing Prematuro", Description = "Si tras N barras de entrar el precio no superó el último Swing o techo relevante, aborta inmediatamente (v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 15)]
         public bool RatchetEarlySwingAbortEnabled { get; set; }
 
         [NinjaScriptProperty]
         [Range(4, 20)]
-        [Display(Name = "15. Ventana Máxima Barras Aborto Swing", Description = "Ventana máxima de barras tras la entrada para evaluar el Swing Prematuro (8 barras por defecto v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 16)]
+        [Display(Name = "15. Ventana Máxima Barras Aborto Swing", Description = "Barras tras la entrada para evaluar el Swing Prematuro (6 barras por defecto v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 16)]
         public int RatchetEarlySwingMaxBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "16. Tolerancia Confirmación Swing (Ticks)", Description = "Ticks de margen respecto al swing prematuro para considerar superado el nivel (0 ticks por defecto v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 17)]
+        [Display(Name = "16. Tolerancia Confirmación Swing (Ticks)", Description = "Ticks de margen respecto al swing para considerar superado el nivel (0 ticks por defecto v7.0)", GroupName = "6. As 3: Ratchet v7.0", Order = 17)]
         public int RatchetEarlySwingConfirmTicks { get; set; }
         #endregion
 

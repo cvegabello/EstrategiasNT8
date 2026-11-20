@@ -40,7 +40,7 @@ flowchart LR
 | **1. Anti-Chiripa (Despegue Mínimo)** | `RatchetMinLowSeparationTicks` | **8 Ticks** (2.0 pts) | Evita entrar si el giro está pegado al pivote sin fuerza real. |
 | **2. Anti-Persecución (Tope al Swing)** | `RatchetMaxSeparationTicks` | **24 Ticks** (6.0 pts) | **Regla de Oro:** Si el precio ya corrió más de 6 puntos desde el swing, descarta la entrada para no comprar techos ni vender suelos tardíos. |
 | **3. Anti-Kamikaze (Agotamiento Exterior)** | Filtro de Keltner 3.5 | Cierre $< \text{Banda 3.5}$ | Si la vela 4 ya cerró por fuera de la Banda Grande 3.5, cancela para no disparar contra un clímax agotado. |
-| **4. Enfriamiento Post-Pérdida (Anti-Ametralladora)** | `RatchetLossCooldownBars` | **20 Barras** (~7-10 min) | Tras un Stop Loss o aborto temprano, congela nuevas entradas en la misma dirección para evitar ciclos de revancha (revenge-trading). |
+| **4. Enfriamiento Post-Pérdida / Aborto (Cuarentena Total)** | `RatchetLossCooldownBars` | **40 Barras** (~15-20 min) | Tras un Stop Loss, Aborto Prematuro o Asfixia, congela por completo a Ratchet (tanto compras como ventas) para evitar ametrallamiento y revancha. |
 
 ---
 
@@ -48,11 +48,10 @@ flowchart LR
 
 > [!IMPORTANT]
 > **Fase 0.3: Aborto Temprano por Swing Prematuro (Acción de Precio Pura v7.0):**  
-> Si dentro de las primeras **4 a 8 barras** (`RatchetEarlySwingMaxBars = 8`) tras entrar:  
-> 1. En **Compras (Longs)**: Se confirma un **Swing High (Techo prematuro)** cuyo pico ocurrió *dentro del trade* y el precio actual **no logró romperlo por encima** (`Close[0] <= swingHighPrice`).  
-> 2. En **Ventas (Shorts)**: Se confirma un **Swing Low (Suelo prematuro)** cuyo valle ocurrió *dentro del trade* y el precio actual **no logró romperlo por debajo** (`Close[0] >= swingLowPrice`).  
-> $\longrightarrow$ **¡ACCIÓN INMEDIATA:** Cierra la posición completa a mercado (`Exit_Ratchet_SwingPrematuro`) y activa el enfriamiento de 20 barras.  
-> *Si el trade despega con fuerza hacia el objetivo, ningún swing en contra se forma y el trade corre libre hacia sus metas.*
+> Al llegar a la barra **N** (`RatchetEarlySwingMaxBars = 6` barras por defecto) tras entrar:  
+> 1. En **Compras (Longs)**: Evalúa el techo más reciente (puntos cian de `Swing High`). Si el precio actual está por debajo o tocándolo (`Close[0] <= swingHighPrice`), el rebote fracasó: **¡ABORTO INMEDIATO!** (`Exit_Ratchet_SwingPrematuro`) y activa la **cuarentena estricta de 40 barras**. Si por el contrario la vela cerró por encima del techo, supera la prueba y el trade sigue libre.  
+> 2. En **Ventas (Shorts)**: Evalúa el suelo más reciente (puntos amarillos de `Swing Low`). Si el precio actual está por encima o tocándolo (`Close[0] >= swingLowPrice`), la caída fracasó: **¡ABORTO INMEDIATO!** (`Exit_Ratchet_SwingPrematuro`) y activa la **cuarentena estricta de 40 barras**. Si por el contrario la vela cerró por debajo del suelo, supera la prueba y el trade sigue libre.  
+> *Si el trade arranca limpio y con fuerza, ningún swing obstáculo lo frena y avanza libremente hacia sus objetivos.*
 
 ---
 

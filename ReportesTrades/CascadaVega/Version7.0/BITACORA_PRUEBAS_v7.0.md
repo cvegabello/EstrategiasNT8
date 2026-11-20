@@ -5,8 +5,8 @@ Esta bitácora documenta las pruebas comparativas A/B realizadas en NinjaTrader 
 ---
 
 ## 1. Novedades y Candados de la Versión 7.0
-* **Aborto Temprano por Swing Prematuro (Acción de Precio Pura):** Si en las primeras 4 a 8 barras tras entrar se confirma un Swing en contra (Swing High en compras o Swing Low en ventas) y el precio no lo rompió, aborta la posición a mercado (`Exit_Ratchet_SwingPrematuro`) evitando pérdidas mayores.
-* **Candado de Enfriamiento Post-Pérdida (Cooldown 20 barras):** Tras cualquier Stop Loss o aborto temprano, congela nuevas entradas en la misma dirección durante 20 barras para evitar ametrallamientos en picadillos o caídas libres.
+* **Aborto Temprano por Swing Prematuro (Acción de Precio Pura):** Al llegar a la barra N (`RatchetEarlySwingMaxBars = 6` barras por defecto) tras entrar, evalúa el Swing visible más reciente. Si el precio no logró cerrar superándolo (`Close[0] <= swingHighPrice` en compras o `Close[0] >= swingLowPrice` en ventas), aborta inmediatamente la posición completa (`Exit_Ratchet_SwingPrematuro`) y activa la cuarentena total de 40 barras. Si la vela completica cerró superándolo, el trade pasa la prueba (`ratchetEarlySwingPassed = true`) y corre libre.
+* **Cuarentena Total de Enfriamiento Post-Pérdida / Aborto (40 barras por defecto):** Tras cualquier Stop Loss o Aborto Prematuro, congela de inmediato a Ratchet en ambas direcciones (tanto compras como ventas) durante 40 barras completas sin excepciones, impidiendo revancha y ametrallamiento en picadillos o caídas libres.
 * **Modo Operativo de Cascada:** `SoloApertura` (10:00 - 10:10 AM, 1 trade Francotirador de $470) vs `TodoElDia`.
 * **Filtro Anti-Persecución (Ratchet):** `RatchetMaxSeparationTicks = 24` ticks (6.0 pts).
 * **Hard Stop Loss de Ratchet:** Techo inflexible de pérdida máxima de 24 ticks ($900 en 3 contratos ES / $90 en MES).
