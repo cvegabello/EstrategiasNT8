@@ -2497,9 +2497,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double normSlopeHealth = GetNormalizedSlope(keltnerBig.Midline);
                         if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth <= 0)
                         {
-                            ExitLong("Exit_Ratchet_Asfixia10b", "Ratchet_Long");
+                            ExitLong("Exit_Ratchet_Asfixia", "Ratchet_Long");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                            Print(string.Format("{0} - [RATCHET v6.0 | SALIDA ASFIXIA 10 BARRAS LONG] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} <= 0). Aborto de seguridad ejecutado. Cooldown de compras activo hasta barra {5}.",
+                            Print(string.Format("{0} - [RATCHET v6.0 | SALIDA ASFIXIA LONG] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} <= 0). Aborto de seguridad ejecutado. Cooldown de compras activo hasta barra {5}.",
                                 Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeLong, normSlopeHealth, ratchetLongCooldownUntilBar));
                             return;
                         }
@@ -3115,9 +3115,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double normSlopeHealth = GetNormalizedSlope(keltnerBig.Midline);
                         if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth >= 0)
                         {
-                            ExitShort("Exit_Ratchet_Asfixia10b", "Ratchet_Short");
+                            ExitShort("Exit_Ratchet_Asfixia", "Ratchet_Short");
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
-                            Print(string.Format("{0} - [RATCHET v6.0 | SALIDA ASFIXIA 10 BARRAS SHORT] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} >= 0). Aborto de seguridad ejecutado. Cooldown de ventas activo hasta barra {5}.",
+                            Print(string.Format("{0} - [RATCHET v6.0 | SALIDA ASFIXIA SHORT] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} >= 0). Aborto de seguridad ejecutado. Cooldown de ventas activo hasta barra {5}.",
                                 Time[0], currentPnlTicks, RatchetHealthCheckMaxPnlTicks, barsInTradeShort, normSlopeHealth, ratchetShortCooldownUntilBar));
                             return;
                         }
