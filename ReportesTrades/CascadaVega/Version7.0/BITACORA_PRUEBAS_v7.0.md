@@ -18,4 +18,5 @@ Esta bitácora documenta las pruebas comparativas A/B realizadas en NinjaTrader 
 
 | Fecha | Modo Operativo | Trades Realizados | Resultado Neto | Duración / Salida | Observaciones Clave |
 | :---: | :---: | :---: | :---: | :---: | :--- |
+| **19/10/2026** | Ratchet Solo v7.0 | 2 trades (1 Aborto, 1 Asfixia ganadora) | **+$20.06 USD** | Trade 1: 7 barras (Breakeven)<br>Trade 2: 26 barras | **¡ÉXITO TOTAL DEL BLINDAJE!** Trade 1 entró @ 7753.75 y abortó exactamente @ 7753.75 (0 ticks pérdida) al topar con Swing High. Inmediatamente el mercado se desplomó en caída libre, esquivando un Stop Loss de -$900. La cuarentena de 40 barras protegió la cuenta y el Trade 2 cerró en verde (+$33.14). Cero cortacircuito. |
 | **21/09/2026** | Ratchet Solo v7.0 | Evaluación en curso | — | — | Verificando salida anticipada por Swing Prematuro en barra 6 y bloqueo de trades 2 y 3 por Cooldown. |
