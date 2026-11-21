@@ -10,7 +10,7 @@
 * **Instrumento:** Futuros del S&P 500 (ES) / Micro (MES).
 * **Tick Size:** 0.25 (1 punto = 4 ticks = $50 USD en ES / $5 USD en MES).
 * **Tipo de Gráfica:** 610 Ticks (Barras transaccionales de volumen/flujo, no de tiempo).
-* **Horario Operativo:** 10:00 AM – 03:45 PM EST (Cierre forzoso a las 04:00 PM EST).
+* **Horario Operativo:** 09:35 AM – 03:45 PM EST (Habilitado desde 09:35 AM en estado PAUSADO por seguridad; activación manual/discrecional con `Ctrl + Espacio`). Cierre forzoso a las 04:00 PM EST.
 
 ---
 

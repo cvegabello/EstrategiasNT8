@@ -229,8 +229,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Propiedades Generales
                 Version                                     = "7.0 - Cascada Vega ES";
 
-                // Horario RTH estricto (Nueva York EST - Oficial 10:00 AM - Regla v7.0)
-                StartTime                                   = 100000; // 10:00 AM EST (Filtro institucional de absorción de apertura)
+                // Horario RTH estricto (Nueva York EST - 09:35 AM por defecto con control manual v7.0)
+                StartTime                                   = 93500;  // 09:35 AM EST (Habilitado desde apertura temprana; inicia pausado para decisión manual)
                 StopEntriesTime                             = 154500; // 03:45 PM EST (Bloqueo de nuevas entradas)
                 ForceCloseTime                              = 160000; // 04:00 PM EST (Liquidación obligatoria)
 
@@ -3890,7 +3890,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Contracts { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Hora Inicio RTH (HHMMSS)", Description = "09:50 AM = 95000", GroupName = "3. Horario Operativo", Order = 1)]
+        [Display(Name = "Hora Inicio RTH (HHMMSS)", Description = "09:35 AM = 93500 (Inicia en pausa para activación con Ctrl + Espacio)", GroupName = "3. Horario Operativo", Order = 1)]
         public int StartTime { get; set; }
 
         [NinjaScriptProperty]
