@@ -35,36 +35,37 @@ Periodo analizado: **26 de Octubre a 20 de Noviembre de 2026** (16 sesiones de t
 | **14** | `PAS_11182026_Cascada10.xlsx` | 18/11/2026 | 1 | **+$470.64 USD** | Cascada50_Long -> Exit_T1_TP_FrancoTirador (+$470.64) |
 | **15** | `PAS_11192026_Cascada10.xlsx` | 19/11/2026 | 3 | **+$1,970.06 USD** | Ratchet_Long -> Exit_Ratchet_C1_Tranca (+$183.14)<br>Ratchet_Long -> Exit_Ratchet_Choke4tk (+$1,891.28)<br>Ratchet_Short -> Cortacircuito_Diario_Piso_Exacto (-$104.36) |
 | **16** | `PAS_11202026_Cascada10.xlsx` | 20/11/2026 | 2 | **+$1,049.42 USD** | Ratchet_Short -> Exit_Ratchet_C1_Tranca (+$233.14)<br>Ratchet_Short -> Exit_Ratchet_PisoLower175 (+$816.28) |
+| **17** | `PAS_11232026_Cascada10.xlsx` | 23/11/2026 | 4 | **+$3,245.06 USD** | Ratchet_Long -> Exit_Ratchet_C1_Tranca (+$358.14)<br>Ratchet_Long -> Exit_Ratchet_C2_Upper35 (+$1,320.64)<br>Ratchet_Long -> Exit_Ratchet_Choke4tk (+$1,708.14)<br>Ratchet_Long -> Cortacircuito_Diario_Piso_Exacto (-$141.86) |
 
 ---
 
 ## 3. Métricas Globales Consolidadas (v8.0)
 
-* **Total de Sesiones Evaluadas:** 16 días operativos.
-* **Sesiones Ganadoras (Días Verdes):** 10 (62.5%)
-* **Sesiones Perdedoras (Días Rojos):** 4 (25.0%)
-* **Sesiones Neutrales / Sin Operar (Días Flat):** 2 (12.5%)
-* **Beneficio Neto Total:** **+$8,923.86 USD**
-* **Ganancia Bruta (Gross Profit):** +$10,486.06 USD
-* **Pérdida Bruta (Gross Loss):** -$1,562.20 USD
-* **Profit Factor Institucional:** **6.71**
-* **Promedio Neto por Sesión (Avg Day):** **+$557.74 USD / día**
-* **Promedio Neto por Contrato (Avg Trade):** **+$241.19 USD / contrato**
-* **Total Contratos Operados:** 37 contratos (25 ganadores / 12 perdedores o breakeven, **67.6% Win Rate**).
+* **Total de Sesiones Evaluadas:** 17 días operativos.
+* **Sesiones Ganadoras (Días Verdes):** 11 (64.7%)
+* **Sesiones Perdedoras (Días Rojos):** 4 (23.5%)
+* **Sesiones Neutrales / Sin Operar (Días Flat):** 2 (11.8%)
+* **Beneficio Neto Total:** **+$12,168.92 USD**
+* **Ganancia Bruta (Gross Profit):** +$13,872.98 USD
+* **Pérdida Bruta (Gross Loss):** -$1,704.06 USD
+* **Profit Factor Institucional:** **8.14**
+* **Promedio Neto por Sesión (Avg Day):** **+$715.82 USD / día**
+* **Promedio Neto por Contrato (Avg Trade):** **+$296.80 USD / contrato**
+* **Total Contratos Operados:** 41 contratos (28 ganadores / 13 perdedores, **68.3% Win Rate**).
 
 ### Desglose por Patrón de Entrada
-1. **Cascada50_Long:** 2 trades | 2 wins (100% WR) | **+$941.28 USD** (Ambos alcanzaron `Exit_T1_TP_FrancoTirador`).
+1. **Cascada50_Long:** 2 trades | 2 wins (100% WR) | **+$941.28 USD**.
 2. **Ratchet_Short:** 13 contratos | 10 wins / 3 losses (76.9% WR) | **+$4,222.10 USD**.
-3. **Ratchet_Long:** 22 contratos | 13 wins / 9 losses (59.1% WR) | **+$3,760.48 USD**.
+3. **Ratchet_Long:** 26 contratos | 16 wins / 10 losses (61.5% WR) | **+$7,005.54 USD**.
 
 ### Desglose por Mecanismo de Salida
-* **`Exit_Ratchet_Choke4tk` (Ahogamiento C3):** 4 ejecuciones | 4 wins (100%) | **+$4,240.70 USD** (El mayor generador de alpha).
-* **`Exit_Ratchet_C1_Tranca` (Aseguramiento C1):** 11 ejecuciones | 11 wins (100%) | **+$2,002.04 USD** (Fiabilidad perfecta).
-* **`Exit_Ratchet_C2_Lower35 / Upper35` (Salida C2 a Banda 3.5):** 5 ejecuciones | 5 wins (100%) | **+$1,953.20 USD**.
+* **`Exit_Ratchet_Choke4tk` (Ahogamiento C3):** 5 ejecuciones | 5 wins (100%) | **+$5,948.84 USD** (El motor nuclear de la estrategia).
+* **`Exit_Ratchet_C1_Tranca` (Aseguramiento C1):** 12 ejecuciones | 12 wins (100%) | **+$2,360.18 USD** (100% de fiabilidad).
+* **`Exit_Ratchet_C2_Lower35 / Upper35` (Salida C2 a Banda 3.5):** 6 ejecuciones | 6 wins (100%) | **+$3,273.84 USD**.
 * **`Exit_T1_TP_FrancoTirador` (Cascada):** 2 ejecuciones | 2 wins (100%) | **+$941.28 USD**.
-* **`Exit_Ratchet_SwingPrematuro`:** 6 ejecuciones | 1 win / 5 losses | **-$419.18 USD** (Optimización detectada: dar más barras de respiro al swing).
+* **`Exit_Ratchet_SwingPrematuro`:** 6 ejecuciones | 1 win / 5 losses | **-$419.18 USD**.
 * **`Exit_Ratchet_SlInicial`:** 2 ejecuciones | -$588.08 USD.
-* **`Cortacircuito_Diario_Piso_Exacto`:** 2 ejecuciones | -$233.72 USD.
+* **`Cortacircuito_Diario_Piso_Exacto`:** 3 ejecuciones | -$375.58 USD.
 
 ---
 
