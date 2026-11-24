@@ -73,3 +73,38 @@ Periodo analizado: **26 de Octubre a 20 de Noviembre de 2026** (16 sesiones de t
 > [!IMPORTANT]
 > **Consolidación Histórica Semana Nov 16 - Nov 20:**  
 > La semana previa cerró con **5 de 5 días en verde** y más de **+$5,088 USD netos**. La versión 8.0 incorpora los filtros de calidad para blindar los días de choque como el 12 y 20 de noviembre sin afectar los corredores limpios.
+
+---
+
+## 4. Registro de Calibraciones y Mejoras Aprobadas (Roadmap Próxima Actualización)
+
+Esta es la lista oficial de ajustes y optimizaciones validadas durante la fase de pruebas y simulación en tiempo real, listas para ser incorporadas en el código:
+
+1. **🎯 Modo Monocontrato / Desescalado en Ratchet (Target Banda 3.5 Prioritario):**
+   * *Diagnóstico:* Cuando Ratchet opera desescalado a 1 solo contrato (para proteger ganancias diarias) o en modo monocontrato, actualmente no cobra en Banda 3.5 porque `Exit_Ratchet_C2_Upper35` exige $\ge 3$ contratos. El trade se comporta como "Astronauta / C3", arriesgando que una ganancia flotante de +25 ticks en el techo de Banda 3.5 se devuelva hasta el piso de Banda 1.75.
+   * *Solución aprobada:* Si `activeTradeContracts == 1`, el objetivo de salida prioritario será **liquidar inmediatamente al tocar la Banda 3.5 (Offset 0)**, asegurando de +20 a +30 ticks en el bolsillo en vez de dejarlo flotar.
+
+2. **📐 Filtro Anti-Persecución Dinámico Porcentual:**
+   * *Diagnóstico:* Los valores fijos en ticks (ej. 24 ticks o 50 ticks) fallan según la volatilidad: en canales gigantes (140 ticks) bloquean trades millonarios como el del 23/11, y en canales enanos (48 ticks) permiten comprar en el 86% del techo como el trade de 10:07 AM.
+   * *Solución aprobada:* Medir la posición relativa de la vela 4 respecto a la altura total del canal ($H_{canal} = \text{Upper 3.5} - \text{Lower 3.5}$). Descartar la entrada si el precio ya consumió más del **40% - 45%** de la altura total hacia el techo (o hacia el piso en cortos).
+
+3. **🎯 Offset C2 Banda 3.5 en 0 Ticks (`RatchetC2UpperBigOffsetTicks = 0`):**
+   * Salida del Contrato 2 exactamente al tocar la Banda 3.5, sin exigir penetración externa.
+
+4. **⏳ Respiro al Aborto por Swing Prematuro (`RatchetEarlySwingMaxBars = 10`):**
+   * Aumentar de 6 a 10 barras para que el rebote tenga espacio y tiempo de desarrollarse antes de declarar fallo.
+
+5. **🌊 Profundidad Mínima del Swing en Zona 1 (`RatchetMinSwingDepthTicks = 3`):**
+   * Reducir de 10 a 3 ticks la exigencia de penetración para no filtrar giros limpios.
+
+6. **🚀 Separación Mínima Base/Techo Swing (`RatchetMinLowSeparationTicks = 6`):**
+   * Ajustar a 6 ticks (1.5 pts) de despegue mínimo respecto al pivote.
+
+7. **📉 Pendiente Mínima de Entrada TEMA 9 en el Swing (`RatchetMinTemaSlope`):**
+   * Exigir que el TEMA 9 lleve una pendiente viva ($\ge +0.20$ pts/bar en largos, $\le -0.20$ en cortos) para descartar rebotes muertos o planos.
+
+8. **⚡ Pendiente Mínima de Cascada (`CascadaSlopeThreshold = 0.16`):**
+   * Aumentar de 0.15 a 0.16 para que Cascada Apertura (10 min) solo dispare en auténticos cohetes institucionales.
+
+9. **🪢 Ahogamiento C3 Más Temprano (`RatchetChokeOutsideTicks = 10` a `12`):**
+   * Reducir de 16 ticks a 10-12 ticks la distancia exterior para que el Contrato 3 active el Choke ceñido a 4 ticks antes.
