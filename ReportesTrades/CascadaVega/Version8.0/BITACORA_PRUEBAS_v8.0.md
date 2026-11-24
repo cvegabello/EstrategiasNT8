@@ -83,35 +83,20 @@ Periodo analizado: **19 de Octubre a 23 de Noviembre de 2026** (23 sesiones de t
 
 ---
 
-## 4. Registro de Calibraciones y Mejoras Aprobadas (Roadmap Próxima Actualización)
+## 4. Implementación y Congelamiento Oficial: Versión 8.1
 
-Esta es la lista oficial de ajustes y optimizaciones validadas durante la fase de pruebas y simulación en tiempo real, listas para ser incorporadas en el código:
+Todas las mejoras y calibraciones analizadas a partir del consolidado de 23 sesiones fueron formalmente implementadas y congeladas en la **Versión 8.1 - Cascada Vega ES**:
 
-1. **🎯 Modo Monocontrato / Desescalado en Ratchet (Target Banda 3.5 Prioritario):**
-   * *Diagnóstico:* Cuando Ratchet opera desescalado a 1 solo contrato (para proteger ganancias diarias) o en modo monocontrato, actualmente no cobra en Banda 3.5 porque `Exit_Ratchet_C2_Upper35` exige $\ge 3$ contratos. El trade se comporta como "Astronauta / C3", arriesgando que una ganancia flotante de +25 ticks en el techo de Banda 3.5 se devuelva hasta el piso de Banda 1.75.
-   * *Solución aprobada:* Si `activeTradeContracts == 1`, el objetivo de salida prioritario será **liquidar inmediatamente al tocar la Banda 3.5 (Offset 0)**, asegurando de +20 a +30 ticks en el bolsillo en vez de dejarlo flotar.
+1. **🎯 Liquidación Monocontrato / Desescalado en Banda 3.5 (Offset 0):** Implementado en `ManageAs3_Ratchet_Long` y `ManageAs3_Ratchet_Short`. Si `activeTradeContracts == 1` y toca Banda 3.5, liquida inmediatamente el contrato cobrando de +20 a +30 ticks en el banco sin flotar.
+2. **📐 Filtro Anti-Persecución Dinámico Porcentual (`RatchetMaxSeparationPercent = 45.0%`):** Reemplazó los ticks fijos por el 45% del ancho total del canal ($H_{canal}$).
+3. **🌊 Profundidad Mínima del Swing en Zona 1 Porcentual (`RatchetMinSwingDepthPercent = 15.0%`):** Exige penetrar al menos el 15% del espesor de Zona 1 respecto a Banda 1.75.
+4. **📊 Separación Mínima EMA 200 Porcentual (`RatchetEmaMinSeparationPercent = 5.0%`):** Exige separación de al menos el 5% del canal fuera de Banda 1.75.
+5. **📈 Umbral Pendiente EMA 200 (`RatchetEmaMinSlopeThreshold = 0.0`):** Exige $\ge 0.0$ para Longs y $\le 0.0$ para Shorts.
+6. **📉 Pendiente Mínima Inercia TEMA 9 (`RatchetMinTemaSlope = 0.20` pts/barra):** Descarta rebotes muertos o planos.
+7. **⏳ Respiro al Aborto por Swing Prematuro (`RatchetEarlySwingMaxBars = 10`):** Aumentado a 10 barras de respiro.
+8. **🚀 Despegue Mínimo Base Swing (`RatchetMinLowSeparationTicks = 6`):** Calibrado a 6 ticks (1.5 pts).
+9. **🪢 Ahogamiento C3 en Super-Expansión (`RatchetChokeOutsideTicks = 12`):** Activa el Choke ceñido a 12 ticks fuera de Banda 3.5.
+10. **⚡ Pendiente Cascada Surfer (`CascadaSlopeThreshold = 0.16`, `CascadaSlopeTriggerThreshold = 0.17`):** Calibración de alta aceleración institucional.
+11. **🎨 Corrección UI WPF:** Prefijos de dos dígitos (`01.` a `11.`) para ordenamiento perfecto en NinjaTrader 8 y Tooltips descriptivos en español.
 
-2. **📐 Filtro Anti-Persecución Dinámico Porcentual:**
-   * *Diagnóstico:* Los valores fijos en ticks (ej. 24 ticks o 50 ticks) fallan según la volatilidad: en canales gigantes (140 ticks) bloquean trades millonarios como el del 23/11, y en canales enanos (48 ticks) permiten comprar en el 86% del techo como el trade de 10:07 AM.
-   * *Solución aprobada:* Medir la posición relativa de la vela 4 respecto a la altura total del canal ($H_{canal} = \text{Upper 3.5} - \text{Lower 3.5}$). Descartar la entrada si el precio ya consumió más del **40% - 45%** de la altura total hacia el techo (o hacia el piso en cortos).
-
-3. **🎯 Offset C2 Banda 3.5 en 0 Ticks (`RatchetC2UpperBigOffsetTicks = 0`):**
-   * Salida del Contrato 2 exactamente al tocar la Banda 3.5, sin exigir penetración externa.
-
-4. **⏳ Respiro al Aborto por Swing Prematuro (`RatchetEarlySwingMaxBars = 10`):**
-   * Aumentar de 6 a 10 barras para que el rebote tenga espacio y tiempo de desarrollarse antes de declarar fallo.
-
-5. **🌊 Profundidad Mínima del Swing en Zona 1 (`RatchetMinSwingDepthTicks = 3`):**
-   * Reducir de 10 a 3 ticks la exigencia de penetración para no filtrar giros limpios.
-
-6. **🚀 Separación Mínima Base/Techo Swing (`RatchetMinLowSeparationTicks = 6`):**
-   * Ajustar a 6 ticks (1.5 pts) de despegue mínimo respecto al pivote.
-
-7. **📉 Pendiente Mínima de Entrada TEMA 9 en el Swing (`RatchetMinTemaSlope`):**
-   * Exigir que el TEMA 9 lleve una pendiente viva ($\ge +0.20$ pts/bar en largos, $\le -0.20$ en cortos) para descartar rebotes muertos o planos.
-
-8. **⚡ Pendiente Mínima de Cascada (`CascadaSlopeThreshold = 0.16`):**
-   * Aumentar de 0.15 a 0.16 para que Cascada Apertura (10 min) solo dispare en auténticos cohetes institucionales.
-
-9. **🪢 Ahogamiento C3 Más Temprano (`RatchetChokeOutsideTicks = 10` a `12`):**
-   * Reducir de 16 ticks a 10-12 ticks la distancia exterior para que el Contrato 3 active el Choke ceñido a 4 ticks antes.
+> **Documento de Referencia Técnica:** Ver [FICHA_TECNICA_RATCHET_v8.1.md](file:///c:/Users/carlo/Documents/NinjaTrader%208/bin/Custom/ReportesTrades/CascadaVega/Version8.0/FICHA_TECNICA_RATCHET_v8.1.md) para la especificación matemática completa.
