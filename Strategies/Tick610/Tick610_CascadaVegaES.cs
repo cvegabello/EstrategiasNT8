@@ -23,9 +23,9 @@ using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
 
 // =========================================================================================================
-// ESTRATEGIA: Tick610_CascadaVegaES - "Cascada Vega ES"
+// ESTRATEGIA: Tick610_CascadaVegaES - "Cascada Vega ES/MES"
 // Desarrollado con Mentoría Cuantitativa Institucional para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 8.1 - Cascada Vega ES [Ratchet v8.1: Arquitectura Porcentual Dinámica, Monocontrato Banda 3.5, Filtro TEMA 9 + Cascada v8.1]
+// VERSIÓN: 8.2 - Cascada Vega ES/MES [Ajustado nativo a MES: Respeto directo de dólares en UI, Blindaje Flat en Victoria Temprana, Gestión Ininterrumpida de Salidas]
 //
 // LOS ASES ACTIVOS:
 //   1. As 4: [Cascada]   - El Tren Bala Institucional con Entrada Rápida Pura
@@ -206,7 +206,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = @"Estrategia Institucional Cascada Vega ES v1.0 en 610 Ticks para ES/MES. Cascada Pura con Escalón de Aceleración en Pendiente (>0.1600), Techo Máximo de Sobreextensión (30 ticks), TP Fijo de Franco-Tirador Trade 1 (+$470), Victoria Temprana (+$450) y Clímax Ratchet ($300).";
+                Description                                 = @"Estrategia Institucional Cascada Vega ES/MES v8.2 en 610 Ticks. Calibrada para MES (Respeto Directo a Dólares de UI, Blindaje Flat en Victoria Temprana, TP Fijo Franco-Tirador $475 ES / $47.5 MES, Salidas Blindadas).";
                 Name                                        = "Tick610_CascadaVegaES";
                 Calculate                                   = Calculate.OnBarClose;
                 EntriesPerDirection                         = 3; // Permite hasta 3 contratos por dirección
@@ -382,11 +382,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     MinTrancaDistanceDollars = 12.5;
                     TrancaConquestBufferDollars = 5.0;
                     TrancaAnchorDollars = 2.0;
-                    T1FixedTpDollars      = 47.0;
+                    T1FixedTpDollars      = 47.5;
                     ClimaxTriggerDollars  = 30.0;
                     EarlyWinT1GoalDollars = 45.0;
                     currentDailyFloor     = -DailyLossLimit;
-                    Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Multiplicador 0.10x aplicado. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
+                    Print(string.Format("=== [PAS] INSTRUMENTO MICRO (MES) DETECTADO === Valores calibrados a MES. Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
                 }
                 else
@@ -686,16 +686,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                         LiquidateAllMarket("Cortacircuito_Diario_Piso");
                     return;
                 }
-
-                // Si la estrategia ya está bloqueada por el día, no evaluar más entradas
-                if (isDailyLocked) return;
             }
 
             // 6. GESTIÓN DE SALIDAS DINÁMICAS Y ESCALONAMIENTO
+            // REGLA DE ORO INSTITUCIONAL: Mientras haya posición abierta en mercado, las salidas dinámicas SIEMPRE se gestionan para proteger el capital
             if (Position.MarketPosition != MarketPosition.Flat)
             {
                 ManageDynamicExits();
             }
+
+            // Si la estrategia ya está bloqueada por el día (Cortacircuito / Victoria Temprana), no evalúa nuevas entradas
+            if (isDailyLocked) return;
 
             // 7. EVALUACIÓN DE ENTRADAS DE LOS 4 ASES (SOLO SI BOTÓN ACTIVO, FLAT Y EN HORARIO VÁLIDO)
             if (isStrategyActive && Position.MarketPosition == MarketPosition.Flat && isTradingTime && !isDailyLocked)
@@ -2274,10 +2275,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (nextMilestone > 0.0 && dollarsPerPoint > 0)
                     {
                         double rawDistanceToMilestone = nextMilestone - dailyRealizedPnL;
-                        double minHealthyDistance = MinTrancaDistanceDollars * instrumentMultiplier;
+                        double minHealthyDistance = MinTrancaDistanceDollars;
 
                         // FILTRO ANTI-ASFIXIA:
-                        // Si falta una mincha (< $125 USD) para la meta, apagamos la tranca para no estrangular el trade.
+                        // Si falta una mincha para la meta, apagamos la tranca para no estrangular el trade.
                         // El trade corre libre con la gestión natural del As.
                         if (rawDistanceToMilestone < minHealthyDistance && !trancaActive)
                         {
@@ -2285,12 +2286,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                         else
                         {
-                            // ANCLAJE DE TITANIO SOBRE EL ESCALÓN (+$20 USD: $420, $620, $920):
-                            double effectiveAnchorMilestone = nextMilestone + (TrancaAnchorDollars * instrumentMultiplier);
+                            // ANCLAJE DE TITANIO SOBRE EL ESCALÓN:
+                            double effectiveAnchorMilestone = nextMilestone + TrancaAnchorDollars;
                             double distanceToAnchor = effectiveAnchorMilestone - dailyRealizedPnL;
 
-                            double conquestRequiredDollars = distanceToAnchor + (TrancaConquestBufferDollars * instrumentMultiplier);
-                            double lockRequiredDollars = distanceToAnchor + (TrancaSafetyDollars * instrumentMultiplier);
+                            double conquestRequiredDollars = distanceToAnchor + TrancaConquestBufferDollars;
+                            double lockRequiredDollars = distanceToAnchor + TrancaSafetyDollars;
                             double floatingGainDollars = (Close[0] - entryPrice) * dollarsPerPoint;
                             double favorableGainDollars = (High[0] - entryPrice) * dollarsPerPoint;
 
@@ -2303,7 +2304,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 double lockPoints = lockRequiredDollars / dollarsPerPoint;
                                 trancaPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + lockPoints);
 
-                                double bonusPoints = (TrancaBonusDollars * instrumentMultiplier) / dollarsPerPoint;
+                                double bonusPoints = TrancaBonusDollars / dollarsPerPoint;
                                 trancaBonusPrice = Instrument.MasterInstrument.RoundToTickSize(trancaPrice + bonusPoints);
 
                                 Print(string.Format("****************************************************************************************\n" +
@@ -2312,7 +2313,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                                     "Tranca de Adamantium anclada en {3:F2} (Garantiza cerrar en ${4:F2} USD netos tras comisiones y slippage).\n" +
                                                     "Sprint Bonus armado en {5:F2} buscando +${6:F2} USD adicionales. ¡A romperla sin miedo!\n" +
                                                     "****************************************************************************************",
-                                    Time[0], nextTierTarget, nextMilestone, trancaPrice, effectiveAnchorMilestone, trancaBonusPrice, TrancaBonusDollars * instrumentMultiplier));
+                                    Time[0], nextTierTarget, nextMilestone, trancaPrice, effectiveAnchorMilestone, trancaBonusPrice, TrancaBonusDollars));
                             }
 
                             // 2. GESTIÓN MIENTRAS LA TRANCA ESTÁ ACTIVA
@@ -2527,27 +2528,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // 1.1 LIQUIDACIÓN CONTRATO 2: EL FRANCOTIRADOR (Upper 3.5 + Offset ticks)
-                    // Aplica cuando la posición se abrió con 3 contratos y C2 aún no ha salido
-                    if (activeTradeContracts >= 3 && !ratchetC2Exited)
+                    // Aplica cuando la posición tiene al menos 2 contratos activos y C2 aún no ha salido
+                    if (activeTradeContracts >= 2 && !ratchetC2Exited)
                     {
                         double targetC2Price = upperBig + (RatchetC2UpperBigOffsetTicks * TickSize);
                         if (Close[0] >= targetC2Price || High[0] >= targetC2Price)
                         {
                             ratchetC2Exited = true;
                             ExitLong(1, "Exit_Ratchet_C2_Upper35", "Ratchet_Long");
-                            Print(string.Format("{0} - [RATCHET v8.1 | CONTRATO 2 FRANCOTIRADOR LIQUIDADO] 1 contrato cobrado en el techo de Upper 3.5 (+{1}tk) @ ~{2:F2}. Queda el Contrato 3 (Astronauta) en órbita.",
+                            activeTradeContracts = Math.Max(0, activeTradeContracts - 1);
+                            Print(string.Format("{0} - [RATCHET v8.2 | CONTRATO 2 FRANCOTIRADOR LIQUIDADO] 1 contrato cobrado en el techo de Upper 3.5 (+{1}tk) @ ~{2:F2}. Queda el Contrato 3 (Astronauta) en órbita.",
                                 Time[0], RatchetC2UpperBigOffsetTicks, targetC2Price));
                         }
                     }
-                    // En modo Monocontrato (1 contrato por desescalado de cuenta o manual v8.1): Liquidar inmediatamente al tocar Banda 3.5
+                    // En modo Monocontrato (1 contrato por desescalado de cuenta o manual v8.2): Liquidar inmediatamente al tocar Banda 3.5
                     else if (activeTradeContracts == 1 && !ratchetC2Exited)
                     {
                         double targetC2Price = upperBig + (RatchetC2UpperBigOffsetTicks * TickSize);
                         if (Close[0] >= targetC2Price || High[0] >= targetC2Price)
                         {
                             ratchetC2Exited = true;
-                            ExitLong("Exit_Ratchet_C2_Upper35", "Ratchet_Long");
-                            Print(string.Format("{0} - [RATCHET v8.1 | MONOCONTRATO LIQUIDADO EN BANDA 3.5] Contrato único cobrado en el techo de Upper 3.5 (+{1}tk) @ ~{2:F2}. ¡Ganancia en el banco sin flotar!",
+                            ExitLong(currentQty, "Exit_Ratchet_C2_Upper35", "");
+                            activeTradeContracts = 0;
+                            Print(string.Format("{0} - [RATCHET v8.2 | MONOCONTRATO LIQUIDADO EN BANDA 3.5] Contrato único cobrado en el techo de Upper 3.5 (+{1}tk) @ ~{2:F2}. ¡Ganancia en el banco sin flotar!",
                                 Time[0], RatchetC2UpperBigOffsetTicks, targetC2Price));
                             return;
                         }
@@ -2566,10 +2569,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int barsInTradeLong = (ratchetEntryBar > 0) ? (CurrentBar - ratchetEntryBar) : 0;
 
                     // FASE 0.3: ABORTO TEMPRANO POR SWING HIGH PREMATURO (v7.0 - ACCIÓN DEL PRECIO PURA)
-                    // Si alcanzamos la barra N (barsInTradeLong >= RatchetEarlySwingMaxBars, ej. 6) y C1 aún no ha salido:
-                    // Verificamos el techo Swing High más reciente en la gráfica (puntos cian).
-                    // Si el precio actual está por debajo o tocando ese techo (Close[0] <= thresholdPrice),
-                    // significa que el precio fracasó en romper el techo visible. ¡Salida inmediata para evitar pérdidas mayores!
                     if (RatchetEarlySwingAbortEnabled && barsInTradeLong >= RatchetEarlySwingMaxBars && !ratchetEarlySwingPassed && !ratchetC1Exited)
                     {
                         int strength = Math.Max(1, RatchetSwingStrength);
@@ -2578,8 +2577,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             double swingHighPrice = High[swingHighBarAgo];
                             
-                            // Relevancia: El swing se confirmó durante el trade (o justo en su gestación: swingHighBarAgo - strength <= barsInTradeLong),
-                            // o es el techo inmediato contra el que está chocando (a menos de 16 ticks por encima de la entrada)
                             bool isRelevantCeiling = (swingHighBarAgo - strength <= barsInTradeLong) || 
                                                     (swingHighPrice >= entryPrice && swingHighPrice <= entryPrice + (16 * TickSize));
                             
@@ -2588,7 +2585,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 double thresholdPrice = swingHighPrice + (RatchetEarlySwingConfirmTicks * TickSize);
                                 if (Close[0] <= thresholdPrice)
                                 {
-                                    ExitLong("Exit_Ratchet_SwingPrematuro", "Ratchet_Long");
+                                    ExitLong(currentQty, "Exit_Ratchet_SwingPrematuro", "");
                                     ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                                     ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                                     Print(string.Format("{0} - [RATCHET v7.0 | ABORTO TEMPRANO SWING PREMATURO LONG] Barra {1} tras entrada. Techo Swing High en {2:F2} ({3}b atrás). Precio actual ({4:F2} <= {5:F2}) no logró superarlo. Aborto ejecutado. Cuarentena de {6} barras activa hasta barra {7}.",
@@ -2597,7 +2594,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 }
                                 else
                                 {
-                                    // La vela completica logró cerrar por encima del techo: ¡Prueba superada, dejamos correr el trade libremente!
                                     ratchetEarlySwingPassed = true;
                                     Print(string.Format("{0} - [RATCHET v7.0 | SWING TEMPRANO SUPERADO LONG] Barra {1}. Precio ({2:F2} > {3:F2}) rompió el techo. Prueba superada, trade continúa libre.",
                                         Time[0], barsInTradeLong, Close[0], thresholdPrice));
@@ -2605,23 +2601,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                             }
                             else
                             {
-                                // No hay techo reciente inmediato estorbando: Prueba superada
                                 ratchetEarlySwingPassed = true;
                             }
                         }
                     }
 
                     // FASE 0.5: CHEQUEO DE SALUD DEL TRADE (HEALTH-CHECK TRAS N BARRAS - v7.0)
-                    // Si han pasado RatchetHealthCheckBars (ej. 10 barras), el Contrato 1 NO ha podido cobrar Tranca,
-                    // la posición va en pérdida o ganancia insignificante (<= RatchetHealthCheckMaxPnlTicks),
-                    // Y la pendiente de la Línea Media está en contra (<= 0): Se aborta inmediatamente para evitar un Stop Loss mayor.
                     if (RatchetHealthCheckEnabled && barsInTradeLong >= RatchetHealthCheckBars && !ratchetC1Exited)
                     {
                         double currentPnlTicks = (Close[0] - entryPrice) / TickSize;
                         double normSlopeHealth = GetNormalizedSlope(keltnerBig.Midline);
                         if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth <= 0)
                         {
-                            ExitLong("Exit_Ratchet_Asfixia", "Ratchet_Long");
+                            ExitLong(currentQty, "Exit_Ratchet_Asfixia", "");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             Print(string.Format("{0} - [RATCHET v7.0 | SALIDA ASFIXIA LONG] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} <= 0). Aborto de seguridad ejecutado. Cuarentena de {5} barras activa hasta barra {6}.",
@@ -2636,7 +2628,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double chokeSl = highestPriceSinceEntry - (RatchetChicleTicks * TickSize);
                         if (Close[0] <= chokeSl || Low[0] <= chokeSl)
                         {
-                            ExitLong("Exit_Ratchet_Choke4tk", "Ratchet_Long");
+                            ExitLong(currentQty, "Exit_Ratchet_Choke4tk", "");
                             Print(string.Format("{0} - [RATCHET v3.0 | SALIDA CHOKE PARABÓLICO] Liquidado en la cima @ ~{1:F2} (Pico: {2:F2} | Trailing {3}tk). ¡Grosería de trade!",
                                 Time[0], Close[0], highestPriceSinceEntry, RatchetChicleTicks));
                             return;
@@ -2647,7 +2639,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         if (High[0] < upperBig)
                         {
-                            ExitLong("Exit_Ratchet_PisoUpper35", "Ratchet_Long");
+                            ExitLong(currentQty, "Exit_Ratchet_PisoUpper35", "");
                             Print(string.Format("{0} - [RATCHET v3.0 | SALIDA PISO 3 UPPER 3.5] Barra completica perforó Upper 3.5 hacia abajo ({1:F2} < {2:F2}). Ganancia estelar embolsillada.",
                                 Time[0], High[0], upperBig));
                             return;
@@ -2662,7 +2654,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             if (High[0] < midline)
                             {
-                                ExitLong("Exit_Ratchet_PisoMidline", "Ratchet_Long");
+                                ExitLong(currentQty, "Exit_Ratchet_PisoMidline", "");
                                 Print(string.Format("{0} - [RATCHET v7.0 | SALIDA PISO 2 LÍNEA MEDIA] Pendiente alcista ({1:F4} > 0). Barra perforó Línea Media ({2:F2} < {3:F2}). Resguardo en Línea Media.",
                                     Time[0], normSlope, High[0], midline));
                                 return;
@@ -2673,7 +2665,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             // Si la Línea Media es plana o contraria (<= 0): Piso ceñido detrasito de Upper 1.75 (asegura tramo superior)
                             if (High[0] < upperSmall)
                             {
-                                ExitLong("Exit_Ratchet_PisoUpper175", "Ratchet_Long");
+                                ExitLong(currentQty, "Exit_Ratchet_PisoUpper175", "");
                                 Print(string.Format("{0} - [RATCHET v7.0 | SALIDA PISO 2 UPPER 1.75] Pendiente plana o contraria ({1:F4} <= 0). Barra perforó Upper 1.75 ({2:F2} < {3:F2}). Tramo superior asegurado.",
                                     Time[0], normSlope, High[0], upperSmall));
                                 return;
@@ -2686,7 +2678,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         if (High[0] < midline)
                         {
-                            ExitLong("Exit_Ratchet_PisoMidline", "Ratchet_Long");
+                            ExitLong(currentQty, "Exit_Ratchet_PisoMidline", "");
                             if (Close[0] <= entryPrice)
                             {
                                 ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
@@ -2703,7 +2695,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double effectiveInitialSl = Math.Max(ratchetInitialSlPrice, entryPrice - (RatchetMaxSlTicks * TickSize));
                         if (Close[0] <= effectiveInitialSl || Low[0] <= effectiveInitialSl)
                         {
-                            ExitLong("Exit_Ratchet_SlInicial", "Ratchet_Long");
+                            ExitLong(currentQty, "Exit_Ratchet_SlInicial", "");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             Print(string.Format("{0} - [RATCHET v7.0 | SL INICIAL EJECUTADO] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cuarentena de {3} barras activada hasta barra {4}.",
@@ -2821,10 +2813,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // =========================================================================
                     bool isFirstTradeOfDay = (GetTodayClosedTradesCount() == 0);
 
-                    // --- CASO A: TRADE 1 CON TAKE PROFIT FIJO DE FRANCO-TIRADOR (+$470 USD) ---
+                    // --- CASO A: TRADE 1 CON TAKE PROFIT FIJO DE FRANCO-TIRADOR ---
                     if (UseT1FixedTp && isFirstTradeOfDay)
                     {
-                        double effectiveT1FixedTpDollars = T1FixedTpDollars * instrumentMultiplier;
+                        double effectiveT1FixedTpDollars = T1FixedTpDollars;
                         double t1TpTicks = Math.Round(effectiveT1FixedTpDollars / (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize));
                         double t1TargetPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice + (t1TpTicks * TickSize));
 
@@ -2836,7 +2828,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         double currentGainTicksLong = (High[0] - entryPrice) / TickSize;
                         double currentGainDollarsLong = currentGainTicksLong * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
-                        double effectiveClimaxTriggerDollars = ClimaxTriggerDollars * instrumentMultiplier;
+                        double effectiveClimaxTriggerDollars = ClimaxTriggerDollars;
 
                         if (!isClimaxRatchetActive)
                         {
@@ -2970,10 +2962,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (nextMilestone > 0.0 && dollarsPerPoint > 0)
                     {
                         double rawDistanceToMilestone = nextMilestone - dailyRealizedPnL;
-                        double minHealthyDistance = MinTrancaDistanceDollars * instrumentMultiplier;
+                        double minHealthyDistance = MinTrancaDistanceDollars;
 
                         // FILTRO ANTI-ASFIXIA:
-                        // Si falta una mincha (< $125 USD) para la meta, apagamos la tranca para no estrangular el trade.
+                        // Si falta una mincha para la meta, apagamos la tranca para no estrangular el trade.
                         // El trade corre libre con la gestión natural del As.
                         if (rawDistanceToMilestone < minHealthyDistance && !trancaActive)
                         {
@@ -2981,12 +2973,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                         else
                         {
-                            // ANCLAJE DE TITANIO SOBRE EL ESCALÓN (+$20 USD: $420, $620, $920):
-                            double effectiveAnchorMilestone = nextMilestone + (TrancaAnchorDollars * instrumentMultiplier);
+                            // ANCLAJE DE TITANIO SOBRE EL ESCALÓN:
+                            double effectiveAnchorMilestone = nextMilestone + TrancaAnchorDollars;
                             double distanceToAnchor = effectiveAnchorMilestone - dailyRealizedPnL;
 
-                            double conquestRequiredDollars = distanceToAnchor + (TrancaConquestBufferDollars * instrumentMultiplier);
-                            double lockRequiredDollars = distanceToAnchor + (TrancaSafetyDollars * instrumentMultiplier);
+                            double conquestRequiredDollars = distanceToAnchor + TrancaConquestBufferDollars;
+                            double lockRequiredDollars = distanceToAnchor + TrancaSafetyDollars;
                             double floatingGainDollars = (entryPrice - Close[0]) * dollarsPerPoint;
                             double favorableGainDollars = (entryPrice - Low[0]) * dollarsPerPoint;
 
@@ -2999,7 +2991,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 double lockPoints = lockRequiredDollars / dollarsPerPoint;
                                 trancaPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - lockPoints);
 
-                                double bonusPoints = (TrancaBonusDollars * instrumentMultiplier) / dollarsPerPoint;
+                                double bonusPoints = TrancaBonusDollars / dollarsPerPoint;
                                 trancaBonusPrice = Instrument.MasterInstrument.RoundToTickSize(trancaPrice - bonusPoints);
 
                                 Print(string.Format("****************************************************************************************\n" +
@@ -3008,7 +3000,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                                     "Tranca de Adamantium anclada en {3:F2} (Garantiza cerrar en ${4:F2} USD netos tras comisiones y slippage).\n" +
                                                     "Sprint Bonus armado en {5:F2} buscando +${6:F2} USD adicionales. ¡A romperla sin miedo!\n" +
                                                     "****************************************************************************************",
-                                    Time[0], nextTierTarget, nextMilestone, trancaPrice, effectiveAnchorMilestone, trancaBonusPrice, TrancaBonusDollars * instrumentMultiplier));
+                                    Time[0], nextTierTarget, nextMilestone, trancaPrice, effectiveAnchorMilestone, trancaBonusPrice, TrancaBonusDollars));
                             }
 
                             // 2. GESTIÓN MIENTRAS LA TRANCA ESTÁ ACTIVA
@@ -3223,27 +3215,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // 1.1 LIQUIDACIÓN CONTRATO 2: EL FRANCOTIRADOR (Lower 3.5 - Offset ticks)
-                    // Aplica cuando la posición se abrió con 3 contratos y C2 aún no ha salido
-                    if (activeTradeContracts >= 3 && !ratchetC2Exited)
+                    // Aplica cuando la posición tiene al menos 2 contratos activos y C2 aún no ha salido
+                    if (activeTradeContracts >= 2 && !ratchetC2Exited)
                     {
                         double targetC2Price = lowerBig - (RatchetC2UpperBigOffsetTicks * TickSize);
                         if (Close[0] <= targetC2Price || Low[0] <= targetC2Price)
                         {
                             ratchetC2Exited = true;
                             ExitShort(1, "Exit_Ratchet_C2_Lower35", "Ratchet_Short");
-                            Print(string.Format("{0} - [RATCHET v8.1 | CONTRATO 2 FRANCOTIRADOR LIQUIDADO] 1 contrato cobrado en el suelo de Lower 3.5 (-{1}tk) @ ~{2:F2}. Queda el Contrato 3 (Astronauta) en el abismo.",
+                            activeTradeContracts = Math.Max(0, activeTradeContracts - 1);
+                            Print(string.Format("{0} - [RATCHET v8.2 | CONTRATO 2 FRANCOTIRADOR LIQUIDADO] 1 contrato cobrado en el suelo de Lower 3.5 (-{1}tk) @ ~{2:F2}. Queda el Contrato 3 (Astronauta) en el abismo.",
                                 Time[0], RatchetC2UpperBigOffsetTicks, targetC2Price));
                         }
                     }
-                    // En modo Monocontrato (1 contrato por desescalado de cuenta o manual v8.1): Liquidar inmediatamente al tocar Banda 3.5
+                    // En modo Monocontrato (1 contrato por desescalado de cuenta o manual v8.2): Liquidar inmediatamente al tocar Banda 3.5
                     else if (activeTradeContracts == 1 && !ratchetC2Exited)
                     {
                         double targetC2Price = lowerBig - (RatchetC2UpperBigOffsetTicks * TickSize);
                         if (Close[0] <= targetC2Price || Low[0] <= targetC2Price)
                         {
                             ratchetC2Exited = true;
-                            ExitShort("Exit_Ratchet_C2_Lower35", "Ratchet_Short");
-                            Print(string.Format("{0} - [RATCHET v8.1 | MONOCONTRATO LIQUIDADO EN BANDA 3.5] Contrato único cobrado en el suelo de Lower 3.5 (-{1}tk) @ ~{2:F2}. ¡Ganancia en el banco sin flotar!",
+                            ExitShort(currentQty, "Exit_Ratchet_C2_Lower35", "");
+                            activeTradeContracts = 0;
+                            Print(string.Format("{0} - [RATCHET v8.2 | MONOCONTRATO LIQUIDADO EN BANDA 3.5] Contrato único cobrado en el suelo de Lower 3.5 (-{1}tk) @ ~{2:F2}. ¡Ganancia en el banco sin flotar!",
                                 Time[0], RatchetC2UpperBigOffsetTicks, targetC2Price));
                             return;
                         }
@@ -3308,16 +3302,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // FASE 0.5: CHEQUEO DE SALUD DEL TRADE (HEALTH-CHECK TRAS N BARRAS - v7.0)
-                    // Si han pasado RatchetHealthCheckBars (ej. 10 barras), el Contrato 1 NO ha podido cobrar Tranca,
-                    // la posición va en pérdida o ganancia insignificante (<= RatchetHealthCheckMaxPnlTicks),
-                    // Y la pendiente de la Línea Media está en contra (>= 0): Se aborta inmediatamente para evitar un Stop Loss mayor.
                     if (RatchetHealthCheckEnabled && barsInTradeShort >= RatchetHealthCheckBars && !ratchetC1Exited)
                     {
                         double currentPnlTicks = (entryPrice - Close[0]) / TickSize;
                         double normSlopeHealth = GetNormalizedSlope(keltnerBig.Midline);
                         if (currentPnlTicks <= RatchetHealthCheckMaxPnlTicks && normSlopeHealth >= 0)
                         {
-                            ExitShort("Exit_Ratchet_Asfixia", "Ratchet_Short");
+                            ExitShort(currentQty, "Exit_Ratchet_Asfixia", "");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             Print(string.Format("{0} - [RATCHET v7.0 | SALIDA ASFIXIA SHORT] Trade estancado ({1:F1} ticks PnL <= {2}tk tras {3} barras) y Pendiente Línea Media en contra ({4:F4} >= 0). Aborto de seguridad ejecutado. Cuarentena de {5} barras activa hasta barra {6}.",
@@ -3332,7 +3323,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double chokeSl = lowestPriceSinceEntry + (RatchetChicleTicks * TickSize);
                         if (Close[0] >= chokeSl || High[0] >= chokeSl)
                         {
-                            ExitShort("Exit_Ratchet_Choke4tk", "Ratchet_Short");
+                            ExitShort(currentQty, "Exit_Ratchet_Choke4tk", "");
                             Print(string.Format("{0} - [RATCHET v7.0 | SALIDA CHOKE PARABÓLICO CORTOS] Liquidado en el fondo @ ~{1:F2} (Valle: {2:F2} | Trailing {3}tk). ¡Grosería de trade!",
                                 Time[0], Close[0], lowestPriceSinceEntry, RatchetChicleTicks));
                             return;
@@ -3343,7 +3334,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         if (Low[0] > lowerBig)
                         {
-                            ExitShort("Exit_Ratchet_PisoLower35", "Ratchet_Short");
+                            ExitShort(currentQty, "Exit_Ratchet_TechoLower35", "");
                             Print(string.Format("{0} - [RATCHET v7.0 | SALIDA TECHO 3 LOWER 3.5] Barra completica perforó Lower 3.5 hacia arriba ({1:F2} > {2:F2}). Ganancia estelar embolsillada.",
                                 Time[0], Low[0], lowerBig));
                             return;
@@ -3358,7 +3349,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             if (Low[0] > midline)
                             {
-                                ExitShort("Exit_Ratchet_PisoMidline", "Ratchet_Short");
+                                ExitShort(currentQty, "Exit_Ratchet_TechoMidline", "");
                                 Print(string.Format("{0} - [RATCHET v7.0 | SALIDA TECHO 2 LÍNEA MEDIA] Pendiente bajista ({1:F4} < 0). Barra perforó Línea Media ({2:F2} > {3:F2}). Resguardo en Línea Media.",
                                     Time[0], normSlope, Low[0], midline));
                                 return;
@@ -3369,7 +3360,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             // Si la Línea Media es plana o contraria (>= 0): Techo ceñido detrasito de Lower 1.75 (asegura tramo inferior)
                             if (Low[0] > lowerSmall)
                             {
-                                ExitShort("Exit_Ratchet_PisoLower175", "Ratchet_Short");
+                                ExitShort(currentQty, "Exit_Ratchet_TechoLower175", "");
                                 Print(string.Format("{0} - [RATCHET v7.0 | SALIDA TECHO 2 LOWER 1.75] Pendiente plana o contraria ({1:F4} >= 0). Barra perforó Lower 1.75 ({2:F2} > {3:F2}). Tramo inferior asegurado.",
                                     Time[0], normSlope, Low[0], lowerSmall));
                                 return;
@@ -3382,7 +3373,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         if (Low[0] > midline)
                         {
-                            ExitShort("Exit_Ratchet_PisoMidline", "Ratchet_Short");
+                            ExitShort(currentQty, "Exit_Ratchet_TechoMidline", "");
                             if (Close[0] >= entryPrice)
                             {
                                 ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
@@ -3399,7 +3390,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double effectiveInitialSl = Math.Min(ratchetInitialSlPrice, entryPrice + (RatchetMaxSlTicks * TickSize));
                         if (Close[0] >= effectiveInitialSl || High[0] >= effectiveInitialSl)
                         {
-                            ExitShort("Exit_Ratchet_InitialSL", "Ratchet_Short");
+                            ExitShort(currentQty, "Exit_Ratchet_SlInicial", "");
                             ratchetLongCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             ratchetShortCooldownUntilBar = CurrentBar + RatchetLossCooldownBars;
                             Print(string.Format("{0} - [RATCHET v7.0 | SL INICIAL EJECUTADO SHORT] Precio perforó SL protector ({1:F2} | Tope máx {2}tk). Salida de seguridad controlada. Cuarentena de {3} barras activada hasta barra {4}.",
@@ -3517,10 +3508,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // =========================================================================
                     bool isFirstTradeOfDay = (GetTodayClosedTradesCount() == 0);
 
-                    // --- CASO A: TRADE 1 CON TAKE PROFIT FIJO DE FRANCO-TIRADOR (+$470 USD) ---
+                    // --- CASO A: TRADE 1 CON TAKE PROFIT FIJO DE FRANCO-TIRADOR ---
                     if (UseT1FixedTp && isFirstTradeOfDay)
                     {
-                        double effectiveT1FixedTpDollars = T1FixedTpDollars * instrumentMultiplier;
+                        double effectiveT1FixedTpDollars = T1FixedTpDollars;
                         double t1TpTicks = Math.Round(effectiveT1FixedTpDollars / (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize));
                         double t1TargetPrice = Instrument.MasterInstrument.RoundToTickSize(entryPrice - (t1TpTicks * TickSize));
 
@@ -3532,7 +3523,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         double currentGainTicksShort = (entryPrice - Low[0]) / TickSize;
                         double currentGainDollarsShort = currentGainTicksShort * (activeTradeContracts * Instrument.MasterInstrument.PointValue * TickSize);
-                        double effectiveClimaxTriggerDollars = ClimaxTriggerDollars * instrumentMultiplier;
+                        double effectiveClimaxTriggerDollars = ClimaxTriggerDollars;
 
                         if (!isClimaxRatchetActive)
                         {
@@ -3716,7 +3707,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (trade.Entry != null && trade.Entry.Name.IndexOf("Cascada", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         cascadaLastExitBar = CurrentBar;
-                        double effectiveBigWinThreshold = CascadaBigWinThresholdDollars * instrumentMultiplier;
+                        double effectiveBigWinThreshold = CascadaBigWinThresholdDollars;
 
                         // 1. CUARENTENA DE SACIEDAD: Si la ganancia neta en bolsillo >= $180 USD ($18 MES)
                         if (netProfit >= effectiveBigWinThreshold)
@@ -3830,12 +3821,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // =========================================================================
-            // INJERTO 3: CANDADO DE VICTORIA TEMPRANA (EXCLUSIVO TRADE 1) - v14.4
-            // Si el Trade 1 superó la meta ($450 ES / $45 MES): ¡PUM, ADIÓS! A esquiar ⛷️
+            // INJERTO 3: CANDADO DE VICTORIA TEMPRANA (EXCLUSIVO TRADE 1) - v8.2
+            // Si el Trade 1 superó la meta ($450 ES / $45 MES) Y la posición está 100% FLAT: ¡PUM, ADIÓS! A esquiar ⛷️
             // =========================================================================
-            if (UseEarlyWinT1 && !isDailyLocked && todayTradesCount == 1)
+            if (UseEarlyWinT1 && !isDailyLocked && todayTradesCount >= 1 && Position.MarketPosition == MarketPosition.Flat)
             {
-                double effectiveEarlyWinGoal = EarlyWinT1GoalDollars * instrumentMultiplier;
+                double effectiveEarlyWinGoal = EarlyWinT1GoalDollars;
                 if (dailyRealizedPnL >= effectiveEarlyWinGoal)
                 {
                     isDailyLocked = true;
@@ -3845,7 +3836,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         soundEarlyWinPlayed = true;
                         PlayStrategySound(SoundEarlyWin);
                     }
-                    Print(string.Format("{0} - [ESCUDO DIARIO v14.4 | ¡VICTORIA TEMPRANA TRADE 1!] Trade 1 alcanzó ${1:F2} USD (>= ${2:F2} meta). ¡Nos fuimos a esquiar! ⛷️ Operativa bloqueada con la plata a salvo.",
+                    Print(string.Format("{0} - [ESCUDO DIARIO v8.2 | ¡VICTORIA TEMPRANA TRADE 1!] Trade 1 alcanzó ${1:F2} USD (>= ${2:F2} meta) y posición 100% cerrada. ¡Nos fuimos a esquiar! ⛷️ Operativa bloqueada con la plata a salvo.",
                         Time[0], dailyRealizedPnL, effectiveEarlyWinGoal));
                     return;
                 }
@@ -3919,7 +3910,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "CascadaVega ACTIVA (v8.1)" : "CascadaVega PAUSADA (v8.1)",
+                Content = isStrategyActive ? "CascadaVega ACTIVA (v8.2)" : "CascadaVega PAUSADA (v8.2)",
                 Height = 30,
                 Width = 240,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -3954,7 +3945,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "CascadaVega ACTIVA (v8.1)" : "CascadaVega PAUSADA (v8.1)";
+                panicButton.Content = isStrategyActive ? "CascadaVega ACTIVA (v8.2)" : "CascadaVega PAUSADA (v8.2)";
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
