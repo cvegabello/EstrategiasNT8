@@ -25,22 +25,23 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Dumbo Super-Expansión ES"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 1.0 - Modelo Inicial "El Elefante Volador"
+// VERSIÓN: 1.1 - Modelo Agresivo "El Elefante Volador" (EMA 200 fuera de Canal Grande 3.5 + SL Dinámico a Bandas)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante que aprende a volar. La gran mayoría de estrategias esperan que el precio vuelva
 //   a la media (reversión), pero cuando se presenta una súper-expansión tendencial institucional, el precio
 //   rompe el techo de la estratósfera (Banda Keltner 3.5) y se niega a descender.
-//   Al mismo tiempo, la EMA 200 (la gravedad) quedó atrapada en el sótano opuesto por más de 150-200 barras.
-//   En vez de operar reversión, Dumbo despliega las orejas y se monta en el viento a favor de la inercia.
+//   Al mismo tiempo, la EMA 200 (la gravedad) quedó atrapada en el sótano opuesto por más de 150-200 barras
+//   POR FUERA DEL CANAL GRANDE 3.5. En vez de operar reversión, Dumbo se monta en el viento a favor de la inercia.
 //
-// REGLAS CLAVE:
+// REGLAS CLAVE (v1.1):
 //   1. Gatillo de Entrada: Mínimo 3 velas consecutivas flotando completamente fuera de la Banda Grande 3.5.
-//   2. Filtro Macro (EMA 200 en el Abismo): La EMA 200 lleva >= 150 barras consecutivas por fuera de la banda opuesta.
+//   2. Filtro Macro Agresivo: La EMA 200 lleva >= 150 barras consecutivas POR FUERA DEL CANAL GRANDE 3.5 opuesto.
 //   3. Filtro de Inercia: Pendiente de la EMA 200 a favor de la dirección del trade.
-//   4. Gestión de Riesgo (Opción C - Híbrido Paracaídas + Trailing Choke):
-//      - Stop Loss Inicial: Anclado a Banda 3.5 si despegó > N ticks, o a Banda 1.75 si despegó cerca.
-//      - Trailing Choke: Una vez en vuelo, el SL va asfixiando por detrás al mínimo/máximo de las últimas velas.
+//   4. Gestión de Riesgo (Banda Escalonada Ratchet):
+//      - Si el precio entra a >= 10 ticks fuera de Banda 3.5: SL en Banda 3.5 exterior del canal grande.
+//      - Si el precio entra a < 10 ticks fuera de Banda 3.5: SL en Banda 1.75 azul del canal pequeño (respiro).
+//      - El SL acompaña la banda elegida en modo ratchet (solo avanza a favor).
 //   5. Botón de Pánico WPF + Ctrl + Espacio: Liquidación inmediata a mercado y resguardo del capital.
 // =========================================================================================================
 
@@ -80,6 +81,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int    lastExitBar           = -999;  // Barra de última salida para cooldown
         private bool   longFiredInWave       = false; // Bandera para evitar re-entradas múltiples en la misma ola
         private bool   shortFiredInWave      = false; // Bandera para evitar re-entradas múltiples en la misma ola
+        private bool   slAnchoredToBigBand   = false; // Bandera: true = SL anclado a Banda 3.5, false = SL anclado a Banda 1.75 Azul
 
         // Control de Interfaz WPF (Botón de Pánico)
         private Chart  chartWindow           = null;
@@ -115,7 +117,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = "v1.0 (Modelo Inicial)";
+                Version                                     = "v1.1 (Filtro Agresivo Canal Grande)";
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (escalable)
@@ -131,20 +133,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CooldownBarsAfterExit                       = 3;      // Barras de enfriamiento tras salir antes de poder evaluar otra entrada
 
                 // 05. Filtro Macro EMA 200 en el Abismo
-                MinBarsEmaOpposite                          = 150;    // Mínimo de barras continuas con la EMA 200 en la banda contraria
-                EmaOppositeBandTarget                       = BandaOpuestaEnum.BandaAzul175; // Umbral de la banda opuesta (1.75 o 3.5)
+                MinBarsEmaOpposite                          = 150;    // Mínimo de barras continuas con la EMA 200 fuera del canal opuesto
+                EmaOppositeBandTarget                       = BandaOpuestaEnum.BandaGrande35; // Umbral agresivo: fuera del Canal Grande 3.5 opuesto
                 EmaSlopeLookback                            = 3;      // Barras para medir la pendiente de la EMA 200
                 RequireEmaSlope                             = true;   // Exigir que la pendiente esté a favor del trade
 
-                // 06. Gestión de Riesgo (Opción C - Híbrido Paracaídas + Choke)
-                SeparationThresholdTicks                    = 12;     // Si el precio entra a > N ticks de Banda 3.5, SL en 3.5; si no, en 1.75
+                // 06. Gestión de Riesgo (Banda Escalonada Ratchet)
+                SeparationThresholdTicks                    = 10;     // Si el precio entra a >= 10 ticks de Banda 3.5, SL en 3.5; si es menor, SL en 1.75
                 SlBufferTicks                               = 2;      // Colchón de respiro detrás de la banda elegida para el SL
                 MaxCatastrophicStopTicks                    = 40;     // Stop de emergencia máximo (10 puntos en ES = $500)
-                UseTrailingChoke                            = true;   // Activar Trailing Choke vela a vela mientras siga afuera
+                UseTrailingChoke                            = false;  // Por ahora desactivado para probar la banda pura (activable a demanda)
+                ChokeActivationProfitTicks                  = 20;     // Ticks mínimos de ganancia antes de iniciar ahogo si se activa Choke
                 ChokeLookbackBars                           = 2;      // Mínimo de últimas N barras para anclar el Choke
                 ChokeOffsetTicks                            = 2;      // Ticks de colchón detrás del Low/High de las N barras del Choke
-                ExitOnBand35Reentry                         = true;   // Cerrar inmediatamente si una vela cierra de regreso dentro de Banda 3.5
-                UseFixedTakeProfit                          = false;  // false: Deja correr la tendencia con Choke. true: TP fijo
+                ExitOnBand35Reentry                         = false;  // false: respeta el SL en Banda 1.75 o 3.5 sin cortar prematuro
+                UseFixedTakeProfit                          = false;  // false: Deja correr la tendencia con la banda. true: TP fijo
                 FixedTakeProfitTicks                        = 60;     // 15 puntos en ES (+$750) si se activa TP fijo
 
                 // 07. Parámetros de Canales e Indicadores
@@ -337,7 +340,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =================================================================================================
-        // EJECUCIÓN LONG Y ANCLAJE DE STOP LOSS INICIAL (OPCIÓN C)
+        // EJECUCIÓN LONG Y ANCLAJE DE STOP LOSS INICIAL (BANDA ESCALONADA)
         // =================================================================================================
         private void EjecutarEntradaLong()
         {
@@ -348,15 +351,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Medir distancia de penetración por fuera de la Banda 3.5
             double separationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
 
-            // Determinar Stop Loss Inicial según umbral de penetración
+            // Determinar Stop Loss Inicial según umbral de penetración (Regla de 10 ticks)
             if (separationTicks >= SeparationThresholdTicks)
             {
-                // Despegue fuerte: SL ceñido en Banda 3.5 exterior menos buffer
+                // Despegue fuerte (>= 10 ticks): SL anclado a Banda 3.5 exterior del canal grande
+                slAnchoredToBigBand = true;
                 currentSlPriceGlobal = keltnerBig.Upper[0] - (SlBufferTicks * TickSize);
             }
             else
             {
-                // Despegue cercano: SL con espacio de respiración en Banda 1.75 azul menos buffer
+                // Despegue corto (< 10 ticks): SL anclado a Banda 1.75 azul del canal pequeño (espacio de respiro)
+                slAnchoredToBigBand = false;
                 currentSlPriceGlobal = keltnerSmall.Upper[0] - (SlBufferTicks * TickSize);
             }
 
@@ -369,12 +374,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterLong(Contracts, "Dumbo_Long");
-            Print(string.Format("{0} [DUMBO LONG] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Inicial: {3:F2} | EMA200 Abismo: {4} barras",
-                Time[0], entryPriceGlobal, separationTicks, currentSlPriceGlobal, barsEmaBelowOppositeCount));
+            Print(string.Format("{0} [DUMBO LONG] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA200 Abismo: {5} barras",
+                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, barsEmaBelowOppositeCount));
         }
 
         // =================================================================================================
-        // EJECUCIÓN SHORT Y ANCLAJE DE STOP LOSS INICIAL (OPCIÓN C)
+        // EJECUCIÓN SHORT Y ANCLAJE DE STOP LOSS INICIAL (BANDA ESCALONADA)
         // =================================================================================================
         private void EjecutarEntradaShort()
         {
@@ -385,15 +390,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Medir distancia de penetración por fuera de la Banda 3.5
             double separationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
 
-            // Determinar Stop Loss Inicial según umbral de penetración
+            // Determinar Stop Loss Inicial según umbral de penetración (Regla de 10 ticks)
             if (separationTicks >= SeparationThresholdTicks)
             {
-                // Despegue fuerte: SL ceñido en Banda 3.5 exterior más buffer
+                // Despegue fuerte (>= 10 ticks): SL anclado a Banda 3.5 exterior del canal grande
+                slAnchoredToBigBand = true;
                 currentSlPriceGlobal = keltnerBig.Lower[0] + (SlBufferTicks * TickSize);
             }
             else
             {
-                // Despegue cercano: SL con espacio de respiración en Banda 1.75 azul más buffer
+                // Despegue corto (< 10 ticks): SL anclado a Banda 1.75 azul del canal pequeño (espacio de respiro)
+                slAnchoredToBigBand = false;
                 currentSlPriceGlobal = keltnerSmall.Lower[0] + (SlBufferTicks * TickSize);
             }
 
@@ -406,12 +413,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterShort(Contracts, "Dumbo_Short");
-            Print(string.Format("{0} [DUMBO SHORT] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Inicial: {3:F2} | EMA200 Abismo: {4} barras",
-                Time[0], entryPriceGlobal, separationTicks, currentSlPriceGlobal, barsEmaAboveOppositeCount));
+            Print(string.Format("{0} [DUMBO SHORT] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA200 Abismo: {5} barras",
+                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, barsEmaAboveOppositeCount));
         }
 
         // =================================================================================================
-        // GESTIÓN DE POSICIÓN ABIERTA (TRAILING CHOKE + CONDICIONES DE SALIDA)
+        // GESTIÓN DE POSICIÓN ABIERTA (TRAILING DINÁMICO DE BANDA + CHOKE CONDICIONAL)
         // =================================================================================================
         private void GestionarPosicionAbierta()
         {
@@ -430,28 +437,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 2. Trailing Choke Vela a Vela (Opción C)
+                // 2. Trailing Dinámico de la Banda Seleccionada (Ratchet hacia arriba)
+                // A medida que el canal sube con la tendencia, el SL sube con la banda correspondiente
+                double targetBandPrice = slAnchoredToBigBand ? keltnerBig.Upper[0] : keltnerSmall.Upper[0];
+                double candidateBandSl = Instrument.MasterInstrument.RoundToTickSize(targetBandPrice - (SlBufferTicks * TickSize));
+                if (candidateBandSl > currentSlPriceGlobal)
+                {
+                    currentSlPriceGlobal = candidateBandSl;
+                }
+
+                // 3. Trailing Choke Vela a Vela (Opcional a partir de determinada ganancia alcanzada)
                 if (UseTrailingChoke)
                 {
-                    // Buscar el mínimo de las últimas N barras
-                    double lowestLow = Low[0];
-                    for (int i = 1; i < ChokeLookbackBars; i++)
+                    double currentProfitTicks = (Close[0] - entryPriceGlobal) / TickSize;
+                    if (currentProfitTicks >= ChokeActivationProfitTicks)
                     {
-                        if (Low[i] < lowestLow)
-                            lowestLow = Low[i];
-                    }
+                        double lowestLow = Low[0];
+                        for (int i = 1; i < ChokeLookbackBars; i++)
+                        {
+                            if (Low[i] < lowestLow)
+                                lowestLow = Low[i];
+                        }
 
-                    double candidateChokeSl = lowestLow - (ChokeOffsetTicks * TickSize);
-                    candidateChokeSl = Instrument.MasterInstrument.RoundToTickSize(candidateChokeSl);
+                        double candidateChokeSl = lowestLow - (ChokeOffsetTicks * TickSize);
+                        candidateChokeSl = Instrument.MasterInstrument.RoundToTickSize(candidateChokeSl);
 
-                    // El Stop de Dumbo solo sube hacia arriba (ratchet/trinquete estricto)
-                    if (candidateChokeSl > currentSlPriceGlobal)
-                    {
-                        currentSlPriceGlobal = candidateChokeSl;
+                        if (candidateChokeSl > currentSlPriceGlobal)
+                        {
+                            currentSlPriceGlobal = candidateChokeSl;
+                        }
                     }
                 }
 
-                // 3. Salida por Re-entrada en Banda 3.5 (Si una vela cierra de regreso adentro)
+                // 4. Salida por Re-entrada en Banda 3.5 (Opcional, desactivada por defecto para no cortar Banda 1.75)
                 if (ExitOnBand35Reentry && Close[0] < keltnerBig.Upper[0])
                 {
                     ExitLong("Exit_Dumbo_BandReentry", "Dumbo_Long");
@@ -460,12 +478,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 4. Salida por Stop Loss / Trailing Choke alcanzado
+                // 5. Salida por Stop Loss de Banda / Choke alcanzado
                 if (Close[0] <= currentSlPriceGlobal || Low[0] <= currentSlPriceGlobal)
                 {
-                    ExitLong("Exit_Dumbo_ChokeSL", "Dumbo_Long");
+                    ExitLong("Exit_Dumbo_SL", "Dumbo_Long");
                     lastExitBar = CurrentBar;
-                    Print(string.Format("{0} [DUMBO STOP] Long cerrado por Stop/Choke a {1:F2} (Nivel SL: {2:F2})", Time[0], Close[0], currentSlPriceGlobal));
+                    Print(string.Format("{0} [DUMBO STOP] Long cerrado por SL ({1}) a {2:F2} (Nivel SL: {3:F2})",
+                        Time[0], (slAnchoredToBigBand ? "Banda 3.5" : "Banda 1.75"), Close[0], currentSlPriceGlobal));
                     return;
                 }
             }
@@ -480,28 +499,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 2. Trailing Choke Vela a Vela (Opción C)
+                // 2. Trailing Dinámico de la Banda Seleccionada (Ratchet hacia abajo)
+                // A medida que el canal desciende con la tendencia, el SL baja con la banda correspondiente
+                double targetBandPrice = slAnchoredToBigBand ? keltnerBig.Lower[0] : keltnerSmall.Lower[0];
+                double candidateBandSl = Instrument.MasterInstrument.RoundToTickSize(targetBandPrice + (SlBufferTicks * TickSize));
+                if (candidateBandSl < currentSlPriceGlobal)
+                {
+                    currentSlPriceGlobal = candidateBandSl;
+                }
+
+                // 3. Trailing Choke Vela a Vela (Opcional a partir de determinada ganancia alcanzada)
                 if (UseTrailingChoke)
                 {
-                    // Buscar el máximo de las últimas N barras
-                    double highestHigh = High[0];
-                    for (int i = 1; i < ChokeLookbackBars; i++)
+                    double currentProfitTicks = (entryPriceGlobal - Close[0]) / TickSize;
+                    if (currentProfitTicks >= ChokeActivationProfitTicks)
                     {
-                        if (High[i] > highestHigh)
-                            highestHigh = High[i];
-                    }
+                        double highestHigh = High[0];
+                        for (int i = 1; i < ChokeLookbackBars; i++)
+                        {
+                            if (High[i] > highestHigh)
+                                highestHigh = High[i];
+                        }
 
-                    double candidateChokeSl = highestHigh + (ChokeOffsetTicks * TickSize);
-                    candidateChokeSl = Instrument.MasterInstrument.RoundToTickSize(candidateChokeSl);
+                        double candidateChokeSl = highestHigh + (ChokeOffsetTicks * TickSize);
+                        candidateChokeSl = Instrument.MasterInstrument.RoundToTickSize(candidateChokeSl);
 
-                    // El Stop de Dumbo solo baja hacia abajo (ratchet/trinquete estricto)
-                    if (candidateChokeSl < currentSlPriceGlobal)
-                    {
-                        currentSlPriceGlobal = candidateChokeSl;
+                        if (candidateChokeSl < currentSlPriceGlobal)
+                        {
+                            currentSlPriceGlobal = candidateChokeSl;
+                        }
                     }
                 }
 
-                // 3. Salida por Re-entrada en Banda 3.5 (Si una vela cierra de regreso adentro)
+                // 4. Salida por Re-entrada en Banda 3.5 (Opcional, desactivada por defecto para no cortar Banda 1.75)
                 if (ExitOnBand35Reentry && Close[0] > keltnerBig.Lower[0])
                 {
                     ExitShort("Exit_Dumbo_BandReentry", "Dumbo_Short");
@@ -510,12 +540,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 4. Salida por Stop Loss / Trailing Choke alcanzado
+                // 5. Salida por Stop Loss de Banda / Choke alcanzado
                 if (Close[0] >= currentSlPriceGlobal || High[0] >= currentSlPriceGlobal)
                 {
-                    ExitShort("Exit_Dumbo_ChokeSL", "Dumbo_Short");
+                    ExitShort("Exit_Dumbo_SL", "Dumbo_Short");
                     lastExitBar = CurrentBar;
-                    Print(string.Format("{0} [DUMBO STOP] Short cerrado por Stop/Choke a {1:F2} (Nivel SL: {2:F2})", Time[0], Close[0], currentSlPriceGlobal));
+                    Print(string.Format("{0} [DUMBO STOP] Short cerrado por SL ({1}) a {2:F2} (Nivel SL: {3:F2})",
+                        Time[0], (slAnchoredToBigBand ? "Banda 3.5" : "Banda 1.75"), Close[0], currentSlPriceGlobal));
                     return;
                 }
             }
@@ -664,44 +695,49 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(2, 50)]
-        [Display(Name = "Umbral Separación SL (Ticks)", Description = "Si el despegue es > N ticks, SL en Banda 3.5. Si es menor, SL en Banda 1.75.", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 1)]
+        [Display(Name = "Umbral Separación SL (Ticks)", Description = "Si el despegue es >= N ticks, SL en Banda 3.5. Si es menor, SL en Banda 1.75 (por defecto: 10).", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 1)]
         public int SeparationThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Colchón Respiro SL (Ticks)", Description = "Ticks de margen detrás de la banda para colocar el Stop Loss inicial", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 2)]
+        [Display(Name = "Colchón Respiro SL (Ticks)", Description = "Ticks de margen detrás de la banda para colocar el Stop Loss inicial", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 2)]
         public int SlBufferTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 100)]
-        [Display(Name = "Stop Catastrófico Máximo (Ticks)", Description = "Riesgo máximo absoluto de seguridad por contrato (40 ticks = 10 pts = $500 ES)", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 3)]
+        [Display(Name = "Stop Catastrófico Máximo (Ticks)", Description = "Riesgo máximo absoluto de seguridad por contrato (40 ticks = 10 pts = $500 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 3)]
         public int MaxCatastrophicStopTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Trailing Choke", Description = "true: Va subiendo/bajando el Stop al extremo de las últimas N barras mientras siga afuera", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 4)]
+        [Display(Name = "Activar Trailing Choke", Description = "true: Va subiendo/bajando el Stop al extremo de las últimas N barras al alcanzar ganancia mínima", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 4)]
         public bool UseTrailingChoke { get; set; }
 
         [NinjaScriptProperty]
+        [Range(5, 100)]
+        [Display(Name = "Ganancia Mínima para Choke (Ticks)", Description = "Ticks de ganancia flotante necesarios para activar el Trailing Choke si está habilitado", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 5)]
+        public int ChokeActivationProfitTicks { get; set; }
+
+        [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Barras Lookback Choke", Description = "Cantidad de barras previas para anclar el Trailing Choke (por defecto: 2)", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 5)]
+        [Display(Name = "Barras Lookback Choke", Description = "Cantidad de barras previas para anclar el Trailing Choke (por defecto: 2)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 6)]
         public int ChokeLookbackBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Offset Choke (Ticks)", Description = "Ticks de distancia detrás del extremo de las N barras para el Choke", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 6)]
+        [Display(Name = "Offset Choke (Ticks)", Description = "Ticks de distancia detrás del extremo de las N barras para el Choke", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 7)]
         public int ChokeOffsetTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Salir al Cerrar dentro de Banda 3.5", Description = "true: Si una vela cierra de regreso dentro de la Banda 3.5, liquida inmediatamente", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 7)]
+        [Display(Name = "Salir al Cerrar dentro de Banda 3.5", Description = "true: Si una vela cierra de regreso dentro de la Banda 3.5, liquida inmediatamente", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 8)]
         public bool ExitOnBand35Reentry { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Take Profit Fijo", Description = "true: Cierra con ganancia fija. false: Deja correr con Trailing Choke", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 8)]
+        [Display(Name = "Activar Take Profit Fijo", Description = "true: Cierra con ganancia fija. false: Deja correr la tendencia con la banda", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 9)]
         public bool UseFixedTakeProfit { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 500)]
-        [Display(Name = "Take Profit Fijo (Ticks)", Description = "Ticks de ganancia fija si UseFixedTakeProfit está activo (60 ticks = 15 pts = $750 ES)", GroupName = "06. Gestión de Riesgo (Opción C)", Order = 9)]
+        [Display(Name = "Take Profit Fijo (Ticks)", Description = "Ticks de ganancia fija si UseFixedTakeProfit está activo (60 ticks = 15 pts = $750 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 10)]
         public int FixedTakeProfitTicks { get; set; }
 
         [NinjaScriptProperty]
