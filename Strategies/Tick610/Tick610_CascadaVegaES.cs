@@ -3987,7 +3987,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name = "Versión", GroupName = "01. Información", Order = 1)]
         [ReadOnly(true)]
-        public string Version { get; set; }
+        public string Version
+        {
+            get { return "8.2 (MES / ES) - Cascada Vega"; }
+            set { }
+        }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
