@@ -227,7 +227,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IncludeCommission                           = true; // Comisiones Lifetime descontadas ($4.36 ES / $1.04 MES)
 
                 // Propiedades Generales
-                Version                                     = "8.1 - Cascada Vega ES";
+                Version                                     = "8.2 (MES / ES) - Cascada Vega";
 
                 // Horario RTH estricto (Nueva York EST - 09:35 AM por defecto con control manual v8.1)
                 StartTime                                   = 93500;  // 09:35 AM EST (Habilitado desde apertura temprana; inicia pausado para decisión manual)
