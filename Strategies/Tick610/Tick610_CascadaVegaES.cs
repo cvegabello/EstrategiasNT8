@@ -274,7 +274,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetChicleTicks                          = 4;      // Trailing ceñido del Chicle Parabólico en Fase 4 (4 ticks del extremo)
                 RatchetC2UpperBigOffsetTicks                = 0;      // Offset en ticks sobre Banda 3.5 para liquidar Contrato 2 (0 ticks = toque exacto Banda 3.5 v8.1)
                 RatchetMinLowSeparationTicks                = 6;      // Separación mínima en ticks entre la vela 4 y el Swing (6 ticks = 1.5 pts v8.1)
-                RatchetMaxSeparationPercent                 = 45.0;   // Filtro Anti-Persecución Porcentual: máx 45% del ancho total del canal (v8.1)
+                RatchetMaxSeparationPercent                 = 47.5;   // Filtro Anti-Persecución Porcentual: máx 47.5% del ancho total del canal (v8.1)
                 RatchetHealthCheckEnabled                   = false;  // Activar Chequeo de Salud / Salida por Asfixia (desactivado por defecto v8.1)
                 RatchetHealthCheckBars                      = 10;     // Barras en la posición para evaluar Chequeo de Salud (10 barras por defecto)
                 RatchetHealthCheckMaxPnlTicks               = 4;      // Ganancia máxima en ticks para considerar estancamiento (4 ticks = 1 pt por defecto)
@@ -4334,7 +4334,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(10.0, 90.0)]
-        [Display(Name = "9. Filtro Anti-Persecución: Consumo Máximo Canal (%)", Description = "Porcentaje máximo del ancho total del canal que el precio puede haber recorrido desde el Swing (45% por defecto v8.1). Evita compras en techos o ventas en suelos.", GroupName = "06. As 3: Ratchet v8.1", Order = 10)]
+        [Display(Name = "9. Filtro Anti-Persecución: Consumo Máximo Canal (%)", Description = "Porcentaje máximo del ancho total del canal que el precio puede haber recorrido desde el Swing (47.5% por defecto v8.1). Evita compras en techos o ventas en suelos.", GroupName = "06. As 3: Ratchet v8.1", Order = 10)]
         public double RatchetMaxSeparationPercent { get; set; }
 
         [NinjaScriptProperty]
