@@ -404,6 +404,7 @@
     <Compile Include="Strategies\Tick610\Tick610_SniperSurferES.cs" />
     <Compile Include="NinjaTrader.Vendor.cs" />
     <Compile Include="Strategies\Tick610\Tick610_DumboES.cs" />
+    <Compile Include="AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resource.resx">

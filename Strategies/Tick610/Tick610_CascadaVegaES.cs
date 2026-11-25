@@ -4011,37 +4011,37 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseDailyManagement { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10.0, 5000.0)]
+        [Range(5.0, 5000.0)]
         [Display(Name = "Cortacircuito Diario Inicial ($)", Description = "Pérdida máxima acumulada en el día para apagar inmediatamente la operativa (-$650 ES = 2.5 a 3 vidas / -$65 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 2)]
         public double DailyLossLimit { get; set; }
 
         [NinjaScriptProperty]
-        [Range(50.0, 5000.0)]
+        [Range(5.0, 5000.0)]
         [Display(Name = "Meta Escalón 1 ($)", Description = "Ganancia diaria para clavar el Primer Piso (+ $400 ES / +$40 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 3)]
         public double DailyGoal_Piso1 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10.0, 5000.0)]
+        [Range(5.0, 5000.0)]
         [Display(Name = "Piso Protegido Escalón 1 ($)", Description = "Ganancia mínima garantizada al tocar el Escalón 1 (+ $250 ES / +$25 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 4)]
         public double DailyFloor_Piso1 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(100.0, 10000.0)]
+        [Range(10.0, 10000.0)]
         [Display(Name = "Meta Escalón 2 ($)", Description = "Ganancia diaria para clavar el Segundo Piso (+ $600 ES / +$60 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 5)]
         public double DailyGoal_Piso2 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(50.0, 10000.0)]
+        [Range(5.0, 10000.0)]
         [Display(Name = "Piso Protegido Escalón 2 ($)", Description = "Ganancia mínima garantizada al tocar el Escalón 2 (+ $500 ES / +$50 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 6)]
         public double DailyFloor_Piso2 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(200.0, 20000.0)]
+        [Range(10.0, 20000.0)]
         [Display(Name = "Umbral Modo Dulce ($)", Description = "Ganancia diaria para activar el Trailing Diario Infinito (+ $900 ES / +$90 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 7)]
         public double DailyGoal_Piso3 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10.0, 2000.0)]
+        [Range(1.0, 2000.0)]
         [Display(Name = "Colchón Trailing Infinito ($)", Description = "Retroceso máximo permitido desde el récord diario alcanzado ($150 ES / $15 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 8)]
         public double DailyTrailingGiveback { get; set; }
 
@@ -4068,7 +4068,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool TrancaOnlyFromTier2 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10.0, 500.0)]
+        [Range(1.0, 500.0)]
         [Display(Name = "Tranca Dólares de Sprint Bonus ($)", Description = "Ganancia adicional en USD a buscar tras clavar la tranca del escalón ($100 ES / $10 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 14)]
         public double TrancaBonusDollars { get; set; }
 
@@ -4078,12 +4078,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double TrancaSafetyDollars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(20.0, 500.0)]
+        [Range(1.0, 500.0)]
         [Display(Name = "Tranca Distancia Mínima Filtro Anti-Asfixia ($)", Description = "Distancia mínima en USD para armar la Tranca. Si falta menos de esto para el escalón, se apaga para no asfixiar el trade ($125 ES / $12.5 MES)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 16)]
         public double MinTrancaDistanceDollars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(5.0, 200.0)]
+        [Range(1.0, 200.0)]
         [Display(Name = "Tranca Colchón Conquista Adamantium ($)", Description = "Penetración requerida por encima del escalón para clavar la Tranca ($50 ES / $5 MES = 4 ticks)", GroupName = "04. Escudo de Cuenta (3 Pisos)", Order = 17)]
         public double TrancaConquestBufferDollars { get; set; }
 
@@ -4202,7 +4202,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CascadaSecondTicketCooldownBars { get; set; }
 
         [NinjaScriptProperty]
-        [Range(20.0, 500.0)]
+        [Range(5.0, 500.0)]
         [Display(Name = "Cascada Candado Trigger (USD)", Description = "Umbral de ganancia flotante en USD para activar el Candado dinámico a favor ($250 ES = 20 ticks / $25 MES)", GroupName = "05. As 4: Cascada Surfer", Order = 10)]
         public double CascadaLockTriggerDollars { get; set; }
 
@@ -4212,7 +4212,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CascadaMaxSlTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(20.0, 3000.0)]
+        [Range(5.0, 3000.0)]
         [Display(Name = "Cascada Umbral Súper Win (USD)", Description = "Ganancia mínima neta en USD en un trade para activar la Cuarentena de Saciedad ($180 ES / $18 MES)", GroupName = "05. As 4: Cascada Surfer", Order = 12)]
         public double CascadaBigWinThresholdDollars { get; set; }
 
@@ -4428,7 +4428,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseT1FixedTp { get; set; }
 
         [NinjaScriptProperty]
-        [Range(50.0, 5000.0)]
+        [Range(5.0, 5000.0)]
         [Display(Name = "2. TP Fijo Trade 1 ($)", Description = "Ganancia fija en USD para cerrar Trade 1 en el blanco exacto ($470 ES = 38 ticks / $47 MES)", GroupName = "08. Franco-Tirador Trade 1 (TP Fijo)", Order = 2)]
         public double T1FixedTpDollars { get; set; }
         #endregion
@@ -4439,7 +4439,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseClimaxRatchet { get; set; }
 
         [NinjaScriptProperty]
-        [Range(50.0, 5000.0)]
+        [Range(5.0, 5000.0)]
         [Display(Name = "2. Clímax: Meta de Ganancia Flash ($)", Description = "Umbral de ganancia en USD para activar Modo Clímax Ratchet ($200 ES / $20 MES)", GroupName = "09. Clímax Ratchet Asfixiante", Order = 2)]
         public double ClimaxTriggerDollars { get; set; }
 
@@ -4455,7 +4455,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseEarlyWinT1 { get; set; }
 
         [NinjaScriptProperty]
-        [Range(100.0, 5000.0)]
+        [Range(5.0, 5000.0)]
         [Display(Name = "2. Victoria Temprana T1: Meta ($)", Description = "Ganancia mínima en el Trade 1 para apagar el bot ($450 ES / $45 MES)", GroupName = "10. Victoria Temprana Trade 1", Order = 2)]
         public double EarlyWinT1GoalDollars { get; set; }
         #endregion
