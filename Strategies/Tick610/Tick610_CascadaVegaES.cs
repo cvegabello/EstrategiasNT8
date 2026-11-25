@@ -299,9 +299,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaTemaLinRegBars                       = 3;      // Barras de lookback para Pendiente LinReg de TEMA 9 (3 por defecto)
                 CascadaAntiHookMinDistanceTicks             = 10;     // Módulo 1: Mínimo 10 ticks de pista libre frente a un Swing High/Low en zona de sobrecompra/sobreventa
                 CascadaSecondTicketCooldownBars             = 10;     // Enfriamiento de barras tras salida para habilitar 2do boleto quirúrgico (10 barras por defecto)
-                CascadaLockTriggerDollars                   = 250.0;  // Umbral de MFE en USD para activar Candado ($250 ES = +20 ticks / $25 MES en v13.4)
-                CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $300 ES / $30 MES)
-                CascadaBigWinThresholdDollars               = 180.0;  // Umbral de ganancia neta en bolsillo para activar Cuarentena de Saciedad ($180 ES / $18 MES)
+                CascadaLockTriggerDollars                   = 25.0;   // Umbral de MFE en USD para activar Candado ($25 MES / $250 ES)
+                CascadaMaxSlTicks                           = 24;     // Tope máximo de seguridad estructural inicial (24 ticks = 6 pts = $30 MES / $300 ES)
+                CascadaBigWinThresholdDollars               = 18.0;   // Umbral de ganancia neta en bolsillo para activar Cuarentena de Saciedad ($18 MES / $180 ES)
                 CascadaQuarantineMinutes                    = 10;     // Minutos de cuarentena/congelamiento de Cascada tras victoria (10 min oficial)
                 CascadaTp1Ticks                             = 8;      // (Compatibilidad NT8)
                 CascadaTp2Ticks                             = 16;     // (Compatibilidad NT8)
@@ -311,44 +311,44 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaFiltroMacroEstricto                  = false;  // Check desactivado por defecto (Modo Dinámico: Precio vs EMA200 y Midline)
                 CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Oxígeno en Sobreextensión; < 8 ticks tratada como adentro con SL Línea Media)
                 CascadaMaxOutsideTicks                      = 25;     // MEJORA 2: Techo Máximo Exterior (<= 25 ticks fuera de Banda 3.5; más allá se cancela v8.1)
-                CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$150 ES / -$15 MES)
+                CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$15 MES / -$150 ES)
                 CascadaExitOnCloseOnly                      = true;   // Salida estricta por cierre de vela Close[0] en Banda 1.75 (ignora mechas de absorción/rechazo intra-vela)
                 CascadaBandOffsetTicks                      = 0;      // Respiro en ticks más allá de la Banda 1.75 (0 ticks por defecto con cierre de vela Close[0])
                 SobbSlopeThreshold                          = 0.12;   // Umbral de Pendiente Normalizada LinReg/ATR para SOBB (0.12)
                 Zona1SlopeThreshold                         = 0.15;   // Umbral de Pendiente Normalizada LinReg/ATR para Z1-100Bar (0.15)
 
-                // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Ceñida -$650 USD para 2.5 - 3 Vidas)
+                // Escudo Diario de Cuenta (Trailing Diario Infinito - Calibración Base MES: -$65 USD para 2.5 - 3 Vidas)
                 UseDailyManagement                          = true;   // Activar Cortacircuito y Trailing Diario
-                DailyLossLimit                              = 650.0;  // Cortacircuito calibrado a -$650 ES / -$65 MES (2.5 a 3 vidas holgadas)
-                DailyGoal_Piso1                             = 400.0;  // Meta Escalón 1: +$400 ES / +$40 MES (Piso a +$250)
-                DailyFloor_Piso1                            = 250.0;  // Piso protegido Escalón 1: +$250 ES / +$25 MES
-                DailyGoal_Piso2                             = 600.0;  // Meta Escalón 2: +$600 ES / +$60 MES (Piso a +$500)
-                DailyFloor_Piso2                            = 500.0;  // Piso protegido Escalón 2: +$500 ES / +$50 MES
-                DailyGoal_Piso3                             = 900.0;  // Umbral Modo Dulce: +$900 ES / +$90 MES (Activa Trailing Infinito)
-                DailyTrailingGiveback                       = 150.0;  // Colchón de retroceso permitido del pico ganado ($150 ES / $15 MES)
+                DailyLossLimit                              = 65.0;   // Cortacircuito calibrado a -$65 MES / -$650 ES (2.5 a 3 vidas holgadas)
+                DailyGoal_Piso1                             = 40.0;   // Meta Escalón 1: +$40 MES / +$400 ES (Piso a +$25 MES)
+                DailyFloor_Piso1                            = 25.0;   // Piso protegido Escalón 1: +$25 MES / +$250 ES
+                DailyGoal_Piso2                             = 60.0;   // Meta Escalón 2: +$60 MES / +$600 ES (Piso a +$50 MES)
+                DailyFloor_Piso2                            = 50.0;   // Piso protegido Escalón 2: +$50 MES / +$500 ES
+                DailyGoal_Piso3                             = 90.0;   // Umbral Modo Dulce: +$90 MES / +$900 ES (Activa Trailing Infinito)
+                DailyTrailingGiveback                       = 15.0;   // Colchón de retroceso permitido del pico ganado ($15 MES / $150 ES)
                 MaxConsecutiveLosses                        = 3;      // Regla de 3 Strikes por Operación Global
                 UseTier1LunchCutoff                         = true;   // Activar Victoria Temprana en Escalón 1 a las 12:00 PM EST
                 Tier1CutoffTime                             = 120000; // 12:00 PM EST (Hora de corte de mediodía institucional v12.0)
                 UseTrancaUniversal                          = true;   // Activar Tranca de Adamantium Universal en cada escalón
-                TrancaOnlyFromTier2                         = true;   // Pista libre en piso inicial: solo clava tranca desde Escalón 2 ($600+) y Modo Dulce ($900)
-                TrancaBonusDollars                          = 100.0;  // Dólares de Sprint Bonus tras clavar la tranca ($100 ES / $10 MES)
-                TrancaSafetyDollars                         = 10.0;   // Colchón de seguridad para comisiones ($10 ES / $1 MES)
-                MinTrancaDistanceDollars                    = 125.0;  // Filtro Anti-Asfixia: Mínimo $125 USD (10 ticks ES / $12.5 MES) de pista para armar tranca
-                TrancaConquestBufferDollars                 = 50.0;   // Colchón Conquista Adamantium: Penetración de $50 USD (4 ticks en ES / $5 MES) para validar fuerza real
-                TrancaAnchorDollars                         = 20.0;   // Anclaje de Titanio sobre el Escalón: +$20 USD ($420, $620, $920 en ES / $2 MES)
+                TrancaOnlyFromTier2                         = true;   // Pista libre en piso inicial: solo clava tranca desde Escalón 2 ($60+) y Modo Dulce ($90)
+                TrancaBonusDollars                          = 10.0;   // Dólares de Sprint Bonus tras clavar la tranca ($10 MES / $100 ES)
+                TrancaSafetyDollars                         = 1.0;    // Colchón de seguridad para comisiones ($1 MES / $10 ES)
+                MinTrancaDistanceDollars                    = 12.5;   // Filtro Anti-Asfixia: Mínimo $12.5 MES (10 ticks / $125 ES) de pista para armar tranca
+                TrancaConquestBufferDollars                 = 5.0;    // Colchón Conquista Adamantium: Penetración de $5 MES (4 ticks / $50 ES) para validar fuerza real
+                TrancaAnchorDollars                         = 2.0;    // Anclaje de Titanio sobre el Escalón: +$2 MES ($42, $62, $92 en MES / $20 ES)
 
                 // Injerto 1: Franco-Tirador Trade 1 (TP Fijo v1.0)
                 UseT1FixedTp                                = true;   // Activar Take Profit Fijo de Franco-Tirador exclusivo para Trade 1
-                T1FixedTpDollars                            = 470.0;  // Meta fija en Trade 1 ($470 ES = 38 ticks / $47 MES)
+                T1FixedTpDollars                            = 47.0;   // Meta fija en Trade 1 ($47 MES = 38 ticks / $470 ES)
 
                 // Injerto 2: Clímax Ratchet Asfixiante en Trades Posteriores (v1.0)
                 UseClimaxRatchet                            = true;   // Activar Clímax Ratchet en trades posteriores (Trade 2+)
-                ClimaxTriggerDollars                        = 300.0;  // Umbral de ganancia en USD ($300 ES / $30 MES oficial)
-                ClimaxRatchetOffsetTicks                    = 3;      // Respiro de 3 ticks detrás del precio pico (0.75 pts = $37.50 ES / $3.75 MES v7.0)
+                ClimaxTriggerDollars                        = 30.0;   // Umbral de ganancia en USD ($30 MES / $300 ES oficial)
+                ClimaxRatchetOffsetTicks                    = 3;      // Respiro de 3 ticks detrás del precio pico (0.75 pts = $3.75 MES / $37.50 ES v7.0)
 
                 // Injerto 3: Victoria Temprana en Trade 1 (v1.0)
                 UseEarlyWinT1                               = true;   // Activar Victoria Temprana en Trade 1
-                EarlyWinT1GoalDollars                       = 450.0;  // Meta $450 ES / $45 MES
+                EarlyWinT1GoalDollars                       = 45.0;   // Meta $45 MES / $450 ES
 
                 // Sistema de Alertas Sonoras de Campanas y Estados
                 UseSoundAlerts                              = true;   // Activar notificaciones sonoras nativas
@@ -391,6 +391,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 else
                 {
+                    // Si corre en Mini ES y los valores están en los defaults de Micro MES, se auto-escalan x10 a ES
+                    if (DailyLossLimit == 65.0) DailyLossLimit = 650.0;
+                    if (DailyGoal_Piso1 == 40.0) DailyGoal_Piso1 = 400.0;
+                    if (DailyFloor_Piso1 == 25.0) DailyFloor_Piso1 = 250.0;
+                    if (DailyGoal_Piso2 == 60.0) DailyGoal_Piso2 = 600.0;
+                    if (DailyFloor_Piso2 == 50.0) DailyFloor_Piso2 = 500.0;
+                    if (DailyGoal_Piso3 == 90.0) DailyGoal_Piso3 = 900.0;
+                    if (DailyTrailingGiveback == 15.0) DailyTrailingGiveback = 150.0;
+                    if (CascadaLockTriggerDollars == 25.0) CascadaLockTriggerDollars = 250.0;
+                    if (CascadaBigWinThresholdDollars == 18.0) CascadaBigWinThresholdDollars = 180.0;
+                    if (TrancaBonusDollars == 10.0) TrancaBonusDollars = 100.0;
+                    if (TrancaSafetyDollars == 1.0) TrancaSafetyDollars = 10.0;
+                    if (MinTrancaDistanceDollars == 12.5) MinTrancaDistanceDollars = 125.0;
+                    if (TrancaConquestBufferDollars == 5.0) TrancaConquestBufferDollars = 50.0;
+                    if (TrancaAnchorDollars == 2.0) TrancaAnchorDollars = 20.0;
+                    if (T1FixedTpDollars == 47.0 || T1FixedTpDollars == 47.5) T1FixedTpDollars = 470.0;
+                    if (ClimaxTriggerDollars == 30.0) ClimaxTriggerDollars = 300.0;
+                    if (EarlyWinT1GoalDollars == 45.0) EarlyWinT1GoalDollars = 450.0;
+
                     currentDailyFloor = -DailyLossLimit;
                     Print(string.Format("=== [PAS] INSTRUMENTO ESTÁNDAR (ES) DETECTADO === Cortacircuito: -${0:F2} | Escalón 1: +${1:F2} (Piso +${2:F2}) | Escalón 2: +${3:F2} (Piso +${4:F2}) | Modo Dulce Trailing: +${5:F2} (Giveback ${6:F2})",
                         DailyLossLimit, DailyGoal_Piso1, DailyFloor_Piso1, DailyGoal_Piso2, DailyFloor_Piso2, DailyGoal_Piso3, DailyTrailingGiveback));
