@@ -25,24 +25,22 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Dumbo Super-Expansión ES"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 1.1 - Modelo Agresivo "El Elefante Volador" (EMA 200 fuera de Canal Grande 3.5 + SL Dinámico a Bandas)
+// VERSIÓN: 1.2 - "El Elefante Volador" (Promoción Dinámica de SL a Banda 3.5 + EMA 9 Micro + 60 Barras Abismo)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante que aprende a volar. La gran mayoría de estrategias esperan que el precio vuelva
 //   a la media (reversión), pero cuando se presenta una súper-expansión tendencial institucional, el precio
 //   rompe el techo de la estratósfera (Banda Keltner 3.5) y se niega a descender.
-//   Al mismo tiempo, la EMA 200 (la gravedad) quedó atrapada en el sótano opuesto por más de 150-200 barras
+//   Al mismo tiempo, la EMA 200 (la gravedad) quedó atrapada en el sótano opuesto por más de 60 barras
 //   POR FUERA DEL CANAL GRANDE 3.5. En vez de operar reversión, Dumbo se monta en el viento a favor de la inercia.
 //
-// REGLAS CLAVE (v1.1):
-//   1. Gatillo de Entrada: Mínimo 3 velas consecutivas flotando completamente fuera de la Banda Grande 3.5.
-//   2. Filtro Macro Agresivo: La EMA 200 lleva >= 150 barras consecutivas POR FUERA DEL CANAL GRANDE 3.5 opuesto.
-//   3. Filtro de Inercia: Pendiente de la EMA 200 a favor de la dirección del trade.
-//   4. Gestión de Riesgo (Banda Escalonada Ratchet):
-//      - Si el precio entra a >= 10 ticks fuera de Banda 3.5: SL en Banda 3.5 exterior del canal grande.
-//      - Si el precio entra a < 10 ticks fuera de Banda 3.5: SL en Banda 1.75 azul del canal pequeño (respiro).
-//      - El SL acompaña la banda elegida en modo ratchet (solo avanza a favor).
-//   5. Botón de Pánico WPF + Ctrl + Espacio: Liquidación inmediata a mercado y resguardo del capital.
+// NOVEDADES v1.2:
+//   1. Promoción Dinámica de SL: Si al abrir el trade el precio está a < 10 ticks (SL en Banda 1.75 Azul),
+//      en el momento en que el precio sube y supera los 10 ticks afuera, el SL asciende automáticamente
+//      y se reposiciona a la Banda 3.5 Exterior del Canal Grande.
+//   2. Filtro Macro Calibrado: Se ajusta el umbral por defecto de la EMA 200 en el abismo a 60 barras.
+//   3. Filtro Micro EMA 9: La EMA 9 debe tener pendiente a favor del trade midiendo 2 barras atrás partiendo
+//      de la tercera barra que está afuera de la banda (EMA 9[0] vs EMA 9[2]).
 // =========================================================================================================
 
 namespace NinjaTrader.NinjaScript.Strategies
@@ -64,7 +62,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Indicadores Técnicos Principales
         private KeltnerChannel keltnerBig;    // Canal Keltner Grande 3.5 ATR (Estratósfera)
         private KeltnerChannel keltnerSmall;  // Canal Keltner Pequeño 1.75 ATR (Banda Azul)
-        private EMA            ema200;        // Media Móvil Exponencial de 200 periodos (Gravedad / Suelo)
+        private EMA            ema200;        // Media Móvil Exponencial de 200 periodos (Gravedad / Suelo Macro)
+        private EMA            ema9;          // Media Móvil Exponencial de 9 periodos (Micro-Tendencia de Despegue)
 
         // Contadores de Barras Acumuladas en el Abismo (EMA 200)
         private int barsEmaBelowOppositeCount = 0; // Conteo de barras donde EMA 200 está por debajo de la banda opuesta (para Longs)
@@ -117,7 +116,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = "v1.1 (Filtro Agresivo Canal Grande)";
+                Version                                     = "v1.2 (Promoción SL + EMA 9 Micro + 60 Barras Abismo)";
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (escalable)
@@ -131,14 +130,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FloatingBarsRequired                        = 3;      // Mínimo de velas consecutivas completamente afuera de Banda 3.5
                 StrictFloatingLowHigh                       = true;   // true: Low > Upper35 (Long) / High < Lower35 (Short). false: Close fuera.
                 CooldownBarsAfterExit                       = 3;      // Barras de enfriamiento tras salir antes de poder evaluar otra entrada
+                RequireEmaShortSlope                        = true;   // true: Exige pendiente de EMA 9 a favor mirando 2 barras atrás
+                EmaShortPeriod                              = 9;      // Periodo de la EMA 9 rápida de despegue
+                EmaShortSlopeLookback                       = 2;      // Barras hacia atrás para medir la pendiente de EMA 9 (2 barras = inicio del despegue)
 
                 // 05. Filtro Macro EMA 200 en el Abismo
-                MinBarsEmaOpposite                          = 150;    // Mínimo de barras continuas con la EMA 200 fuera del canal opuesto
+                MinBarsEmaOpposite                          = 60;     // Mínimo de barras continuas con la EMA 200 fuera del canal opuesto (calibrado a 60)
                 EmaOppositeBandTarget                       = BandaOpuestaEnum.BandaGrande35; // Umbral agresivo: fuera del Canal Grande 3.5 opuesto
                 EmaSlopeLookback                            = 3;      // Barras para medir la pendiente de la EMA 200
-                RequireEmaSlope                             = true;   // Exigir que la pendiente esté a favor del trade
+                RequireEmaSlope                             = true;   // Exigir que la pendiente de EMA 200 esté a favor del trade
 
-                // 06. Gestión de Riesgo (Banda Escalonada Ratchet)
+                // 06. Gestión de Riesgo (Banda Escalonada Ratchet con Promoción Dinámica)
                 SeparationThresholdTicks                    = 10;     // Si el precio entra a >= 10 ticks de Banda 3.5, SL en 3.5; si es menor, SL en 1.75
                 SlBufferTicks                               = 2;      // Colchón de respiro detrás de la banda elegida para el SL
                 MaxCatastrophicStopTicks                    = 40;     // Stop de emergencia máximo (10 puntos en ES = $500)
@@ -166,6 +168,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 keltnerBig   = KeltnerChannel(Close, KeltnerBigMult, KeltnerPeriod);
                 keltnerSmall = KeltnerChannel(Close, KeltnerSmallMult, KeltnerPeriod);
                 ema200       = EMA(Close, EmaPeriod);
+                ema9         = EMA(Close, EmaShortPeriod);
 
                 // En modo Backtest o Strategy Analyzer, se activa automáticamente
                 if (ChartControl == null)
@@ -178,6 +181,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // Crear botón WPF en el hilo de interfaz gráfica si está en un Chart activo
                 if (ChartControl != null && UserControlCollection != null)
+                {
+                    Dispatcher.InvokeAsync(() => { CreateWPFControls(); });
+                }
                 {
                     Dispatcher.InvokeAsync(() => { CreateWPFControls(); });
                 }
@@ -307,13 +313,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             // === 1. EVALUACIÓN DUMBO LONG (ELEFANTE ALCISTA) ===
             if (!longFiredInWave && floatingBarsLongCount >= FloatingBarsRequired)
             {
-                // Validación de EMA 200 en el abismo inferior (>= MinBarsEmaOpposite)
+                // 1. Validación de EMA 200 en el abismo inferior (>= MinBarsEmaOpposite)
                 if (barsEmaBelowOppositeCount >= MinBarsEmaOpposite)
                 {
-                    // Validación de Pendiente EMA 200 a favor (alcista o plana)
-                    bool emaSlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
+                    // 2. Validación de Pendiente EMA 200 Macro a favor (alcista o plana)
+                    bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
 
-                    if (emaSlopeOk)
+                    // 3. Validación de Pendiente EMA 9 Micro a favor (mirando 2 barras atrás partiendo de la 3ra barra afuera)
+                    bool ema9SlopeOk = !RequireEmaShortSlope || (ema9[0] > ema9[EmaShortSlopeLookback]);
+
+                    if (ema200SlopeOk && ema9SlopeOk)
                     {
                         EjecutarEntradaLong();
                         return;
@@ -324,13 +333,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             // === 2. EVALUACIÓN DUMBO SHORT (ELEFANTE BAJISTA) ===
             if (!shortFiredInWave && floatingBarsShortCount >= FloatingBarsRequired)
             {
-                // Validación de EMA 200 en el abismo superior (>= MinBarsEmaOpposite)
+                // 1. Validación de EMA 200 en el abismo superior (>= MinBarsEmaOpposite)
                 if (barsEmaAboveOppositeCount >= MinBarsEmaOpposite)
                 {
-                    // Validación de Pendiente EMA 200 a favor (bajista o plana)
-                    bool emaSlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
+                    // 2. Validación de Pendiente EMA 200 Macro a favor (bajista o plana)
+                    bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
 
-                    if (emaSlopeOk)
+                    // 3. Validación de Pendiente EMA 9 Micro a favor (mirando 2 barras atrás partiendo de la 3ra barra afuera)
+                    bool ema9SlopeOk = !RequireEmaShortSlope || (ema9[0] < ema9[EmaShortSlopeLookback]);
+
+                    if (ema200SlopeOk && ema9SlopeOk)
                     {
                         EjecutarEntradaShort();
                         return;
@@ -374,8 +386,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterLong(Contracts, "Dumbo_Long");
-            Print(string.Format("{0} [DUMBO LONG] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA200 Abismo: {5} barras",
-                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, barsEmaBelowOppositeCount));
+            Print(string.Format("{0} [DUMBO LONG] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
+                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, ema9[0], ema9[EmaShortSlopeLookback], barsEmaBelowOppositeCount));
         }
 
         // =================================================================================================
@@ -413,12 +425,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterShort(Contracts, "Dumbo_Short");
-            Print(string.Format("{0} [DUMBO SHORT] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA200 Abismo: {5} barras",
-                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, barsEmaAboveOppositeCount));
+            Print(string.Format("{0} [DUMBO SHORT] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
+                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, ema9[0], ema9[EmaShortSlopeLookback], barsEmaAboveOppositeCount));
         }
 
         // =================================================================================================
-        // GESTIÓN DE POSICIÓN ABIERTA (TRAILING DINÁMICO DE BANDA + CHOKE CONDICIONAL)
+        // GESTIÓN DE POSICIÓN ABIERTA (TRAILING DINÁMICO DE BANDA + PROMOCIÓN A BANDA 3.5 + CHOKE CONDICIONAL)
         // =================================================================================================
         private void GestionarPosicionAbierta()
         {
@@ -437,7 +449,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 2. Trailing Dinámico de la Banda Seleccionada (Ratchet hacia arriba)
+                // 2. Promoción Dinámica de SL: Si inició en Banda 1.75 Azul y el precio sube a >= 10 ticks afuera, ascender a Banda 3.5 Grande
+                if (!slAnchoredToBigBand)
+                {
+                    double currentSeparationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
+                    if (currentSeparationTicks >= SeparationThresholdTicks)
+                    {
+                        slAnchoredToBigBand = true; // ¡Ascendido a Banda Grande 3.5!
+                        Print(string.Format("{0} [DUMBO UPGRADE SL] ¡Precio alcanzó {1:F1} ticks fuera! SL ascendido a Banda 3.5 Grande",
+                            Time[0], currentSeparationTicks));
+                    }
+                }
+
+                // 3. Trailing Dinámico de la Banda Seleccionada (Ratchet hacia arriba)
                 // A medida que el canal sube con la tendencia, el SL sube con la banda correspondiente
                 double targetBandPrice = slAnchoredToBigBand ? keltnerBig.Upper[0] : keltnerSmall.Upper[0];
                 double candidateBandSl = Instrument.MasterInstrument.RoundToTickSize(targetBandPrice - (SlBufferTicks * TickSize));
@@ -446,7 +470,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     currentSlPriceGlobal = candidateBandSl;
                 }
 
-                // 3. Trailing Choke Vela a Vela (Opcional a partir de determinada ganancia alcanzada)
+                // 4. Trailing Choke Vela a Vela (Opcional a partir de determinada ganancia alcanzada)
                 if (UseTrailingChoke)
                 {
                     double currentProfitTicks = (Close[0] - entryPriceGlobal) / TickSize;
@@ -469,7 +493,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // 4. Salida por Re-entrada en Banda 3.5 (Opcional, desactivada por defecto para no cortar Banda 1.75)
+                // 5. Salida por Re-entrada en Banda 3.5 (Opcional, desactivada por defecto para no cortar Banda 1.75)
                 if (ExitOnBand35Reentry && Close[0] < keltnerBig.Upper[0])
                 {
                     ExitLong("Exit_Dumbo_BandReentry", "Dumbo_Long");
@@ -478,7 +502,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 5. Salida por Stop Loss de Banda / Choke alcanzado
+                // 6. Salida por Stop Loss de Banda / Choke alcanzado
                 if (Close[0] <= currentSlPriceGlobal || Low[0] <= currentSlPriceGlobal)
                 {
                     ExitLong("Exit_Dumbo_SL", "Dumbo_Long");
@@ -499,7 +523,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 2. Trailing Dinámico de la Banda Seleccionada (Ratchet hacia abajo)
+                // 2. Promoción Dinámica de SL: Si inició en Banda 1.75 Azul y el precio cae a >= 10 ticks afuera, descender a Banda 3.5 Grande
+                if (!slAnchoredToBigBand)
+                {
+                    double currentSeparationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
+                    if (currentSeparationTicks >= SeparationThresholdTicks)
+                    {
+                        slAnchoredToBigBand = true; // ¡Ascendido a Banda Grande 3.5!
+                        Print(string.Format("{0} [DUMBO UPGRADE SL] ¡Precio alcanzó {1:F1} ticks fuera! SL descendido a Banda 3.5 Grande",
+                            Time[0], currentSeparationTicks));
+                    }
+                }
+
+                // 3. Trailing Dinámico de la Banda Seleccionada (Ratchet hacia abajo)
                 // A medida que el canal desciende con la tendencia, el SL baja con la banda correspondiente
                 double targetBandPrice = slAnchoredToBigBand ? keltnerBig.Lower[0] : keltnerSmall.Lower[0];
                 double candidateBandSl = Instrument.MasterInstrument.RoundToTickSize(targetBandPrice + (SlBufferTicks * TickSize));
@@ -508,7 +544,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     currentSlPriceGlobal = candidateBandSl;
                 }
 
-                // 3. Trailing Choke Vela a Vela (Opcional a partir de determinada ganancia alcanzada)
+                // 4. Trailing Choke Vela a Vela (Opcional a partir de determinada ganancia alcanzada)
                 if (UseTrailingChoke)
                 {
                     double currentProfitTicks = (entryPriceGlobal - Close[0]) / TickSize;
@@ -531,7 +567,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // 4. Salida por Re-entrada en Banda 3.5 (Opcional, desactivada por defecto para no cortar Banda 1.75)
+                // 5. Salida por Re-entrada en Banda 3.5 (Opcional, desactivada por defecto para no cortar Banda 1.75)
                 if (ExitOnBand35Reentry && Close[0] > keltnerBig.Lower[0])
                 {
                     ExitShort("Exit_Dumbo_BandReentry", "Dumbo_Short");
@@ -540,7 +576,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // 5. Salida por Stop Loss de Banda / Choke alcanzado
+                // 6. Salida por Stop Loss de Banda / Choke alcanzado
                 if (Close[0] >= currentSlPriceGlobal || High[0] >= currentSlPriceGlobal)
                 {
                     ExitShort("Exit_Dumbo_SL", "Dumbo_Short");
@@ -676,8 +712,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CooldownBarsAfterExit { get; set; }
 
         [NinjaScriptProperty]
+        [Display(Name = "Exigir Pendiente EMA 9 Micro", Description = "true: Requiere que la EMA 9 apunte a favor del trade midiendo 2 barras atrás partiendo de la 3ra vela afuera", GroupName = "04. Parámetros Gatillo Dumbo", Order = 4)]
+        public bool RequireEmaShortSlope { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(2, 50)]
+        [Display(Name = "Periodo EMA 9 Micro", Description = "Periodo de la media rápida para filtrar el micro-impulso de despegue (por defecto: 9)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 5)]
+        public int EmaShortPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name = "Lookback Pendiente EMA 9", Description = "Barras hacia atrás para medir la pendiente de EMA 9 (por defecto: 2 barras)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 6)]
+        public int EmaShortSlopeLookback { get; set; }
+
+        [NinjaScriptProperty]
         [Range(10, 500)]
-        [Display(Name = "Barras Mínimas EMA en Abismo", Description = "Cantidad de barras continuas que la EMA 200 debe llevar fuera de la banda opuesta (por defecto: 150)", GroupName = "05. Filtro Macro EMA 200", Order = 1)]
+        [Display(Name = "Barras Mínimas EMA en Abismo", Description = "Cantidad de barras continuas que la EMA 200 debe llevar fuera de la banda opuesta (por defecto: 60)", GroupName = "05. Filtro Macro EMA 200", Order = 1)]
         public int MinBarsEmaOpposite { get; set; }
 
         [NinjaScriptProperty]
