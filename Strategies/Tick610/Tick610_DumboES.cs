@@ -25,7 +25,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Dumbo Super-Expansión ES"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 1.2 - "El Elefante Volador" (Promoción Dinámica de SL a Banda 3.5 + EMA 9 Micro + 60 Barras Abismo)
+// VERSIÓN: 1.3 - "El Elefante Volador" (TEMA 9 Cascada Estricta + Respiro SL 3 Ticks + Botón v1.3)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante que aprende a volar. La gran mayoría de estrategias esperan que el precio vuelva
@@ -34,13 +34,13 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //   Al mismo tiempo, la EMA 200 (la gravedad) quedó atrapada en el sótano opuesto por más de 60 barras
 //   POR FUERA DEL CANAL GRANDE 3.5. En vez de operar reversión, Dumbo se monta en el viento a favor de la inercia.
 //
-// NOVEDADES v1.2:
-//   1. Promoción Dinámica de SL: Si al abrir el trade el precio está a < 10 ticks (SL en Banda 1.75 Azul),
-//      en el momento en que el precio sube y supera los 10 ticks afuera, el SL asciende automáticamente
-//      y se reposiciona a la Banda 3.5 Exterior del Canal Grande.
-//   2. Filtro Macro Calibrado: Se ajusta el umbral por defecto de la EMA 200 en el abismo a 60 barras.
-//   3. Filtro Micro EMA 9: La EMA 9 debe tener pendiente a favor del trade midiendo 2 barras atrás partiendo
-//      de la tercera barra que está afuera de la banda (EMA 9[0] vs EMA 9[2]).
+// NOVEDADES v1.3:
+//   1. TEMA 9 Rápida Cascada: Cambiada de EMA normal a TEMA 9 (idéntica a CascadaVega) con pendiente estricta:
+//      - En Longs: TEMA 9[0] > TEMA 9[1] (la barra actual sube) Y TEMA 9[0] > TEMA 9[2].
+//      - En Shorts: TEMA 9[0] < TEMA 9[1] (la barra actual baja) Y TEMA 9[0] < TEMA 9[2].
+//      Esto prohíbe terminantemente vender si la vela o la media están rebotando hacia arriba.
+//   2. Respiro SL Estándar: Se calibra el respiro de Stop Loss detrás de la banda a 3 ticks (SlBufferTicks = 3).
+//   3. Actualización de Versión Total: Sincronización a v1.3 en el encabezado, propiedades y Botón de Pánico WPF.
 // =========================================================================================================
 
 namespace NinjaTrader.NinjaScript.Strategies
@@ -63,7 +63,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private KeltnerChannel keltnerBig;    // Canal Keltner Grande 3.5 ATR (Estratósfera)
         private KeltnerChannel keltnerSmall;  // Canal Keltner Pequeño 1.75 ATR (Banda Azul)
         private EMA            ema200;        // Media Móvil Exponencial de 200 periodos (Gravedad / Suelo Macro)
-        private EMA            ema9;          // Media Móvil Exponencial de 9 periodos (Micro-Tendencia de Despegue)
+        private TEMA           tema9;         // Triple Media Móvil Exponencial de 9 periodos (Micro-Tendencia Rápida Cascada)
 
         // Contadores de Barras Acumuladas en el Abismo (EMA 200)
         private int barsEmaBelowOppositeCount = 0; // Conteo de barras donde EMA 200 está por debajo de la banda opuesta (para Longs)
@@ -116,7 +116,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = "v1.2 (Promoción SL + EMA 9 Micro + 60 Barras Abismo)";
+                Version                                     = "v1.3 (TEMA 9 Cascada + Respiro SL 3 Ticks + Botón v1.3)";
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (escalable)
@@ -130,9 +130,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FloatingBarsRequired                        = 3;      // Mínimo de velas consecutivas completamente afuera de Banda 3.5
                 StrictFloatingLowHigh                       = true;   // true: Low > Upper35 (Long) / High < Lower35 (Short). false: Close fuera.
                 CooldownBarsAfterExit                       = 3;      // Barras de enfriamiento tras salir antes de poder evaluar otra entrada
-                RequireEmaShortSlope                        = true;   // true: Exige pendiente de EMA 9 a favor mirando 2 barras atrás
-                EmaShortPeriod                              = 9;      // Periodo de la EMA 9 rápida de despegue
-                EmaShortSlopeLookback                       = 2;      // Barras hacia atrás para medir la pendiente de EMA 9 (2 barras = inicio del despegue)
+                RequireTemaSlope                            = true;   // true: Exige pendiente estricta de TEMA 9 a favor (barra a barra y vs 2 barras atrás)
+                TemaPeriod                                  = 9;      // Periodo de la media rápida TEMA (idéntica a CascadaVega)
+                TemaSlopeLookback                           = 2;      // Barras hacia atrás para medir la pendiente de TEMA 9 (2 barras = inicio del despegue)
 
                 // 05. Filtro Macro EMA 200 en el Abismo
                 MinBarsEmaOpposite                          = 60;     // Mínimo de barras continuas con la EMA 200 fuera del canal opuesto (calibrado a 60)
@@ -142,7 +142,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // 06. Gestión de Riesgo (Banda Escalonada Ratchet con Promoción Dinámica)
                 SeparationThresholdTicks                    = 10;     // Si el precio entra a >= 10 ticks de Banda 3.5, SL en 3.5; si es menor, SL en 1.75
-                SlBufferTicks                               = 2;      // Colchón de respiro detrás de la banda elegida para el SL
+                SlBufferTicks                               = 3;      // Colchón de respiro detrás de la banda elegida para el SL (estándar 3 ticks)
                 MaxCatastrophicStopTicks                    = 40;     // Stop de emergencia máximo (10 puntos en ES = $500)
                 UseTrailingChoke                            = false;  // Por ahora desactivado para probar la banda pura (activable a demanda)
                 ChokeActivationProfitTicks                  = 20;     // Ticks mínimos de ganancia antes de iniciar ahogo si se activa Choke
@@ -168,7 +168,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 keltnerBig   = KeltnerChannel(Close, KeltnerBigMult, KeltnerPeriod);
                 keltnerSmall = KeltnerChannel(Close, KeltnerSmallMult, KeltnerPeriod);
                 ema200       = EMA(Close, EmaPeriod);
-                ema9         = EMA(Close, EmaShortPeriod);
+                tema9        = TEMA(Close, TemaPeriod);
 
                 // En modo Backtest o Strategy Analyzer, se activa automáticamente
                 if (ChartControl == null)
@@ -181,9 +181,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // Crear botón WPF en el hilo de interfaz gráfica si está en un Chart activo
                 if (ChartControl != null && UserControlCollection != null)
-                {
-                    Dispatcher.InvokeAsync(() => { CreateWPFControls(); });
-                }
                 {
                     Dispatcher.InvokeAsync(() => { CreateWPFControls(); });
                 }
@@ -319,10 +316,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // 2. Validación de Pendiente EMA 200 Macro a favor (alcista o plana)
                     bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
 
-                    // 3. Validación de Pendiente EMA 9 Micro a favor (mirando 2 barras atrás partiendo de la 3ra barra afuera)
-                    bool ema9SlopeOk = !RequireEmaShortSlope || (ema9[0] > ema9[EmaShortSlopeLookback]);
+                    // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
+                    // TEMA 9[0] > TEMA 9[1] (la barra actual está subiendo) Y TEMA 9[0] > TEMA 9[TemaSlopeLookback]
+                    bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
 
-                    if (ema200SlopeOk && ema9SlopeOk)
+                    if (ema200SlopeOk && tema9SlopeOk)
                     {
                         EjecutarEntradaLong();
                         return;
@@ -339,10 +337,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // 2. Validación de Pendiente EMA 200 Macro a favor (bajista o plana)
                     bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
 
-                    // 3. Validación de Pendiente EMA 9 Micro a favor (mirando 2 barras atrás partiendo de la 3ra barra afuera)
-                    bool ema9SlopeOk = !RequireEmaShortSlope || (ema9[0] < ema9[EmaShortSlopeLookback]);
+                    // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
+                    // TEMA 9[0] < TEMA 9[1] (la barra actual está cayendo) Y TEMA 9[0] < TEMA 9[TemaSlopeLookback]
+                    bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
 
-                    if (ema200SlopeOk && ema9SlopeOk)
+                    if (ema200SlopeOk && tema9SlopeOk)
                     {
                         EjecutarEntradaShort();
                         return;
@@ -386,8 +385,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterLong(Contracts, "Dumbo_Long");
-            Print(string.Format("{0} [DUMBO LONG] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
-                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, ema9[0], ema9[EmaShortSlopeLookback], barsEmaBelowOppositeCount));
+            Print(string.Format("{0} [DUMBO LONG v1.3] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | TEMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
+                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, tema9[0], tema9[TemaSlopeLookback], barsEmaBelowOppositeCount));
         }
 
         // =================================================================================================
@@ -425,8 +424,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterShort(Contracts, "Dumbo_Short");
-            Print(string.Format("{0} [DUMBO SHORT] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | EMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
-                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, ema9[0], ema9[EmaShortSlopeLookback], barsEmaAboveOppositeCount));
+            Print(string.Format("{0} [DUMBO SHORT v1.3] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | TEMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
+                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, tema9[0], tema9[TemaSlopeLookback], barsEmaAboveOppositeCount));
         }
 
         // =================================================================================================
@@ -601,7 +600,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "Dumbo ACTIVA (v1.0)" : "Dumbo PAUSADA (v1.0)",
+                Content = isStrategyActive ? "Dumbo ACTIVA (v1.3)" : "Dumbo PAUSADA (v1.3)",
                 Height = 30,
                 Width = 220,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -636,7 +635,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "Dumbo ACTIVA (v1.0)" : "Dumbo PAUSADA (v1.0)";
+                panicButton.Content = isStrategyActive ? "Dumbo ACTIVA (v1.3)" : "Dumbo PAUSADA (v1.3)";
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
@@ -712,18 +711,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int CooldownBarsAfterExit { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Exigir Pendiente EMA 9 Micro", Description = "true: Requiere que la EMA 9 apunte a favor del trade midiendo 2 barras atrás partiendo de la 3ra vela afuera", GroupName = "04. Parámetros Gatillo Dumbo", Order = 4)]
-        public bool RequireEmaShortSlope { get; set; }
+        [Display(Name = "Exigir Pendiente TEMA 9 Micro", Description = "true: Requiere que la TEMA 9 apunte a favor del trade de forma estricta (barra a barra y vs 2 barras atrás)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 4)]
+        public bool RequireTemaSlope { get; set; }
 
         [NinjaScriptProperty]
         [Range(2, 50)]
-        [Display(Name = "Periodo EMA 9 Micro", Description = "Periodo de la media rápida para filtrar el micro-impulso de despegue (por defecto: 9)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 5)]
-        public int EmaShortPeriod { get; set; }
+        [Display(Name = "Periodo TEMA 9 Micro", Description = "Periodo de la media rápida TEMA (idéntica a CascadaVega, por defecto: 9)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 5)]
+        public int TemaPeriod { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Lookback Pendiente EMA 9", Description = "Barras hacia atrás para medir la pendiente de EMA 9 (por defecto: 2 barras)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 6)]
-        public int EmaShortSlopeLookback { get; set; }
+        [Display(Name = "Lookback Pendiente TEMA 9", Description = "Barras hacia atrás para medir la pendiente de TEMA 9 (por defecto: 2 barras)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 6)]
+        public int TemaSlopeLookback { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 500)]
