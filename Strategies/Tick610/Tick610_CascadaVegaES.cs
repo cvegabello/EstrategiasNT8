@@ -1422,17 +1422,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // 7. FILTRO DE ACCIÓN DEL PRECIO (PELDAÑO EN VELA 4):
-            // Si RatchetStrictPeldanoEnabled es true (por defecto): Exige peldaño puro con ambos extremos (High > High[1] y Low > Low[1]).
-            // Si es false: Exige únicamente que rompa el máximo anterior (High > High[1]), sin importar si Low[0] <= Low[1] (mecha contraria v8.3).
-            bool fallaPeldanoLong = RatchetStrictPeldanoEnabled ? (High[0] <= High[1] || Low[0] <= Low[1]) : (High[0] <= High[1]);
+            // Si RatchetStrictPeldanoEnabled es true (por defecto): Exige peldaño puro con ambos extremos (High >= High[1] y Low > Low[1]).
+            // Si es false: Exige únicamente que el máximo sea mayor O IGUAL al anterior (High >= High[1]), sin importar si Low[0] <= Low[1] (mecha contraria v8.3).
+            bool fallaPeldanoLong = RatchetStrictPeldanoEnabled ? (High[0] < High[1] || Low[0] <= Low[1]) : (High[0] < High[1]);
             if (fallaPeldanoLong)
             {
                 string razonPeldano = RatchetStrictPeldanoEnabled
                     ? string.Format("Vela 4 no formó peldaño alcista estricto (High: {0:F2} vs {1:F2}, Low: {2:F2} vs {3:F2}).", High[0], High[1], Low[0], Low[1])
-                    : string.Format("Vela 4 no superó el máximo de la vela previa (High: {0:F2} <= {1:F2}).", High[0], High[1]);
+                    : string.Format("Vela 4 no alcanzó el máximo de la vela previa (High: {0:F2} < {1:F2}).", High[0], High[1]);
 
-                Print(string.Format("{0} - [CASCADA_VEGA v8.3 | FILTRO DESCARTADO (LARGO)]\n>>> MOTIVO: {1} Falta de momentum.\n>>> RADIOGRAFÍA: {2}",
-                    Time[0], razonPeldano, radiografiaLog));
+                Print(string.Format("{0} - [CASCADA_VEGA v{1} | FILTRO DESCARTADO (LARGO)]\n>>> MOTIVO: {2} Falta de momentum.\n>>> RADIOGRAFÍA: {3}",
+                    Time[0], STRATEGY_VERSION, razonPeldano, radiografiaLog));
                 return;
             }
 
@@ -1594,17 +1594,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // 7. FILTRO DE ACCIÓN DEL PRECIO (PELDAÑO EN VELA 4):
-            // Si RatchetStrictPeldanoEnabled es true (por defecto): Exige peldaño puro con ambos extremos (Low < Low[1] y High < High[1]).
-            // Si es false: Exige únicamente que rompa el mínimo anterior (Low < Low[1]), sin importar si High[0] >= High[1] (mecha contraria v8.3).
-            bool fallaPeldanoShort = RatchetStrictPeldanoEnabled ? (Low[0] >= Low[1] || High[0] >= High[1]) : (Low[0] >= Low[1]);
+            // Si RatchetStrictPeldanoEnabled es true (por defecto): Exige peldaño puro con ambos extremos (Low <= Low[1] y High < High[1]).
+            // Si es false: Exige únicamente que el mínimo sea menor O IGUAL al anterior (Low <= Low[1]), sin importar si High[0] >= High[1] (mecha contraria v8.3).
+            bool fallaPeldanoShort = RatchetStrictPeldanoEnabled ? (Low[0] > Low[1] || High[0] >= High[1]) : (Low[0] > Low[1]);
             if (fallaPeldanoShort)
             {
                 string razonPeldano = RatchetStrictPeldanoEnabled
                     ? string.Format("Vela 4 no formó peldaño bajista estricto (Low: {0:F2} vs {1:F2}, High: {2:F2} vs {3:F2}).", Low[0], Low[1], High[0], High[1])
-                    : string.Format("Vela 4 no perforó el mínimo de la vela previa (Low: {0:F2} >= {1:F2}).", Low[0], Low[1]);
+                    : string.Format("Vela 4 no alcanzó el mínimo de la vela previa (Low: {0:F2} > {1:F2}).", Low[0], Low[1]);
 
-                Print(string.Format("{0} - [CASCADA_VEGA v8.3 | FILTRO DESCARTADO (CORTO)]\n>>> MOTIVO: {1} Falta de momentum.\n>>> RADIOGRAFÍA: {2}",
-                    Time[0], razonPeldano, radiografiaLogShort));
+                Print(string.Format("{0} - [CASCADA_VEGA v{1} | FILTRO DESCARTADO (CORTO)]\n>>> MOTIVO: {2} Falta de momentum.\n>>> RADIOGRAFÍA: {3}",
+                    Time[0], STRATEGY_VERSION, razonPeldano, radiografiaLogShort));
                 return;
             }
 
@@ -4106,7 +4106,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         [ReadOnly(true)]
         public string Version
         {
-            get { return "8.21 (MES / ES) - Cascada Vega"; }
+            get { return string.Format("{0} (MES / ES) - Cascada Vega", STRATEGY_VERSION); }
             set { }
         }
 
