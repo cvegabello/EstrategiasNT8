@@ -1,7 +1,7 @@
-# Ficha Técnica - Cascada Vega v8.2 (Especialización Micro MES & Dual ES)
+# Ficha Técnica - Cascada Vega v8.3 (Especialización Micro MES & Dual ES)
 
 ## 1. Identidad de la Versión
-* **Nombre de la Estrategia:** `Tick610_CascadaVegaES` (v8.2 MES / ES)
+* **Nombre de la Estrategia:** `Tick610_CascadaVegaES` (v8.3 MES / ES)
 * **Instrumento Primario:** Micro E-mini S&P 500 (`MES`)
 * **Instrumento Secundario (Auto-Escalable):** E-mini S&P 500 (`ES`)
 * **Gráfica:** 610 Ticks (Barras Transaccionales OHLC)

@@ -1,6 +1,6 @@
-# Bitácora de Pruebas y Desempeño - Cascada Vega v8.2 (Micro MES)
+# Bitácora de Pruebas y Desempeño - Cascada Vega v8.3 (Micro MES)
 
-Esta bitácora documenta el desempeño y validaciones operativas de la **Versión 8.2** de Cascada Vega, calibrada de fábrica para futuros del Micro S&P 500 (**MES**) en gráfica de **610 Ticks**.
+Esta bitácora documenta el desempeño y validaciones operativas de la **Versión 8.3** de Cascada Vega, calibrada de fábrica para futuros del Micro S&P 500 (**MES**) en gráfica de **610 Ticks**.
 
 ---
 
