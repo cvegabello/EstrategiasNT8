@@ -291,8 +291,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetMinSwingDepthPercent                 = 15.0;   // Filtro A: Penetración mínima del 15% del espesor de Zona 1 adentrado desde Banda 1.75 (v8.1)
                 RatchetEmaMinSeparationPercent              = 5.0;    // Filtro B1: Separación mínima de EMA 200 de al menos 5% del canal fuera de Banda 1.75 (v8.1)
                 RatchetEmaMinSlopeThreshold                 = 0.0;    // Filtro B2: Umbral mínimo de pendiente normalizada LinReg/ATR de EMA 200 (>= 0.0 Long, <= 0.0 Short v8.1)
-                RatchetMinTemaSlope                         = 0.20;   // Filtro Inercia TEMA 9: Pendiente mínima de 0.20 pts/barra desde el Swing para autorizar disparo (v8.1)
-                RatchetStrictPeldanoEnabled                 = true;   // Peldaño Estricto en Vela 4: True = Exige ambos extremos (High y Low); False = Solo quiebre direccional (v8.3)
+                RatchetMinTemaSlope                         = 0.45;   // Filtro Inercia TEMA 9: Pendiente mínima de 0.45 pts/barra desde el Swing para autorizar disparo (v8.3)
+                RatchetStrictPeldanoEnabled                 = false;  // Peldaño Estricto en Vela 4: False por defecto = Solo quiebre direccional, permitiendo mechas contrarias (v8.3)
                 RatchetRequireOriginZoneOnly                = true;   // Filtro Mayorista / Solo Descuento: True = Prohíbe compras sobre Midline y ventas bajo Midline (v8.3)
 
                 // Parámetros del As 4: Cascada (Cazador de Rápidos por Pendiente Normalizada + Candado Suelo $50)
@@ -318,7 +318,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CascadaSlopeTriggerThreshold                = 0.17;   // MEJORA 1: Umbral de gatillo barra >= 2 (0.1700 institucional v8.1)
                 CascadaFiltroMacroEstricto                  = false;  // Check desactivado por defecto (Modo Dinámico: Precio vs EMA200 y Midline)
                 CascadaOutsideThresholdTicks                = 8;      // Margen de ticks fuera de Banda 3.5 (>= 8 ticks activa SL Oxígeno en Sobreextensión; < 8 ticks tratada como adentro con SL Línea Media)
-                CascadaMaxOutsideTicks                      = 25;     // MEJORA 2: Techo Máximo Exterior (<= 25 ticks fuera de Banda 3.5; más allá se cancela v8.1)
+                CascadaMaxOutsideTicks                      = 27;     // MEJORA 2: Techo Máximo Exterior (<= 27 ticks fuera de Banda 3.5; más allá se cancela v8.3)
                 CascadaOutsideSlTicks                       = 12;     // Oxígeno de Stop Loss para tiros en sobreextensión exterior (12 ticks = 3.0 pts = -$15 MES / -$150 ES)
                 CascadaExitOnCloseOnly                      = true;   // Salida estricta por cierre de vela Close[0] en Banda 1.75 (ignora mechas de absorción/rechazo intra-vela)
                 CascadaBandOffsetTicks                      = 0;      // Respiro en ticks más allá de la Banda 1.75 (0 ticks por defecto con cierre de vela Close[0])
@@ -4363,7 +4363,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(10, 100)]
-        [Display(Name = "Cascada Techo Máximo Exterior (Ticks)", Description = "Límite máximo de ticks fuera de Banda 3.5 para permitir disparo (25 ticks por defecto v8.1)", GroupName = "05. As 4: Cascada Surfer", Order = 18)]
+        [Display(Name = "Cascada Techo Máximo Exterior (Ticks)", Description = "Límite máximo de ticks fuera de Banda 3.5 para permitir disparo (27 ticks por defecto v8.3)", GroupName = "05. As 4: Cascada Surfer", Order = 18)]
         public int CascadaMaxOutsideTicks { get; set; }
 
         [NinjaScriptProperty]
@@ -4508,11 +4508,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0.0, 2.0)]
-        [Display(Name = "20. Pendiente Mínima Inercia TEMA 9 (pts/barra)", Description = "Filtro Inercia TEMA 9: Inclinación mínima en puntos por barra de la media rápida desde el Swing Low/High (+0.20 en Long / -0.20 en Short por defecto v8.1). Descarta rebotes planos sin fuerza.", GroupName = RATCHET_GROUP_NAME, Order = 23)]
+        [Display(Name = "20. Pendiente Mínima Inercia TEMA 9 (pts/barra)", Description = "Filtro Inercia TEMA 9: Inclinación mínima en puntos por barra de la media rápida desde el Swing Low/High (+0.45 en Long / -0.45 en Short por defecto v8.3). Descarta rebotes planos sin fuerza.", GroupName = RATCHET_GROUP_NAME, Order = 23)]
         public double RatchetMinTemaSlope { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "21. Peldaño Estricto Vela 4 (Ambos Extremos)", Description = "Si es True (por defecto), exige peldaño estricto con ambos extremos (High > High[1] y Low > Low[1] en Largos; Low < Low[1] y High < High[1] en Cortos). Si es False, solo exige quiebre direccional (High > High[1] en Largos, Low < Low[1] en Cortos) permitiendo mechas contrarias (v8.3)", GroupName = RATCHET_GROUP_NAME, Order = 24)]
+        [Display(Name = "21. Peldaño Estricto Vela 4 (Ambos Extremos)", Description = "Si es True, exige peldaño estricto con ambos extremos. Si es False (por defecto v8.3), solo exige quiebre direccional (High >= High[1] en Largos, Low <= Low[1] en Cortos) permitiendo mechas contrarias.", GroupName = RATCHET_GROUP_NAME, Order = 24)]
         public bool RatchetStrictPeldanoEnabled { get; set; }
 
         [NinjaScriptProperty]

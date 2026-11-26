@@ -52,4 +52,9 @@ Si el usuario monta la estrategia en una gráfica del contrato Mini (`ES`), `Sta
 * Modo Dulce: +$900.00 USD (Giveback $150)
 * Tranca Bonus: +$100.00 USD
 * TP Fijo T1: +$470.00 USD
-* Victoria Temprana T1: +$450.00 USD
+## 4. Calibración Oficial v8.3 de As 3 (Ratchet) y As 4 (Cascada)
+* **RatchetMinTemaSlope:** `0.45` pts/barra (Exige aceleración e inercia real en la TEMA 9 desde el Swing, descartando rebotes planos y acostados).
+* **RatchetStrictPeldanoEnabled:** `false` (Por defecto desmarcado: acepta quiebre direccional `High >= High[1]` / `Low <= Low[1]`, permitiendo mechas y continuaciones institucionales).
+* **RatchetRequireOriginZoneOnly:** `true` (Filtro Mayorista: prohíbe compras sobre Midline y ventas bajo Midline, garantizando descuento institucional).
+* **CascadaMaxOutsideTicks:** `27` ticks (Techo máximo exterior en As 4 Cascada para permitir disparos de francotirador).
+

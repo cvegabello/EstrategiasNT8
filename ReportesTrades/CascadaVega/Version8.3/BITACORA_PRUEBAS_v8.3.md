@@ -17,12 +17,31 @@ Esta bitácora documenta el desempeño y validaciones operativas de la **Versió
 
 ---
 
-## 2. Registro de Sesiones Evaluadas en Micro MES
+## 2. Registro de Sesiones Evaluadas en Micro MES (Periodo 16 al 25 de Noviembre)
 
 | # | Fecha | Instrumento | Estrategia / As | Trades / Contratos | PnL Neto Día | Detalle Operativo y Salidas |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **1** | **24/11/2026** | **MES 12-26** | Ratchet Long (As 3) | 1 trade (3 contratos) | **+$151.10 USD** | Entrada: 7219.00 @ 09:57:29 AM.<br>• **C1:** Salida Tranca @ 7224.25 (+21 tk = **+$24.95**)<br>• **C2:** Salida Upper 3.5 @ 7240.25 (+85 tk = **+$104.95**)<br>• **C3:** Salida Piso Midline @ 7223.50 (+18 tk = **+$21.20**)<br>*Comisiones Lifetime: -$3.90 USD. 100% Piloto Automático.* |
-| **2** | **25/11/2026** | **MES / ES** | Cascada50 (As 4) | 1 trade (1 contrato) | **+$47.50 USD** (MES) / **+$475.00 USD** (ES) | Entrada: 7063.00 @ 10:00:00 AM.<br>• Salida: `Exit_T1_TP_FrancoTirador` @ 7072.50 (+38 ticks en 11 segundos).<br>*Victoria Temprana activada: ¡A esquiar! ⛷️* |
+| **1** | **16/11/2026** | **MES 12-26** | Ratchet Short (As 3) | 1 trade (3 contratos) | **+$148.60 USD** | C1 Tranca (+11tk), C2 Lower35 (+77tk), C3 TechoLower175 (+34tk). Ganador limpio. |
+| **2** | **17/11/2026** | **MES 12-26** | Ratchet Long (As 3) | 1 trade (3 contratos) | **-$78.90 USD** | Pérdida asumida con honor. AbortoCuna protegió contra caída profunda de 36 ticks. |
+| **3** | **18/11/2026** | **MES 12-26** | Ratchet Short (As 3) | 1 trade (3 contratos) | **+$7.35 USD** | C1 Tranca (+25tk), C2/C3 TechoMidline (-8tk). Día cerrado en verde/breakeven. |
+| **4** | **19/11/2026** | **MES 12-26** | Ratchet Long (As 3) | 1 trade (3 contratos) | **+$239.85 USD** | Peldaño flexible (Highs iguales aceptados). C1 Tranca, C2 Upper35, C3 Choke4tk. Victoria Temprana. |
+| **5** | **20/11/2026** | **MES 12-26** | Ratchet Short (As 3) | 1 trade (3 contratos) | **+$81.10 USD** | C1 Tranca (+22tk), C2/C3 TechoLower175 (+23tk). Ganador sólido. |
+| **6** | **23/11/2026** | **MES 12-26** | Ratchet Long (As 3) | 1 trade (3 contratos) | **+$294.85 USD** | C1 Tranca (+21tk), C2 Upper35 (+94tk), C3 Choke4tk (+124tk). Grosería de trade. Victoria Temprana. |
+| **7** | **24/11/2026** | **MES 12-26** | Ratchet Long (As 3) | 1 trade (3 contratos) | **+$151.10 USD** | Entrada: 7219.00. C1 Tranca (+21tk), C2 Upper35 (+85tk), C3 PisoMidline (+18tk). |
+| **8** | **25/11/2026** | **MES 12-26** | Ratchet Short (As 3) | 1 trade (3 contratos) | **+$64.85 USD** | C1 Tranca (+21tk), C2/C3 TechoMidline (+17tk). Sesión positiva. |
+
+### Balance Global de la Muestra (8 Días):
+* **Días Positivos:** 7 de 8 (87.5% Win Rate por día)
+* **PnL Neto Total MES:** **+$908.80 USD** (Equivalente a **+$9,088 USD** en ES)
+* **Profit Factor:** 12.51
+
+---
+
+## 3. Ajustes de Fábrica Oficiales Establecidos para v8.3
+* **`RatchetMinTemaSlope = 0.45`**: Inercia mínima exigida para evitar rebotes planos o velas acostadas.
+* **`RatchetStrictPeldanoEnabled = false`**: Permite continuaciones institucionales sin penalizar velas con extremos iguales.
+* **`RatchetRequireOriginZoneOnly = true`**: Filtro Mayorista activado para operar exclusivamente con descuento respecto a la Línea Media.
+* **`CascadaMaxOutsideTicks = 27`**: Espacio ampliado de 25 a 27 ticks fuera de Banda 3.5 en Cascada Surfer.
 
 ---
 
