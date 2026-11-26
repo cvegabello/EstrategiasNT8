@@ -125,7 +125,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Contracts                                   = 1;      // Número de contratos a operar (escalable)
 
                 // 03. Horario Operativo RTH Estricto
-                StartTime                                   = 95000;  // 09:50 AM EST (espera formación inicial de apertura)
+                StartTime                                   = 93500;  // 09:35 AM EST (inicia 5 min tras apertura para atrapar expansiones tempranas)
                 StopEntriesTime                             = 154500; // 03:45 PM EST (corta nuevas entradas)
                 ForceCloseTime                              = 160000; // 04:00 PM EST (cierra todo antes de la campana)
 
@@ -730,7 +730,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int Contracts { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Hora Inicio RTH (HHMMSS)", Description = "09:50 AM = 95000", GroupName = "03. Horario Operativo", Order = 1)]
+        [Display(Name = "Hora Inicio RTH (HHMMSS)", Description = "09:35 AM = 93500 (inicia tras los primeros 5 min)", GroupName = "03. Horario Operativo", Order = 1)]
         public int StartTime { get; set; }
 
         [NinjaScriptProperty]
