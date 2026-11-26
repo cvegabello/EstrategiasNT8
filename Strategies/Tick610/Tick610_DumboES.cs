@@ -132,6 +132,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 04. Parámetros del Disparador Dumbo
                 FloatingBarsRequired                        = 3;      // Mínimo de velas consecutivas completamente afuera de Banda 3.5
                 StrictFloatingLowHigh                       = true;   // true: Low > Upper35 (Long) / High < Lower35 (Short). false: Close fuera.
+                MinSeparationFromBand35Ticks                = 12;     // Regla Estructural: Exige estar al menos 12 ticks por fuera de Banda 3.5 para disparar
                 CooldownBarsAfterExit                       = 3;      // Barras de enfriamiento tras salir antes de poder evaluar otra entrada
                 RequireTemaSlope                            = true;   // true: Exige pendiente estricta de TEMA 9 a favor (barra a barra y vs 2 barras atrás)
                 TemaPeriod                                  = 9;      // Periodo de la media rápida TEMA (idéntica a CascadaVega)
@@ -147,9 +148,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SeparationThresholdTicks                    = 10;     // Si el precio entra a >= 10 ticks de Banda 3.5, SL en 3.5; si es menor, SL en 1.75
                 SlBufferTicks                               = 3;      // Colchón de respiro detrás de la banda elegida para el SL (estándar 3 ticks)
                 UseProfitMilestoneSlUpgrade                 = true;   // Activar promoción de SL a Banda 3.5 al alcanzar meta de ganancia en dólares
-                ProfitMilestoneDollars                      = 400.0;  // Meta de ganancia para mover SL a Banda 3.5 ($400 ES / $40 MES)
-                MilestoneAheadTicks                         = 1;      // Ticks adelante de la Banda 3.5 al alcanzar los $400 (1 tick en favor)
-                MaxCatastrophicStopTicks                    = 40;     // Stop de emergencia máximo (10 puntos en ES = $500)
+                ProfitMilestoneDollars                      = 40.0;   // Meta de ganancia en USD para mover SL a Banda 3.5 ($40 MES nativo / auto-escala a $400 en ES)
+                MilestoneAheadTicks                         = 1;      // Ticks adelante de la Banda 3.5 al alcanzar los $40 (1 tick en favor)
+                MaxCatastrophicStopTicks                    = 40;     // Stop de emergencia máximo (10 puntos en ES = $500 / $50 MES)
                 UseTrailingChoke                            = false;  // Por ahora desactivado para probar la banda pura (activable a demanda)
                 ChokeActivationProfitTicks                  = 20;     // Ticks mínimos de ganancia antes de iniciar ahogo si se activa Choke
                 ChokeLookbackBars                           = 2;      // Mínimo de últimas N barras para anclar el Choke
@@ -168,7 +169,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // Detección automática de instrumento Mini ES vs Micro MES
                 isMicroInstrument = Instrument.MasterInstrument.Name.Contains("MES");
-                instrumentMultiplier = isMicroInstrument ? 0.10 : 1.0;
+                instrumentMultiplier = isMicroInstrument ? 1.0 : 10.0; // En MES es x1 ($40 = $40). En ES es x10 ($40 = $400).
 
                 // Instanciación de Indicadores Técnicos en memoria (Sin AddChartIndicator para no alterar plantilla visual)
                 keltnerBig   = KeltnerChannel(Close, KeltnerBigMult, KeltnerPeriod);
@@ -316,20 +317,24 @@ namespace NinjaTrader.NinjaScript.Strategies
             // === 1. EVALUACIÓN DUMBO LONG (ELEFANTE ALCISTA) ===
             if (!longFiredInWave && floatingBarsLongCount >= FloatingBarsRequired)
             {
-                // 1. Validación de EMA 200 en el abismo inferior (>= MinBarsEmaOpposite)
-                if (barsEmaBelowOppositeCount >= MinBarsEmaOpposite)
+                // Regla Estructural: Exigir que el precio esté al menos MinSeparationFromBand35Ticks por encima de Banda 3.5
+                double currentSeparationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
+                if (currentSeparationTicks >= MinSeparationFromBand35Ticks)
                 {
-                    // 2. Validación de Pendiente EMA 200 Macro a favor (alcista o plana)
-                    bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
-
-                    // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
-                    // TEMA 9[0] > TEMA 9[1] (la barra actual está subiendo) Y TEMA 9[0] > TEMA 9[TemaSlopeLookback]
-                    bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
-
-                    if (ema200SlopeOk && tema9SlopeOk)
+                    // 1. Validación de EMA 200 en el abismo inferior (>= MinBarsEmaOpposite)
+                    if (barsEmaBelowOppositeCount >= MinBarsEmaOpposite)
                     {
-                        EjecutarEntradaLong();
-                        return;
+                        // 2. Validación de Pendiente EMA 200 Macro a favor (alcista o plana)
+                        bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
+
+                        // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
+                        bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
+
+                        if (ema200SlopeOk && tema9SlopeOk)
+                        {
+                            EjecutarEntradaLong();
+                            return;
+                        }
                     }
                 }
             }
@@ -337,20 +342,24 @@ namespace NinjaTrader.NinjaScript.Strategies
             // === 2. EVALUACIÓN DUMBO SHORT (ELEFANTE BAJISTA) ===
             if (!shortFiredInWave && floatingBarsShortCount >= FloatingBarsRequired)
             {
-                // 1. Validación de EMA 200 en el abismo superior (>= MinBarsEmaOpposite)
-                if (barsEmaAboveOppositeCount >= MinBarsEmaOpposite)
+                // Regla Estructural: Exigir que el precio esté al menos MinSeparationFromBand35Ticks por debajo de Banda 3.5
+                double currentSeparationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
+                if (currentSeparationTicks >= MinSeparationFromBand35Ticks)
                 {
-                    // 2. Validación de Pendiente EMA 200 Macro a favor (bajista o plana)
-                    bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
-
-                    // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
-                    // TEMA 9[0] < TEMA 9[1] (la barra actual está cayendo) Y TEMA 9[0] < TEMA 9[TemaSlopeLookback]
-                    bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
-
-                    if (ema200SlopeOk && tema9SlopeOk)
+                    // 1. Validación de EMA 200 en el abismo superior (>= MinBarsEmaOpposite)
+                    if (barsEmaAboveOppositeCount >= MinBarsEmaOpposite)
                     {
-                        EjecutarEntradaShort();
-                        return;
+                        // 2. Validación de Pendiente EMA 200 Macro a favor (bajista o plana)
+                        bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
+
+                        // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
+                        bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
+
+                        if (ema200SlopeOk && tema9SlopeOk)
+                        {
+                            EjecutarEntradaShort();
+                            return;
+                        }
                     }
                 }
             }
@@ -742,8 +751,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool StrictFloatingLowHigh { get; set; }
 
         [NinjaScriptProperty]
+        [Range(0, 50)]
+        [Display(Name = "Separación Mínima de Banda 3.5 (Ticks)", Description = "Regla Estructural: Exige que el precio esté al menos N ticks fuera de Banda 3.5 para disparar (por defecto: 12 ticks)", GroupName = "04. Parámetros Gatillo Dumbo", Order = 3)]
+        public int MinSeparationFromBand35Ticks { get; set; }
+
+        [NinjaScriptProperty]
         [Range(0, 20)]
-        [Display(Name = "Cooldown tras Salida (Barras)", Description = "Barras de espera obligatoria tras cerrar un trade antes de volver a evaluar entradas", GroupName = "04. Parámetros Gatillo Dumbo", Order = 3)]
+        [Display(Name = "Cooldown tras Salida (Barras)", Description = "Barras de espera obligatoria tras cerrar un trade antes de volver a evaluar entradas", GroupName = "04. Parámetros Gatillo Dumbo", Order = 4)]
         public int CooldownBarsAfterExit { get; set; }
 
         [NinjaScriptProperty]
@@ -793,8 +807,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool UseProfitMilestoneSlUpgrade { get; set; }
 
         [NinjaScriptProperty]
-        [Range(50.0, 5000.0)]
-        [Display(Name = "Meta de Ganancia para Upgrade ($)", Description = "Monto en dólares para ascender el SL a Banda 3.5 ($400 ES / $40 MES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 4)]
+        [Range(5.0, 5000.0)]
+        [Display(Name = "Meta de Ganancia para Upgrade ($)", Description = "Monto en dólares para ascender el SL a Banda 3.5 ($40 MES nativo / auto-escala a $400 en ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 4)]
         public double ProfitMilestoneDollars { get; set; }
 
         [NinjaScriptProperty]
