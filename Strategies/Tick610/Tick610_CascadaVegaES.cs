@@ -279,7 +279,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetC2UpperBigOffsetTicks                = 0;      // Offset en ticks sobre Banda 3.5 para liquidar Contrato 2 (0 ticks = toque exacto Banda 3.5 v8.1)
                 RatchetMinLowSeparationTicks                = 6;      // Separación mínima en ticks entre la vela 4 y el Swing (6 ticks = 1.5 pts v8.1)
                 RatchetMaxSeparationPercent                 = 47.5;   // Filtro Anti-Persecución Porcentual: máx 47.5% del ancho total del canal (v8.1)
-                RatchetHealthCheckEnabled                   = false;  // Activar Chequeo de Salud / Salida por Asfixia (desactivado por defecto v8.1)
+                RatchetHealthCheckEnabled                   = true;   // Activar Chequeo de Salud / Salida por Asfixia (activo por defecto v8.3)
                 RatchetHealthCheckBars                      = 10;     // Barras en la posición para evaluar Chequeo de Salud (10 barras por defecto)
                 RatchetHealthCheckMaxPnlTicks               = 4;      // Ganancia máxima en ticks para considerar estancamiento (4 ticks = 1 pt por defecto)
                 RatchetLossCooldownBars                     = 40;     // Barras de enfriamiento obligatorio tras Stop Loss o Aborto (40 barras por defecto)
@@ -291,7 +291,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetMinSwingDepthPercent                 = 15.0;   // Filtro A: Penetración mínima del 15% del espesor de Zona 1 adentrado desde Banda 1.75 (v8.1)
                 RatchetEmaMinSeparationPercent              = 5.0;    // Filtro B1: Separación mínima de EMA 200 de al menos 5% del canal fuera de Banda 1.75 (v8.1)
                 RatchetEmaMinSlopeThreshold                 = 0.0;    // Filtro B2: Umbral mínimo de pendiente normalizada LinReg/ATR de EMA 200 (>= 0.0 Long, <= 0.0 Short v8.1)
-                RatchetMinTemaSlope                         = 0.45;   // Filtro Inercia TEMA 9: Pendiente mínima de 0.45 pts/barra desde el Swing para autorizar disparo (v8.3)
+                RatchetMinTemaSlope                         = 0.67;   // Filtro Inercia TEMA 9: Pendiente mínima de 0.67 pts/barra desde el Swing para autorizar disparo (v8.3)
                 RatchetStrictPeldanoEnabled                 = false;  // Peldaño Estricto en Vela 4: False por defecto = Solo quiebre direccional, permitiendo mechas contrarias (v8.3)
                 RatchetRequireOriginZoneOnly                = true;   // Filtro Mayorista / Solo Descuento: True = Prohíbe compras sobre Midline y ventas bajo Midline (v8.3)
 
@@ -4450,7 +4450,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double RatchetMaxSeparationPercent { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "10. Activar Chequeo de Salud (Health-Check)", Description = "Evalúa si el trade arrancó con fuerza tras N barras; si está estancado y la pendiente de Línea Media está en contra, aborta (desactivado por defecto v8.1)", GroupName = RATCHET_GROUP_NAME, Order = 11)]
+        [Display(Name = "10. Activar Chequeo de Salud (Health-Check)", Description = "Evalúa si el trade arrancó con fuerza tras N barras; si está estancado y la pendiente de Línea Media está en contra, aborta a Breakeven salvando de stops llenos (activo por defecto v8.3)", GroupName = RATCHET_GROUP_NAME, Order = 11)]
         public bool RatchetHealthCheckEnabled { get; set; }
 
         [NinjaScriptProperty]
@@ -4508,7 +4508,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0.0, 2.0)]
-        [Display(Name = "20. Pendiente Mínima Inercia TEMA 9 (pts/barra)", Description = "Filtro Inercia TEMA 9: Inclinación mínima en puntos por barra de la media rápida desde el Swing Low/High (+0.45 en Long / -0.45 en Short por defecto v8.3). Descarta rebotes planos sin fuerza.", GroupName = RATCHET_GROUP_NAME, Order = 23)]
+        [Display(Name = "20. Pendiente Mínima Inercia TEMA 9 (pts/barra)", Description = "Filtro Inercia TEMA 9: Inclinación mínima en puntos por barra de la media rápida desde el Swing Low/High (+0.67 en Long / -0.67 en Short por defecto v8.3). Descarta rebotes planos sin fuerza.", GroupName = RATCHET_GROUP_NAME, Order = 23)]
         public double RatchetMinTemaSlope { get; set; }
 
         [NinjaScriptProperty]
