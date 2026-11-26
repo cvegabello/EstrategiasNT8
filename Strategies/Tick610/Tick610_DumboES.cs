@@ -315,53 +315,112 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void EvaluarEntradasDumbo()
         {
             // === 1. EVALUACIÓN DUMBO LONG (ELEFANTE ALCISTA) ===
+            // Condición inicial: velitas despegadas fuera de Banda 3.5
             if (!longFiredInWave && floatingBarsLongCount >= FloatingBarsRequired)
             {
-                // Regla Estructural: Exigir que el precio esté al menos MinSeparationFromBand35Ticks por encima de Banda 3.5
-                double currentSeparationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
-                if (currentSeparationTicks >= MinSeparationFromBand35Ticks)
+                double separationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
+                double temaSlope = (tema9[0] - tema9[TemaSlopeLookback]) / TemaSlopeLookback;
+                double emaSlope = (ema200[0] - ema200[EmaSlopeLookback]);
+
+                // 1. Check de Separación Mínima (12 ticks)
+                if (separationTicks < MinSeparationFromBand35Ticks)
                 {
-                    // 1. Validación de EMA 200 en el abismo inferior (>= MinBarsEmaOpposite)
-                    if (barsEmaBelowOppositeCount >= MinBarsEmaOpposite)
-                    {
-                        // 2. Validación de Pendiente EMA 200 Macro a favor (alcista o plana)
-                        bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
-
-                        // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
-                        bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
-
-                        if (ema200SlopeOk && tema9SlopeOk)
-                        {
-                            EjecutarEntradaLong();
-                            return;
-                        }
-                    }
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (LARGO)]\n" +
+                                        ">>> MOTIVO: Separación insuficiente fuera de Banda 3.5 ({1:F1}tk < {2}tk mín). Precio aún no despega.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {1:F1}tk (mín {2}tk) | Velas Flotando: {3} (mín {4}) | EMA200 Abismo: {5}b (mín {6}b) | Pend EMA200: {7:+0.0000;-0.0000} | TEMA9 Slope: {8:+0.0000;-0.0000}",
+                        Time[0], separationTicks, MinSeparationFromBand35Ticks, floatingBarsLongCount, FloatingBarsRequired, barsEmaBelowOppositeCount, MinBarsEmaOpposite, emaSlope, temaSlope));
+                    return;
                 }
+
+                // 2. Check de EMA 200 en el abismo opuesto (>= 60 barras)
+                if (barsEmaBelowOppositeCount < MinBarsEmaOpposite)
+                {
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (LARGO)]\n" +
+                                        ">>> MOTIVO: EMA 200 no lleva suficiente tiempo en el abismo ({1}b < {2}b mín). Falta maduración tendencial macro.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {3:F1}tk (mín {4}tk) | Velas Flotando: {5} (mín {6}) | EMA200 Abismo: {1}b (mín {2}b) | Pend EMA200: {7:+0.0000;-0.0000} | TEMA9 Slope: {8:+0.0000;-0.0000}",
+                        Time[0], barsEmaBelowOppositeCount, MinBarsEmaOpposite, separationTicks, MinSeparationFromBand35Ticks, floatingBarsLongCount, FloatingBarsRequired, emaSlope, temaSlope));
+                    return;
+                }
+
+                // 3. Check de Pendiente EMA 200 Macro
+                bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] >= ema200[EmaSlopeLookback]);
+                if (!ema200SlopeOk)
+                {
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (LARGO)]\n" +
+                                        ">>> MOTIVO: Pendiente EMA 200 en contra ({1:F4} < 0.00). Tendencia macro no acompaña.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {2:F1}tk (mín {3}tk) | Velas Flotando: {4} (mín {5}) | EMA200 Abismo: {6}b (mín {7}b) | Pend EMA200: {1:+0.0000;-0.0000} | TEMA9 Slope: {8:+0.0000;-0.0000}",
+                        Time[0], emaSlope, separationTicks, MinSeparationFromBand35Ticks, floatingBarsLongCount, FloatingBarsRequired, barsEmaBelowOppositeCount, MinBarsEmaOpposite, temaSlope));
+                    return;
+                }
+
+                // 4. Check de Pendiente TEMA 9 Micro
+                bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
+                if (!tema9SlopeOk)
+                {
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (LARGO)]\n" +
+                                        ">>> MOTIVO: TEMA 9 no tiene inercia o dobló en contra (TEMA9[0]={1:F2} vs [1]={2:F2}). Falta aceleración micro.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {3:F1}tk (mín {4}tk) | Velas Flotando: {5} (mín {6}) | EMA200 Abismo: {7}b (mín {8}b) | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000}",
+                        Time[0], tema9[0], tema9[1], separationTicks, MinSeparationFromBand35Ticks, floatingBarsLongCount, FloatingBarsRequired, barsEmaBelowOppositeCount, MinBarsEmaOpposite, emaSlope, temaSlope));
+                    return;
+                }
+
+                // Si superó todos los filtros: ¡PUM, ADIÓS!
+                EjecutarEntradaLong();
+                return;
             }
 
             // === 2. EVALUACIÓN DUMBO SHORT (ELEFANTE BAJISTA) ===
             if (!shortFiredInWave && floatingBarsShortCount >= FloatingBarsRequired)
             {
-                // Regla Estructural: Exigir que el precio esté al menos MinSeparationFromBand35Ticks por debajo de Banda 3.5
-                double currentSeparationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
-                if (currentSeparationTicks >= MinSeparationFromBand35Ticks)
+                double separationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
+                double temaSlope = (tema9[TemaSlopeLookback] - tema9[0]) / TemaSlopeLookback;
+                double emaSlope = (ema200[EmaSlopeLookback] - ema200[0]);
+
+                // 1. Check de Separación Mínima (12 ticks)
+                if (separationTicks < MinSeparationFromBand35Ticks)
                 {
-                    // 1. Validación de EMA 200 en el abismo superior (>= MinBarsEmaOpposite)
-                    if (barsEmaAboveOppositeCount >= MinBarsEmaOpposite)
-                    {
-                        // 2. Validación de Pendiente EMA 200 Macro a favor (bajista o plana)
-                        bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
-
-                        // 3. Validación de Pendiente TEMA 9 Micro a favor (estricta vela a vela Y vs 2 barras atrás)
-                        bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
-
-                        if (ema200SlopeOk && tema9SlopeOk)
-                        {
-                            EjecutarEntradaShort();
-                            return;
-                        }
-                    }
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (CORTO)]\n" +
+                                        ">>> MOTIVO: Separación insuficiente fuera de Banda 3.5 ({1:F1}tk < {2}tk mín). Precio aún no cae suficiente.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {1:F1}tk (mín {2}tk) | Velas Flotando: {3} (mín {4}) | EMA200 Abismo: {5}b (mín {6}b) | Pend EMA200: {7:+0.0000;-0.0000} | TEMA9 Slope: {8:+0.0000;-0.0000}",
+                        Time[0], separationTicks, MinSeparationFromBand35Ticks, floatingBarsShortCount, FloatingBarsRequired, barsEmaAboveOppositeCount, MinBarsEmaOpposite, emaSlope, temaSlope));
+                    return;
                 }
+
+                // 2. Check de EMA 200 en el abismo superior (>= 60 barras)
+                if (barsEmaAboveOppositeCount < MinBarsEmaOpposite)
+                {
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (CORTO)]\n" +
+                                        ">>> MOTIVO: EMA 200 no lleva suficiente tiempo en el abismo superior ({1}b < {2}b mín). Falta maduración tendencial macro.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {3:F1}tk (mín {4}tk) | Velas Flotando: {5} (mín {6}) | EMA200 Abismo: {1}b (mín {2}b) | Pend EMA200: {7:+0.0000;-0.0000} | TEMA9 Slope: {8:+0.0000;-0.0000}",
+                        Time[0], barsEmaAboveOppositeCount, MinBarsEmaOpposite, separationTicks, MinSeparationFromBand35Ticks, floatingBarsShortCount, FloatingBarsRequired, emaSlope, temaSlope));
+                    return;
+                }
+
+                // 3. Check de Pendiente EMA 200 Macro
+                bool ema200SlopeOk = !RequireEmaSlope || (ema200[0] <= ema200[EmaSlopeLookback]);
+                if (!ema200SlopeOk)
+                {
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (CORTO)]\n" +
+                                        ">>> MOTIVO: Pendiente EMA 200 en contra ({1:F4} > 0.00). Tendencia macro no acompaña.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {2:F1}tk (mín {3}tk) | Velas Flotando: {4} (mín {5}) | EMA200 Abismo: {6}b (mín {7}b) | Pend EMA200: {1:+0.0000;-0.0000} | TEMA9 Slope: {8:+0.0000;-0.0000}",
+                        Time[0], emaSlope, separationTicks, MinSeparationFromBand35Ticks, floatingBarsShortCount, FloatingBarsRequired, barsEmaAboveOppositeCount, MinBarsEmaOpposite, temaSlope));
+                    return;
+                }
+
+                // 4. Check de Pendiente TEMA 9 Micro
+                bool tema9SlopeOk = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
+                if (!tema9SlopeOk)
+                {
+                    Print(string.Format("{0} - [DUMBO v1.4 | FILTRO DESCARTADO (CORTO)]\n" +
+                                        ">>> MOTIVO: TEMA 9 no tiene inercia o dobló hacia arriba (TEMA9[0]={1:F2} vs [1]={2:F2}). Falta aceleración bajista.\n" +
+                                        ">>> RADIOGRAFÍA: Sep Banda 3.5: {3:F1}tk (mín {4}tk) | Velas Flotando: {5} (mín {6}) | EMA200 Abismo: {7}b (mín {8}b) | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000}",
+                        Time[0], tema9[0], tema9[1], separationTicks, MinSeparationFromBand35Ticks, floatingBarsShortCount, FloatingBarsRequired, barsEmaAboveOppositeCount, MinBarsEmaOpposite, emaSlope, temaSlope));
+                    return;
+                }
+
+                // Si superó todos los filtros: ¡PUM, ADIÓS!
+                EjecutarEntradaShort();
+                return;
             }
         }
 
@@ -401,8 +460,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterLong(Contracts, "Dumbo_Long");
-            Print(string.Format("{0} [DUMBO LONG v1.4] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | TEMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
-                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, tema9[0], tema9[TemaSlopeLookback], barsEmaBelowOppositeCount));
+            double temaSlope = (tema9[0] - tema9[TemaSlopeLookback]) / TemaSlopeLookback;
+            double emaSlope = (ema200[0] - ema200[EmaSlopeLookback]);
+            Print(string.Format("*************************************************************************************************************\n" +
+                                "{0} - [DUMBO v1.4 | ¡PUM, ADIÓS! ELEFANTE ALCISTA DISPARADO] Despegue fuera de Banda 3.5: +{1:F1} ticks (mín {2}tk).\n" +
+                                ">>> DETALLE: Entrada: {3:F2} | SL Inicial: {4:F2} ({5} - Colchón {6}tk) | Velas Flotando: {7} | EMA200 Abismo: {8}b | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000} | ¡A volar con el viento!\n" +
+                                "*************************************************************************************************************",
+                Time[0], separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentSlPriceGlobal, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), SlBufferTicks, floatingBarsLongCount, barsEmaBelowOppositeCount, emaSlope, temaSlope));
         }
 
         // =================================================================================================
@@ -441,8 +505,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Disparo de orden
             EnterShort(Contracts, "Dumbo_Short");
-            Print(string.Format("{0} [DUMBO SHORT v1.4] Disparado a {1:F2} | Sep: {2:F1} ticks | SL Anclado en {3} ({4:F2}) | TEMA 9: {5:F2} vs {6:F2} | EMA200 Abismo: {7} barras",
-                Time[0], entryPriceGlobal, separationTicks, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), currentSlPriceGlobal, tema9[0], tema9[TemaSlopeLookback], barsEmaAboveOppositeCount));
+            double temaSlope = (tema9[TemaSlopeLookback] - tema9[0]) / TemaSlopeLookback;
+            double emaSlope = (ema200[EmaSlopeLookback] - ema200[0]);
+            Print(string.Format("*************************************************************************************************************\n" +
+                                "{0} - [DUMBO v1.4 | ¡PUM, ADIÓS! ELEFANTE BAJISTA DISPARADO] Caída fuera de Banda 3.5: +{1:F1} ticks (mín {2}tk).\n" +
+                                ">>> DETALLE: Entrada: {3:F2} | SL Inicial: {4:F2} ({5} - Colchón {6}tk) | Velas Flotando: {7} | EMA200 Abismo: {8}b | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000} | ¡A surfear la cascada!\n" +
+                                "*************************************************************************************************************",
+                Time[0], separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentSlPriceGlobal, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), SlBufferTicks, floatingBarsShortCount, barsEmaAboveOppositeCount, emaSlope, temaSlope));
         }
 
         // =================================================================================================
