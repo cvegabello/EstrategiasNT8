@@ -290,7 +290,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RatchetCunaMaxBars                          = 4;      // Ventana máxima de barras para evaluar muerte en la cuna (2 a 4 barras v8.3)
                 RatchetMinSwingDepthPercent                 = 15.0;   // Filtro A: Penetración mínima del 15% del espesor de Zona 1 adentrado desde Banda 1.75 (v8.1)
                 RatchetEmaMinSeparationPercent              = 5.0;    // Filtro B1: Separación mínima de EMA 200 de al menos 5% del canal fuera de Banda 1.75 (v8.1)
-                RatchetEmaMinSlopeThreshold                 = 0.0;    // Filtro B2: Umbral mínimo de pendiente normalizada LinReg/ATR de EMA 200 (>= 0.0 Long, <= 0.0 Short v8.1)
+                RatchetEmaMinSlopeThreshold                 = 0.025;  // Filtro B2: Umbral mínimo de pendiente normalizada LinReg/ATR de EMA 200 (>= +0.025 Long, <= -0.025 Short v8.3)
                 RatchetMinTemaSlope                         = 0.67;   // Filtro Inercia TEMA 9: Pendiente mínima de 0.67 pts/barra desde el Swing para autorizar disparo (v8.3)
                 RatchetStrictPeldanoEnabled                 = false;  // Peldaño Estricto en Vela 4: False por defecto = Solo quiebre direccional, permitiendo mechas contrarias (v8.3)
                 RatchetRequireOriginZoneOnly                = true;   // Filtro Mayorista / Solo Descuento: True = Prohíbe compras sobre Midline y ventas bajo Midline (v8.3)
@@ -4503,7 +4503,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(-1.0, 1.0)]
-        [Display(Name = "19. Umbral Mínimo Pendiente EMA200", Description = "Filtro B2: Umbral mínimo de pendiente normalizada de la EMA 200 (>= 0.0 para Largos, <= 0.0 para Cortos por defecto v8.1). Exige que la tendencia macro esté a favor y no en contra.", GroupName = RATCHET_GROUP_NAME, Order = 22)]
+        [Display(Name = "19. Umbral Mínimo Pendiente EMA200", Description = "Filtro B2: Umbral mínimo de pendiente normalizada de la EMA 200 (>= +0.025 para Largos, <= -0.025 para Cortos por defecto v8.3). Exige inclinación macro real y descarta mercados en coma horizontal.", GroupName = RATCHET_GROUP_NAME, Order = 22)]
         public double RatchetEmaMinSlopeThreshold { get; set; }
 
         [NinjaScriptProperty]

@@ -53,6 +53,7 @@ Si el usuario monta la estrategia en una gráfica del contrato Mini (`ES`), `Sta
 * Tranca Bonus: +$100.00 USD
 * TP Fijo T1: +$470.00 USD
 ## 4. Calibración Oficial v8.3 de As 3 (Ratchet) y As 4 (Cascada)
+* **RatchetEmaMinSlopeThreshold:** `0.025` (Filtro B2: Umbral mínimo de pendiente normalizada LinReg/ATR de EMA 200: `>= +0.025` para Largos y `<= -0.025` para Cortos. Exige inclinación macro real y elimina entradas con medias en coma horizontal).
 * **RatchetMinTemaSlope:** `0.67` pts/barra (Exige aceleración e inercia real en la TEMA 9 desde el Swing, descartando rebotes planos, pullbacks y velas acostadas).
 * **RatchetHealthCheckEnabled:** `true` con 10 barras (Chequeo de salud activo: aborta a Breakeven si el trade no despegó tras 10 barras y la pendiente de Línea Media está en contra).
 * **RatchetStrictPeldanoEnabled:** `false` (Por defecto desmarcado: acepta quiebre direccional `High >= High[1]` / `Low <= Low[1]`, permitiendo mechas y continuaciones institucionales).

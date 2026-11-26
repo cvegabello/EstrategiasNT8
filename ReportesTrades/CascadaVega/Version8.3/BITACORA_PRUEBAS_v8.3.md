@@ -60,6 +60,7 @@ Total de sesiones registradas: **18 días de operativa**.
 ---
 
 ## 4. Ajustes Oficiales de Fábrica Establecidos en v8.3
+* **`RatchetEmaMinSlopeThreshold = 0.025`**: Umbral macro LinReg/ATR de EMA 200 (`>= +0.025` Longs / `<= -0.025` Shorts). Descarta mercados planos o medias en coma horizontal.
 * **`RatchetMinTemaSlope = 0.67`**: Inercia mínima exigida para descartar rebotes planos o pullbacks de baja calidad.
 * **`RatchetHealthCheckEnabled = true` (con 10 barras)**: Chequeo de salud que liquida trades estancados a Breakeven.
 * **`RatchetStrictPeldanoEnabled = false`**: Acepta continuaciones direccionales sin penalizar velas con extremos iguales.
