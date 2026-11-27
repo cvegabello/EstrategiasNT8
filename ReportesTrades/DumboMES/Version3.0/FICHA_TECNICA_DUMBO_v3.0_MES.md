@@ -3,7 +3,7 @@
 ![Equipo Dumbo - Relevo en Equipo](EquipoDumboRelevos.jpg)
 
 ## 1. Identidad de la Versión
-* **Nombre de la Estrategia:** `Tick610_DumboES` (v3.0 MES / ES)
+* **Nombre de la Estrategia:** `Tick610_DumboES` (v3.01 MES / ES)
 * **Archivo Fuente:** `\Custom\Strategies\Tick610\Tick610_DumboES.cs`
 * **Instrumento Primario:** Micro E-mini S&P 500 (`MES`)
 * **Instrumento Secundario (Auto-Escalable):** E-mini S&P 500 (`ES`)

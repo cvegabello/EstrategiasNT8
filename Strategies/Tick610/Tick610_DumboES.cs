@@ -38,7 +38,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class Tick610_DumboES : Strategy
     {
         #region Constantes Centralizadas
-        private const string STRATEGY_VERSION = "3.0";
+        private const string STRATEGY_VERSION = "3.01";
         #endregion
 
         #region Enumeraciones
@@ -343,7 +343,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =================================================================================================
-        // EVALUAR SIGUIENTE RELEVO: En la barra posterior al TP, evalúa si la pista sigue despejada
+        // EVALUAR SIGUIENTE RELEVO: En la barra posterior al TP, evalúa Distancia Pura en la estratósfera
         // =================================================================================================
         private void EvaluarSiguienteRelevo()
         {
@@ -352,25 +352,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double currentDist = 0.0;
             bool distanceOk = false;
-            bool temaOk = false;
             bool emaOk = false;
 
             if (relayDirection == MarketPosition.Long)
             {
                 currentDist = (Close[0] - keltnerBig.Upper[0]) / TickSize;
                 distanceOk  = currentDist >= reqDistance;
-                temaOk      = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
                 emaOk       = !RequireEmaSlope  || (ema200[0] >= ema200[EmaSlopeLookback]);
             }
             else if (relayDirection == MarketPosition.Short)
             {
                 currentDist = (keltnerBig.Lower[0] - Close[0]) / TickSize;
                 distanceOk  = currentDist >= reqDistance;
-                temaOk      = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
                 emaOk       = !RequireEmaSlope  || (ema200[0] <= ema200[EmaSlopeLookback]);
             }
 
-            if (distanceOk && temaOk && emaOk)
+            // RELEVO POR DISTANCIA PURA (v3.01): Ya estamos en la estratósfera (≥ 30tk o ≥ 25tk) y el SL Escalonado
+            // nos cuida la espalda. No le exigimos pendientes micro a TEMA 9 para no ahogar los pases de relevo.
+            if (distanceOk && emaOk)
             {
                 // ¡El testigo pasa de mano en mano! Dispara el siguiente Dumbo
                 EjecutarRelevo(nextTicket, relayDirection, currentDist);
@@ -378,12 +377,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else
             {
-                // La ola se calmó o no hay suficiente espacio: Fin de la campaña
+                // La ola se calmó o no hay suficiente espacio exterior: Fin de la campaña
                 dumboQuarantineEndTime = Time[0].AddMinutes(QuarantineMinutes);
                 waitingForNextRelay = false;
                 Print(string.Format("*************************************************************************************************************\n" +
                                     "{0} - [EQUIPO DUMBO v{1} | FIN DE CAMPAÑA POR RELEVOS - T{2} NO DISPARA]\n" +
-                                    ">>> MOTIVO: Espacio insuficiente ({3:F1}tk vs {4}tk requeridos) o TEMA dobló. La ola perdió inercia.\n" +
+                                    ">>> MOTIVO: Espacio exterior insuficiente ({3:F1}tk < {4}tk requeridos). La ola perdió inercia estratosférica.\n" +
                                     ">>> CUARENTENA DE SACIEDAD ACTIVADA: Congelado por {5} minutos (hasta las {6:HH:mm:ss} EST). Cero sobreoperar.\n" +
                                     "*************************************************************************************************************",
                     Time[0], STRATEGY_VERSION, nextTicket, currentDist, reqDistance, QuarantineMinutes, dumboQuarantineEndTime));
