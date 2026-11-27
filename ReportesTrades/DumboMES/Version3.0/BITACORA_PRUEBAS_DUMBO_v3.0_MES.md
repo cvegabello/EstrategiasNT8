@@ -17,7 +17,7 @@ Esta bitácora documenta las pruebas en Historical Playback de la **Campaña de 
    * Al alcanzar exactamente 40 barras continuas en abismo, emite sonido configurable (`Ding.wav`), dibuja flecha y texto en la gráfica, e imprime reporte destacado en el log.
 5. **Auditoría TEMA 9 en los Logs:** Impresión detallada de `tema9[0]`, `tema9[1]`, `tema9[TemaSlopeLookback]`, `temaSlope` y `RequireTemaSlope` al disparar T1.
 6. **Stop Loss Escalonado Dinámico (Opción B para T2/T3):** Trailing vivo a Banda 3.5, con avances de +12tk (Stage 1 $\ge 35$tk) y +20tk (Stage 2 $\ge 40$tk).
-7. **Protección Asimétrica:** Fallo en Ticket 1 no entra en cuarentena; fallo o fin de campaña en Tickets 2+ activa **Cuarentena de Saciedad de 10 minutos**.
+7. **Protección Asimétrica:** Fallo en Ticket 1 no entra en cuarentena; fallo o fin de campaña en Tickets 2+ activa **Cuarentena de Saciedad de 1 minuto** (`QuarantineMinutes = 1`), permitiendo capturar cascadas subsiguientes sin asfixiar la operativa.
 
 ---
 

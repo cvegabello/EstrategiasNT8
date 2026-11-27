@@ -36,8 +36,8 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //      pasa el testigo al siguiente Dumbo con TP Limit de $30 USD (la mitad de T1) y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
 //   3. TICKET 4+ (El Gotero Blindado con Peaje Caro): Para soltar un 4to trade o más, exige una distancia extrema de >= 35 ticks
 //      (el peaje caro). Si califica, busca $20 USD con SL ceñido a +12 ticks por delante de Banda 3.5 para blindar el botín acumulado.
-//   4. CUARENTENA DE SACIEDAD (10 min): Si cualquier ticket secundario toca su SL o el espacio se acaba,
-//      la campaña termina, congelando entradas por 10 minutos con todas las ganancias blindadas en el bolsillo.
+//   4. CUARENTENA DE SACIEDAD (1 min): Si cualquier ticket secundario toca su SL o el espacio se acaba,
+//      la campaña termina, congelando entradas por 1 minuto de respiro sin asfixiar megatendencias continuas en cascada.
 //   5. ALERTA DE FINA COQUETERÍA (v3.3): Al momento exacto en que la EMA 200 alcanza 40 barras continuas en el abismo
 //      (independiente de si el precio está dentro o fuera), emite sonido configurable ("Ding.wav"), dibuja flecha
 //      en la gráfica y emite reporte destacado en el log.
@@ -173,7 +173,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Media en Ticket 1 (2 ticks)
 
                 // 09. Gestión de Seguridad y Cuarentena
-                QuarantineMinutes                           = 10;     // Minutos de congelamiento tras finalizar campaña o SL secundario (10 min)
+                QuarantineMinutes                           = 1;      // Minutos de congelamiento tras finalizar campaña o SL secundario (1 min calibrado)
                 MaxCatastrophicStopTicks                    = 80;     // Stop de emergencia máximo absoluto (80 ticks = 20 pts = $100 MES / $1000 ES)
 
                 // 10. Canales e Indicadores Técnicos
@@ -1063,8 +1063,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int SlBufferTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(1, 60)]
-        [Display(Name = "Minutos Cuarentena de Saciedad", Description = "Minutos de congelamiento tras finalizar campaña o SL secundario (por defecto: 10 min)", GroupName = "09. Gestión de Seguridad y Cuarentena", Order = 1)]
+        [Range(0, 60)]
+        [Display(Name = "Minutos Cuarentena de Saciedad", Description = "Minutos de congelamiento tras finalizar campaña o SL secundario (por defecto: 1 min)", GroupName = "09. Gestión de Seguridad y Cuarentena", Order = 1)]
         public int QuarantineMinutes { get; set; }
 
         [NinjaScriptProperty]

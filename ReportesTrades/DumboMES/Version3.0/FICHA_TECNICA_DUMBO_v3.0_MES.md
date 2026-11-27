@@ -39,8 +39,8 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
    * Exige que el mercado pague un **peaje caro** demostrando super-tendencia extrema: **$\ge 35$ ticks** fuera de Banda 3.5. Si no alcanza ese espacio, no se arriesga el botín acumulado de $120 USD y la campaña finaliza con victoria.
    * Si califica, muerde **+$20.00 USD** ($200 ES = 16 ticks) por relevo.
    * **SL Ceñido Dinámico:** El SL se sitúa y acompaña a **+12 ticks por delante de la Banda 3.5** (`Ticket4PlusSlAdvanceTicks = 12`).
-4. **Cuarentena de Saciedad (10 minutos):**
-   * Si cualquier ticket secundario toca su SL o si la distancia exterior cae por debajo del umbral mínimo, la campaña termina y el bot se congela por 10 minutos protegiendo todas las ganancias cosechadas.
+4. **Cuarentena de Saciedad (1 minuto):**
+   * Si cualquier ticket secundario toca su SL o si la distancia exterior cae por debajo del umbral mínimo, la campaña termina y el bot se congela por 1 minuto de respiro, permitiendo reincorporarse a nuevas cascadas sin sobreoperar ni asfixiar megatendencias.
 
 ---
 
@@ -73,4 +73,4 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
 * **Umbral Stage 2 (T2/T3):** 40 ticks $\rightarrow$ SL a +20 ticks adelante de Banda 3.5.
 * **Avance SL en Ticket 4+ (T4+):** +12 ticks por delante de Banda 3.5 (`Ticket4PlusSlAdvanceTicks = 12`).
 * **Stop Catastrófico Máximo:** 80 ticks (20 puntos = $100 USD MES / $1000 ES).
-* **Cuarentena de Saciedad:** 10 minutos tras finalizar campaña o SL secundario.
+* **Cuarentena de Saciedad:** 1 minuto tras finalizar campaña o SL secundario (`QuarantineMinutes = 1`).
