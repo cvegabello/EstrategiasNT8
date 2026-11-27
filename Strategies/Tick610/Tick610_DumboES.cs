@@ -149,7 +149,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RequireEmaSlope                             = true;   // Exigir que la pendiente de EMA 200 esté a favor del trade
 
                 // 06. Gestión de Riesgo (Banda Escalonada Ratchet con Promoción Dinámica)
-                SeparationThresholdTicks                    = 10;     // (Compatibilidad) Si es mayor a 10 ticks, se usa para ascensos dinámicos
+                UseSeparationSlUpgrade                      = false;  // false: Dumbo mantiene su SL en Banda Azul 1.75 para tener espacio. true: Asciende por ticks
+                SeparationThresholdTicks                    = 25;     // Umbral de ticks si se activa UseSeparationSlUpgrade (>= 25 ticks fuera)
                 SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Azul 1.75 para el SL inicial (2 ticks v1.41)
                 UseProfitMilestoneSlUpgrade                 = true;   // Activar promoción de SL a Banda 3.5 al alcanzar meta de ganancia en dólares
                 ProfitMilestoneDollars                      = 40.0;   // Meta de ganancia en USD para mover SL a Banda 3.5 ($40 MES nativo / auto-escala a $400 en ES)
@@ -523,24 +524,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 2. Promoción Dinámica de SL:
                 if (!slAnchoredToBigBand)
                 {
-                    // A) Vía separación: Si el precio sube a >= 10 ticks fuera de Banda 3.5
-                    double currentSeparationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
-                    if (currentSeparationTicks >= SeparationThresholdTicks)
+                    // A) Vía separación (Opcional, desactivada por defecto para dar a Dumbo espacio real en Banda Azul 1.75):
+                    if (UseSeparationSlUpgrade)
                     {
-                        slAnchoredToBigBand = true; // ¡Ascendido a Banda Grande 3.5 estándar!
-                        Print(string.Format("{0} [DUMBO UPGRADE SL] ¡Precio alcanzó {1:F1} ticks fuera! SL ascendido a Banda 3.5 Grande",
-                            Time[0], currentSeparationTicks));
+                        double currentSeparationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
+                        if (currentSeparationTicks >= SeparationThresholdTicks)
+                        {
+                            slAnchoredToBigBand = true; // ¡Ascendido a Banda Grande 3.5!
+                            Print(string.Format("{0} [DUMBO UPGRADE SL] ¡Precio alcanzó {1:F1} ticks fuera! SL ascendido a Banda 3.5 Grande",
+                                Time[0], currentSeparationTicks));
+                        }
                     }
-                    // B) Vía Escalón de Ganancia $400: Si el trade alcanza $400 USD sin haber tocado los 10 ticks fuera
-                    else if (UseProfitMilestoneSlUpgrade)
+
+                    // B) Vía Escalón de Ganancia $400 ES / $40 MES (Tranca Dumbo):
+                    if (!slAnchoredToBigBand && UseProfitMilestoneSlUpgrade)
                     {
                         double currentProfitDollars = (High[0] - entryPriceGlobal) * Instrument.MasterInstrument.PointValue * Contracts;
-                        if (currentProfitDollars >= (ProfitMilestoneDollars * instrumentMultiplier))
+                        double targetMilestone = GetEffectiveMilestoneDollars();
+                        if (currentProfitDollars >= targetMilestone)
                         {
                             slAnchoredToBigBand = true;
                             isMilestonePromoted = true; // ¡Promovido a 1 tick adelante de Banda 3.5!
-                            Print(string.Format("{0} [DUMBO UPGRADE SL $400] ¡Trade alcanzó +${1:F2} USD! SL reposicionado a {2} tick(s) adelante de Banda 3.5 Grande",
-                                Time[0], currentProfitDollars, MilestoneAheadTicks));
+                            Print(string.Format("{0} [DUMBO UPGRADE SL ${1:F0}] ¡Trade alcanzó +${2:F2} USD! SL reposicionado a {3} tick(s) adelante de Banda 3.5 Grande",
+                                Time[0], targetMilestone, currentProfitDollars, MilestoneAheadTicks));
                         }
                     }
                 }
@@ -611,24 +617,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 2. Promoción Dinámica de SL:
                 if (!slAnchoredToBigBand)
                 {
-                    // A) Vía separación: Si el precio cae a >= 10 ticks fuera de Banda 3.5
-                    double currentSeparationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
-                    if (currentSeparationTicks >= SeparationThresholdTicks)
+                    // A) Vía separación (Opcional, desactivada por defecto para dar a Dumbo espacio real en Banda Azul 1.75):
+                    if (UseSeparationSlUpgrade)
                     {
-                        slAnchoredToBigBand = true; // ¡Ascendido a Banda Grande 3.5 estándar!
-                        Print(string.Format("{0} [DUMBO UPGRADE SL] ¡Precio alcanzó {1:F1} ticks fuera! SL descendido a Banda 3.5 Grande",
-                            Time[0], currentSeparationTicks));
+                        double currentSeparationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
+                        if (currentSeparationTicks >= SeparationThresholdTicks)
+                        {
+                            slAnchoredToBigBand = true; // ¡Ascendido a Banda Grande 3.5!
+                            Print(string.Format("{0} [DUMBO UPGRADE SL] ¡Precio alcanzó {1:F1} ticks fuera! SL descendido a Banda 3.5 Grande",
+                                Time[0], currentSeparationTicks));
+                        }
                     }
-                    // B) Vía Escalón de Ganancia $400: Si el trade alcanza $400 USD sin haber tocado los 10 ticks fuera
-                    else if (UseProfitMilestoneSlUpgrade)
+
+                    // B) Vía Escalón de Ganancia $400 ES / $40 MES (Tranca Dumbo):
+                    if (!slAnchoredToBigBand && UseProfitMilestoneSlUpgrade)
                     {
                         double currentProfitDollars = (entryPriceGlobal - Low[0]) * Instrument.MasterInstrument.PointValue * Contracts;
-                        if (currentProfitDollars >= (ProfitMilestoneDollars * instrumentMultiplier))
+                        double targetMilestone = GetEffectiveMilestoneDollars();
+                        if (currentProfitDollars >= targetMilestone)
                         {
                             slAnchoredToBigBand = true;
                             isMilestonePromoted = true; // ¡Promovido a 1 tick adelante de Banda 3.5!
-                            Print(string.Format("{0} [DUMBO UPGRADE SL $400] ¡Trade alcanzó +${1:F2} USD! SL reposicionado a {2} tick(s) adelante de Banda 3.5 Grande",
-                                Time[0], currentProfitDollars, MilestoneAheadTicks));
+                            Print(string.Format("{0} [DUMBO UPGRADE SL ${1:F0}] ¡Trade alcanzó +${2:F2} USD! SL reposicionado a {3} tick(s) adelante de Banda 3.5 Grande",
+                                Time[0], targetMilestone, currentProfitDollars, MilestoneAheadTicks));
                         }
                     }
                 }
@@ -686,6 +697,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
         }
+
+        // =================================================================================================
+        // NORMALIZACIÓN INTELIGENTE DE META DE GANANCIA (MES vs ES)
+        // =================================================================================================
+        private double GetEffectiveMilestoneDollars()
+        {
+            // Si estamos en Micro MES y el usuario dejó 400 (o valor >= 100 pensando en ES), auto-escala a $40 MES
+            if (isMicroInstrument)
+            {
+                return ProfitMilestoneDollars >= 100.0 ? (ProfitMilestoneDollars / 10.0) : ProfitMilestoneDollars;
+            }
+            // Si estamos en Mini ES y el usuario dejó 40 (o valor < 100 pensando en MES), auto-escala a $400 ES
+            else
+            {
+                return ProfitMilestoneDollars < 100.0 ? (ProfitMilestoneDollars * 10.0) : ProfitMilestoneDollars;
+            }
+        }
         #endregion
 
         #region Interfaz WPF: Botón de Pánico y Atajos de Teclado
@@ -700,7 +728,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             panicButton = new System.Windows.Controls.Button
             {
-                Content = isStrategyActive ? "Dumbo ACTIVA (v1.4)" : "Dumbo PAUSADA (v1.4)",
+                Content = isStrategyActive ? string.Format("Dumbo ACTIVA (v{0})", STRATEGY_VERSION) : string.Format("Dumbo PAUSADA (v{0})", STRATEGY_VERSION),
                 Height = 30,
                 Width = 220,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -852,64 +880,68 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool RequireEmaSlope { get; set; }
 
         [NinjaScriptProperty]
+        [Display(Name = "Activar Upgrade SL por Separación", Description = "false: El SL se mantiene en Banda Azul 1.75 para dar espacio a Dumbo. true: Asciende si el precio se separa N ticks.", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 1)]
+        public bool UseSeparationSlUpgrade { get; set; }
+
+        [NinjaScriptProperty]
         [Range(2, 50)]
-        [Display(Name = "Umbral Separación SL (Ticks)", Description = "Si el despegue es >= N ticks, SL en Banda 3.5. Si es menor, SL en Banda 1.75 (por defecto: 10).", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 1)]
+        [Display(Name = "Umbral Separación SL (Ticks)", Description = "Si UseSeparationSlUpgrade está activo y el despegue es >= N ticks, SL sube a Banda 3.5 (por defecto: 25).", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 2)]
         public int SeparationThresholdTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Colchón Respiro SL Banda Azul (Ticks)", Description = "Ticks de margen detrás de la Banda Azul 1.75 para colocar el Stop Loss inicial (por defecto: 2 ticks v1.41)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 2)]
+        [Display(Name = "Colchón Respiro SL Banda Azul (Ticks)", Description = "Ticks de margen detrás de la Banda Azul 1.75 para colocar el Stop Loss inicial (por defecto: 2 ticks v1.41)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 3)]
         public int SlBufferTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Upgrade SL por Ganancia ($)", Description = "true: Mueve el SL a Banda 3.5 (1 tick adelante) al alcanzar la meta en dólares si aún estaba en Banda 1.75", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 3)]
+        [Display(Name = "Activar Upgrade SL por Ganancia ($)", Description = "true: Mueve el SL a Banda 3.5 (1 tick adelante) al alcanzar la meta en dólares ($40 MES / $400 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 4)]
         public bool UseProfitMilestoneSlUpgrade { get; set; }
 
         [NinjaScriptProperty]
         [Range(5.0, 5000.0)]
-        [Display(Name = "Meta de Ganancia para Upgrade ($)", Description = "Monto en dólares para ascender el SL a Banda 3.5 ($40 MES nativo / auto-escala a $400 en ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 4)]
+        [Display(Name = "Meta de Ganancia para Upgrade ($)", Description = "Monto en dólares para ascender el SL a Banda 3.5 ($40 MES nativo / auto-escala inteligente si se ingresa 400)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 5)]
         public double ProfitMilestoneDollars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Ticks Adelante de Banda en Upgrade", Description = "Ticks por delante de la Banda 3.5 al ascender por la meta de ganancia (por defecto: 1 tick)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 5)]
+        [Display(Name = "Ticks Adelante de Banda en Upgrade", Description = "Ticks por delante de la Banda 3.5 al ascender por la meta de ganancia (por defecto: 1 tick)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 6)]
         public int MilestoneAheadTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 100)]
-        [Display(Name = "Stop Catastrófico Máximo (Ticks)", Description = "Riesgo máximo absoluto de seguridad por contrato (40 ticks = 10 pts = $500 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 6)]
+        [Display(Name = "Stop Catastrófico Máximo (Ticks)", Description = "Riesgo máximo absoluto de seguridad por contrato (40 ticks = 10 pts = $500 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 7)]
         public int MaxCatastrophicStopTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Trailing Choke", Description = "true: Va subiendo/bajando el Stop al extremo de las últimas N barras al alcanzar ganancia mínima", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 7)]
+        [Display(Name = "Activar Trailing Choke", Description = "true: Va subiendo/bajando el Stop al extremo de las últimas N barras al alcanzar ganancia mínima", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 8)]
         public bool UseTrailingChoke { get; set; }
 
         [NinjaScriptProperty]
         [Range(5, 100)]
-        [Display(Name = "Ganancia Mínima para Choke (Ticks)", Description = "Ticks de ganancia flotante necesarios para activar el Trailing Choke si está habilitado", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 8)]
+        [Display(Name = "Ganancia Mínima para Choke (Ticks)", Description = "Ticks de ganancia flotante necesarios para activar el Trailing Choke si está habilitado", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 9)]
         public int ChokeActivationProfitTicks { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
-        [Display(Name = "Barras Lookback Choke", Description = "Cantidad de barras previas para anclar el Trailing Choke (por defecto: 2)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 9)]
+        [Display(Name = "Barras Lookback Choke", Description = "Cantidad de barras previas para anclar el Trailing Choke (por defecto: 2)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 10)]
         public int ChokeLookbackBars { get; set; }
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Offset Choke (Ticks)", Description = "Ticks de distancia detrás del extremo de las N barras para el Choke", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 10)]
+        [Display(Name = "Offset Choke (Ticks)", Description = "Ticks de distancia detrás del extremo de las N barras para el Choke", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 11)]
         public int ChokeOffsetTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Salir al Cerrar dentro de Banda 3.5", Description = "true: Si una vela cierra de regreso dentro de la Banda 3.5, liquida inmediatamente", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 11)]
+        [Display(Name = "Salir al Cerrar dentro de Banda 3.5", Description = "true: Si una vela cierra de regreso dentro de la Banda 3.5, liquida inmediatamente", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 12)]
         public bool ExitOnBand35Reentry { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Activar Take Profit Fijo", Description = "true: Cierra con ganancia fija. false: Deja correr la tendencia con la banda", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 12)]
+        [Display(Name = "Activar Take Profit Fijo", Description = "true: Cierra con ganancia fija. false: Deja correr la tendencia con la banda", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 13)]
         public bool UseFixedTakeProfit { get; set; }
 
         [NinjaScriptProperty]
         [Range(10, 500)]
-        [Display(Name = "Take Profit Fijo (Ticks)", Description = "Ticks de ganancia fija si UseFixedTakeProfit está activo (60 ticks = 15 pts = $750 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 13)]
+        [Display(Name = "Take Profit Fijo (Ticks)", Description = "Ticks de ganancia fija si UseFixedTakeProfit está activo (60 ticks = 15 pts = $750 ES)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 14)]
         public int FixedTakeProfitTicks { get; set; }
 
         [NinjaScriptProperty]
