@@ -33,15 +33,14 @@ Esta bitácora documenta las pruebas en Historical Playback de la **Campaña de 
 | **3** | 11/12/2026 | Jueves | 1 (T1) | **+$57.45 USD** | 1 Win / 0 Loss | Disparo T1 Long a 7659.00. Salida en TP Limit a 7671.00 (+48tk). Relevo no disparó (espacio 21.4tk < 30tk). | Cobrado |
 | **4** | 11/04/2026 | Miércoles | 1 (T1) | **+$58.70 USD** | 1 Win / 0 Loss | Disparo T1 Long a 7706.25. Salida en TP Limit a 7718.25 (+48tk). Relevo no disparó (espacio 20.7tk < 30tk). | Cobrado |
 | **5** | 11/02/2026 | Lunes | 2 (T1 + T2) | **+$87.40 USD** | 2 Win / 0 Loss | ¡Relevo perfecto! T1 Long cobrado a 7688.50 (+48tk = +$58.70) y T2 Long cobrado a 7693.50 (+24tk = +$28.70). T3 frena por distancia 8.1tk < 30tk y activa Cuarentena de Saciedad. Cero sobreoperar. | Doble Cobro |
-| **6** | 11/05/2026 | Jueves | 5 (T1, T1, T2, T3, T1) | **+$169.75 USD** | 4 Win / 1 Loss | Cascada bajista continua (Cuarentena 1 min): T1 Short (+56.20), T1 Short (+56.20), Relevo T2 (+31.20), Relevo T3 (-31.30 en SL Banda 3.5) y nuevo despegue T1 Short (+57.45). Cosecha en 8 minutos. | Mega-Cosecha |
+| **6** | 11/05/2026 | Jueves | 13 (11 T1, 2 T2) | **+$434.35 USD** | 10 Win / 3 Loss | **¡Jornada Histórica Récord v3.4!** 10 cobros en TP (100% efectividad en Relevos T2). El descanso de 3b y TEMA9 eliminaron todas las pérdidas en T3 y T2. Solo 3 SLs sanos de exploración en T1 (-$42.55, -$11.30, -$18.80) ceñidos por Banda Media. | Mega-Récord |
 
 ---
 
-## 3. Resumen Acumulado de Métricas
-* **Sesiones / Campañas Evaluadas:** 6
-* **Sesiones Ganadoras:** 6 de 6 (100% Win Rate)
-* **Trades Totales Ejecutados:** 11
-* **Trades Ganados:** 10 (90.9% Win Rate)
-* **Trades Perdidos:** 1 (9.1% Loss Rate)
-* **PnL Neto Acumulado:** **+$488.20 USD**
-* **Profit Factor:** **16.60** ($519.50 brutos ganados / $31.30 en pérdidas)
+## 3. Resumen Acumulado de Métricas (6 Sesiones en Playback)
+* **Sesiones / Días Evaluados:** 6 de 6 Ganadores (**100% Win Rate de Sesiones**)
+* **Trades Totales Ejecutados:** 19 trades
+* **Trades Ganados:** 16 (**84.2% Win Rate**)
+* **Trades Perdidos:** 3 (15.8% - solo micro-stops controlados en T1)
+* **PnL Neto Acumulado en el Bolsillo:** **+$752.80 USD** (¡En ES serían **+$7,528.00 USD**!)
+* **Profit Factor Global:** **11.36** ($825.45 USD brutos ganados / $72.65 USD en pérdidas)
