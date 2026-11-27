@@ -19,16 +19,16 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Equipo Dumbo: Relevo en Equipo Monocontrato"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 3.2 - "La Campaña de Relevos" (T1: $60 con Trailing Banda Media | T2/T3: $40 | T4+: $20 con Peaje 35tk y SL Ceñido +12tk)
+// VERSIÓN: 3.21 - "La Campaña de Relevos" (T1: $60 con Trailing Banda Media | T2/T3: $30 | T4+: $20 con Peaje 35tk | Auditoría TEMA9)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante volador. En lugar de exponer un solo contrato a un retroceso salvaje de la tendencia,
 //   Dumbo corre una carrera de relevos en equipo:
 //   1. TICKET 1 (El Primer Envión): Dispara al despegue con SL dinámico vivo anclado a la Banda Media (Keltner Midline - 2 ticks)
-//      que persigue la pendiente del canal. Si la ola sube, el SL sube con la línea blanca, asegurando salida en tablas o mínima pérdida.
+//      que persigue la pendiente del canal con auditoría completa de TEMA 9 en los logs.
 //      - Si falla el primer envión y toca SL: NO entra en cuarentena; sigue acechando mientras EMA200 siga en abismo.
-//   2. TICKET 2 y 3 (Relevos Quirúrgicos Optimizados): Si tras cobrar sigue a >= 30 ticks de la Banda 3.5 y filtros OK,
-//      pasa el testigo al siguiente Dumbo con TP Limit de $40 USD y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
+//   2. TICKET 2 y 3 (Relevos Quirúrgicos a $30 USD): Si tras cobrar sigue a >= 30 ticks de la Banda 3.5 y filtros OK,
+//      pasa el testigo al siguiente Dumbo con TP Limit de $30 USD (la mitad de T1) y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
 //   3. TICKET 4+ (El Gotero Blindado con Peaje Caro): Para soltar un 4to trade o más, exige una distancia extrema de >= 35 ticks
 //      (el peaje caro). Si califica, busca $20 USD con SL ceñido a +12 ticks por delante de Banda 3.5 para blindar el botín acumulado.
 //   4. CUARENTENA DE SACIEDAD (10 min): Si cualquier ticket secundario toca su SL o el espacio se acaba,
@@ -40,7 +40,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class Tick610_DumboES : Strategy
     {
         #region Constantes Centralizadas
-        private const string STRATEGY_VERSION = "3.2";
+        private const string STRATEGY_VERSION = "3.21";
         #endregion
 
         #region Enumeraciones
@@ -101,7 +101,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = "Tick610_DumboES v3.2: Campaña de Relevos Monocontrato con Trailing Dinámico en Banda Media (T1), TPs $60/$40/$20 y Peaje de 35tk en T4+.";
+                Description                                 = "Tick610_DumboES v3.21: Campaña de Relevos Monocontrato con Trailing en Banda Media (T1), TPs $60/$30/$20, Peaje 35tk y Auditoría TEMA9.";
                 Name                                        = "Tick610_DumboES";
                 Calculate                                   = Calculate.OnBarClose; // Ejecución limpia al cierre de barra
                 EntriesPerDirection                         = 1;
@@ -119,7 +119,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $40 | T4+ $20 [Peaje 35tk])", STRATEGY_VERSION);
+                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $30 | T4+ $20 [Peaje 35tk])", STRATEGY_VERSION);
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (estricto monocontrato)
@@ -146,7 +146,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // 06. Campaña de Relevos: Metas de Take Profit ($ USD)
                 Ticket1TpDollars                            = 60.0;   // TP Limit Ticket 1: $60 MES / $600 ES (48 ticks = 12 pts)
-                Ticket23TpDollars                           = 40.0;   // TP Limit Tickets 2 y 3: $40 MES / $400 ES (32 ticks = 8 pts)
+                Ticket23TpDollars                           = 30.0;   // TP Limit Tickets 2 y 3: $30 MES / $300 ES (24 ticks = 6 pts - la mitad de T1)
                 Ticket4PlusTpDollars                        = 20.0;   // TP Limit Tickets 4+: $20 MES / $200 ES (16 ticks = 4 pts)
 
                 // 07. Campaña de Relevos: Distancias Mínimas y Relevos
@@ -544,8 +544,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             Print(string.Format("*************************************************************************************************************\n" +
                                 "{0} - [EQUIPO DUMBO v{1} | ¡DESPEGUE TICKET 1 ALCISTA DISPARADO!] Separación: +{2:F1}tk (mín {3}tk).\n" +
                                 ">>> DETALLE: Entrada: {4:F2} | TP Limit: {5:F2} (+${6:F0} USD / {7}tk) | SL Inicial: {8:F2} (Banda Media Midline - Colchón {9}tk) | EMA200 Abismo: {10}b\n" +
+                                ">>> AUDITORÍA TEMA 9: [tema9[0]: {11:F2} | tema9[1]: {12:F2} | tema9[{13}]: {14:F2} | Slope: {15:F2}tk | RequireTemaSlope: {16}]\n" +
                                 "*************************************************************************************************************",
-                Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentTpPriceGlobal, effectiveTpDollars, tpTicks, currentSlPriceGlobal, SlBufferTicks, barsEmaBelowOppositeCount));
+                Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentTpPriceGlobal, effectiveTpDollars, tpTicks, currentSlPriceGlobal, SlBufferTicks, barsEmaBelowOppositeCount,
+                tema9[0], tema9[1], TemaSlopeLookback, tema9[TemaSlopeLookback], temaSlope, RequireTemaSlope));
         }
 
         // =================================================================================================
@@ -572,8 +574,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             Print(string.Format("*************************************************************************************************************\n" +
                                 "{0} - [EQUIPO DUMBO v{1} | ¡DESPEGUE TICKET 1 BAJISTA DISPARADO!] Separación: +{2:F1}tk (mín {3}tk).\n" +
                                 ">>> DETALLE: Entrada: {4:F2} | TP Limit: {5:F2} (+${6:F0} USD / {7}tk) | SL Inicial: {8:F2} (Banda Media Midline + Colchón {9}tk) | EMA200 Abismo: {10}b\n" +
+                                ">>> AUDITORÍA TEMA 9: [tema9[0]: {11:F2} | tema9[1]: {12:F2} | tema9[{13}]: {14:F2} | Slope: {15:F2}tk | RequireTemaSlope: {16}]\n" +
                                 "*************************************************************************************************************",
-                Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentTpPriceGlobal, effectiveTpDollars, tpTicks, currentSlPriceGlobal, SlBufferTicks, barsEmaAboveOppositeCount));
+                Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentTpPriceGlobal, effectiveTpDollars, tpTicks, currentSlPriceGlobal, SlBufferTicks, barsEmaAboveOppositeCount,
+                tema9[0], tema9[1], TemaSlopeLookback, tema9[TemaSlopeLookback], temaSlope, RequireTemaSlope));
         }
 
         // =================================================================================================
@@ -887,7 +891,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(5.0, 5000.0)]
-        [Display(Name = "TP Limit Tickets 2 y 3 ($)", Description = "Meta de ganancia fija para Tickets 2 y 3 ($40 MES nativo / auto-escala a $400 ES)", GroupName = "06. Campaña Relevos: Metas Take Profit ($)", Order = 2)]
+        [Display(Name = "TP Limit Tickets 2 y 3 ($)", Description = "Meta de ganancia fija para Tickets 2 y 3 ($30 MES nativo / auto-escala a $300 ES)", GroupName = "06. Campaña Relevos: Metas Take Profit ($)", Order = 2)]
         public double Ticket23TpDollars { get; set; }
 
         [NinjaScriptProperty]
