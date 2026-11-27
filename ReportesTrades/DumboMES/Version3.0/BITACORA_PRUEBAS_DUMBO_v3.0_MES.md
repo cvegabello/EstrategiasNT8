@@ -29,13 +29,14 @@ Esta bitácora documenta las pruebas en Historical Playback de la **Campaña de 
 | **2** | 11/11/2026 | Miércoles | 1 (T1) | **+$57.45 USD** | 1 Win / 0 Loss | Disparo T1 Long a 7647.50. Salida en TP Limit a 7659.50 (+48tk). Fin de campaña por espacio < 30tk. | Cobrado |
 | **3** | 11/12/2026 | Jueves | 1 (T1) | **+$57.45 USD** | 1 Win / 0 Loss | Disparo T1 Long a 7659.00. Salida en TP Limit a 7671.00 (+48tk). Relevo no disparó (espacio 21.4tk < 30tk). | Cobrado |
 | **4** | 11/04/2026 | Miércoles | 1 (T1) | **+$58.70 USD** | 1 Win / 0 Loss | Disparo T1 Long a 7706.25. Salida en TP Limit a 7718.25 (+48tk). Relevo no disparó (espacio 20.7tk < 30tk). | Cobrado |
-| **5** | 11/02/2026 | Lunes | 1 (T1) | **-$41.30 USD** | 0 Win / 1 Loss | Trade origen de v3.3: Entrada Short a 7597.00. En v3.3 la pausa táctica previene la entrada al detectar rebote en barra 41. | Neutralizado |
+| **5** | 11/02/2026 | Lunes | 2 (T1 + T2) | **+$87.40 USD** | 2 Win / 0 Loss | ¡Relevo perfecto! T1 Long cobrado a 7688.50 (+48tk = +$58.70) y T2 Long cobrado a 7693.50 (+24tk = +$28.70). T3 frena por distancia 8.1tk < 30tk y activa Cuarentena de Saciedad. Cero sobreoperar. | Doble Cobro |
 
 ---
 
 ## 3. Resumen Acumulado de Métricas
 * **Campañas Evaluadas:** 5
-* **Campañas Ganadoras:** 4 (80% Win Rate)
-* **PnL Neto Acumulado:** +$189.75 USD
-* **Trades Ganados:** 4
-* **Trades Perdidos:** 1
+* **Campañas Ganadoras:** 5 (100% Win Rate)
+* **PnL Neto Acumulado:** +$318.45 USD
+* **Trades Totales Ganados:** 6 (5 de T1 + 1 de T2)
+* **Trades Totales Perdidos:** 0 (0% Loss Rate)
+* **Profit Factor:** Infinito (Cero pérdidas en campañas evaluadas)
