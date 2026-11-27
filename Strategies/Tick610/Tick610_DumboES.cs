@@ -20,7 +20,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Equipo Dumbo: Relevo en Equipo Monocontrato"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 3.3 - "Campaña de Relevos con Pausa Táctica de Confirmación y Campanita EMA 40b"
+// VERSIÓN: 3.4 - "Equipo Dumbo Recargado" (Descanso Táctico en Relevos 3b | TEMA 9 en Relevos | Cuarentena 0m)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante volador. En lugar de exponer un solo contrato a un retroceso salvaje de la tendencia,
@@ -32,12 +32,16 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //        al cierre de la siguiente barra (41+) para evitar entrar en velas verdes de rebote y trampas de agotamiento.
 //        Si la EMA ya venía con > 40 barras y el precio rompe dando sus 3 barras flotando, el disparo es inmediato.
 //      - Si falla el primer envión y toca SL: NO entra en cuarentena; sigue acechando mientras EMA200 siga en abismo.
-//   2. TICKET 2 y 3 (Relevos Quirúrgicos a $30 USD): Si tras cobrar sigue a >= 30 ticks de la Banda 3.5 y filtros OK,
-//      pasa el testigo al siguiente Dumbo con TP Limit de $30 USD (la mitad de T1) y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
+//   2. TICKET 2 y 3 (Relevos Quirúrgicos a $30 USD con Descanso Táctico y Filtro TEMA 9 - v3.4):
+//      - Al cobrar TP, el bot da un descanso táctico de 3 barras (configurable en propiedades).
+//      - Tras el descanso, exige que el precio siga a >= 30 ticks de la Banda 3.5 Y que la TEMA 9 siga a favor.
+//        Si durante el descanso se produjo un rebote en contra (velas verdes en short o rojas en long), TEMA 9 se dobla
+//        y el bot RECHAZA tomar la posta, finalizando la campaña y protegiendo el 100% de las ganancias cosechadas.
+//      - TP Limit de $30 USD (la mitad de T1) y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
 //   3. TICKET 4+ (El Gotero Blindado con Peaje Caro): Para soltar un 4to trade o más, exige una distancia extrema de >= 35 ticks
 //      (el peaje caro). Si califica, busca $20 USD con SL ceñido a +12 ticks por delante de Banda 3.5 para blindar el botín acumulado.
-//   4. CUARENTENA DE SACIEDAD (1 min): Si cualquier ticket secundario toca su SL o el espacio se acaba,
-//      la campaña termina, congelando entradas por 1 minuto de respiro sin asfixiar megatendencias continuas en cascada.
+//   4. CUARENTENA DE SACIEDAD (0 min v3.4): Desactivada por defecto (0 min) para no enjaular la operativa en megatendencias,
+//      gobernada inteligentemente por las 3 barras de enfriamiento estructurales.
 //   5. ALERTA DE FINA COQUETERÍA (v3.3): Al momento exacto en que la EMA 200 alcanza 40 barras continuas en el abismo
 //      (independiente de si el precio está dentro o fuera), emite sonido configurable ("Ding.wav"), dibuja flecha
 //      en la gráfica y emite reporte destacado en el log.
@@ -48,7 +52,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class Tick610_DumboES : Strategy
     {
         #region Constantes Centralizadas
-        private const string STRATEGY_VERSION = "3.3";
+        private const string STRATEGY_VERSION = "3.4";
         #endregion
 
         #region Enumeraciones
@@ -109,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = "Tick610_DumboES v3.3: Campaña de Relevos Monocontrato con Trailing en Banda Media (T1), Pausa Táctica EMA 40b, Alerta Sonora/Visual, TPs $60/$30/$20 y Peaje 35tk.";
+                Description                                 = "Tick610_DumboES v3.4: Campaña de Relevos Monocontrato Recargada con Descanso Táctico (3b), TEMA9 en Relevos, TPs $60/$30/$20, Peaje 35tk y Cuarentena 0m.";
                 Name                                        = "Tick610_DumboES";
                 Calculate                                   = Calculate.OnBarClose; // Ejecución limpia al cierre de barra
                 EntriesPerDirection                         = 1;
@@ -127,7 +131,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $30 | T4+ $20 [Pausa Táctica EMA 40b])", STRATEGY_VERSION);
+                Version                                     = string.Format("v{0} (Equipo Dumbo Recargado: T1 $60 | T2/T3 $30 | T4+ $20 [Descanso Relevos {1}b])", STRATEGY_VERSION, RelayCooldownBars);
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (estricto monocontrato)
@@ -161,6 +165,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Ticket4PlusTpDollars                        = 20.0;   // TP Limit Tickets 4+: $20 MES / $200 ES (16 ticks = 4 pts)
 
                 // 07. Campaña de Relevos: Distancias Mínimas y Relevos
+                RelayCooldownBars                           = 3;      // Barras de descanso táctico entre relevos (3 barras v3.4)
                 RelayMinDistanceTicks                       = 30;     // Ticks mínimos fuera de Banda 3.5 para habilitar Tickets 2 y 3
                 RelayLateMinDistanceTicks                   = 35;     // Ticks mínimos fuera de Banda 3.5 para habilitar Tickets 4 en adelante (El Peaje Caro)
 
@@ -173,7 +178,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Media en Ticket 1 (2 ticks)
 
                 // 09. Gestión de Seguridad y Cuarentena
-                QuarantineMinutes                           = 1;      // Minutos de congelamiento tras finalizar campaña o SL secundario (1 min calibrado)
+                QuarantineMinutes                           = 0;      // Minutos de congelamiento tras finalizar campaña o SL secundario (0 min v3.4 - gobernado por barras)
                 MaxCatastrophicStopTicks                    = 80;     // Stop de emergencia máximo absoluto (80 ticks = 20 pts = $100 MES / $1000 ES)
 
                 // 10. Canales e Indicadores Técnicos
@@ -275,7 +280,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 8. EVALUACIÓN DE RELEVO EN EQUIPO (SI TICKET PREVIO COBRÓ TP)
             if (waitingForNextRelay)
             {
-                if (CurrentBar > relayCheckBar)
+                // Espera el número calibrado de barras de descanso táctico antes de evaluar pasar el testigo (v3.4)
+                if (CurrentBar - relayCheckBar >= RelayCooldownBars)
                 {
                     EvaluarSiguienteRelevo();
                 }
@@ -319,9 +325,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int nextReqDist = (currentTicketNumber >= 3) ? RelayLateMinDistanceTicks : RelayMinDistanceTicks;
                     Print(string.Format("*************************************************************************************************************\n" +
                                         "{0} - [EQUIPO DUMBO v{1} | ¡PUM, COBRADO TICKET {2}!] Ganancia: +{3:C2} USD.\n" +
-                                        ">>> EL TESTIGO ESTÁ LISTO: Esperando apertura de siguiente barra para evaluar distancia (≥ {4} ticks) y pasar el relevo.\n" +
+                                        ">>> EL TESTIGO ESTÁ LISTO: Esperando {4} barras de descanso táctico para evaluar T{5} (Distancia ≥ {6}tk + TEMA 9 a favor).\n" +
                                         "*************************************************************************************************************",
-                        Time[0], STRATEGY_VERSION, currentTicketNumber, pnl, nextReqDist));
+                        Time[0], STRATEGY_VERSION, currentTicketNumber, pnl, RelayCooldownBars, currentTicketNumber + 1, nextReqDist));
                 }
                 else
                 {
@@ -333,22 +339,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         // FALLO DE PRIMER ENVIÓN: NO entra en cuarentena, sigue acechando Ticket 1
                         Print(string.Format("*************************************************************************************************************\n" +
-                                            "{0} - [EQUIPO DUMBO v{1} | FALLO PRIMER ENVIÓN (TICKET 1)] Salida por Stop Loss ({2:C2} USD).\n" +
-                                            ">>> NO ENTRA EN CUARENTENA: Esperando {3} barras de enfriamiento para volver a acechar mientras EMA 200 siga en abismo.\n" +
-                                            "*************************************************************************************************************",
+                                             "{0} - [EQUIPO DUMBO v{1} | FALLO PRIMER ENVIÓN (TICKET 1)] Salida por Stop Loss ({2:C2} USD).\n" +
+                                             ">>> NO ENTRA EN CUARENTENA: Esperando {3} barras de enfriamiento para volver a acechar mientras EMA 200 siga en abismo.\n" +
+                                             "*************************************************************************************************************",
                             Time[0], STRATEGY_VERSION, pnl, CooldownBarsAfterExit));
                         lastCompletedTicket = 0;
                         currentTicketNumber = 0;
                     }
                     else
                     {
-                        // TICKET SECUNDARIO (T2, T3, T4+) TOCÓ SL: ¡Apague y vámonos! Cuarentena de 10 min
-                        dumboQuarantineEndTime = Time[0].AddMinutes(QuarantineMinutes);
+                        // TICKET SECUNDARIO (T2, T3, T4+) TOCÓ SL: ¡Fin de campaña y protección del botín!
+                        dumboQuarantineEndTime = (QuarantineMinutes > 0) ? Time[0].AddMinutes(QuarantineMinutes) : DateTime.MinValue;
                         Print(string.Format("*************************************************************************************************************\n" +
-                                            "{0} - [EQUIPO DUMBO v{1} | ¡APAGUE Y VÁMONOS! SL ALCANZADO EN RELEVO T{2}] Salida: {3:C2} USD.\n" +
-                                            ">>> CUARENTENA DE SACIEDAD ACTIVADA: Congelado por {4} minutos (hasta las {5:HH:mm:ss} EST). Ganancias de la campaña protegidas en el bolsillo.\n" +
+                                            "{0} - [EQUIPO DUMBO v{1} | ¡SL ALCANZADO EN RELEVO T{2}!] Salida: {3:C2} USD.\n" +
+                                            ">>> FIN DE CAMPAÑA: Cuarentena {4} min (gobernado por barras). Ganancias acumuladas protegidas en el bolsillo.\n" +
                                             "*************************************************************************************************************",
-                            Time[0], STRATEGY_VERSION, currentTicketNumber, pnl, QuarantineMinutes, dumboQuarantineEndTime));
+                            Time[0], STRATEGY_VERSION, currentTicketNumber, pnl, QuarantineMinutes));
                         lastCompletedTicket = 0;
                         currentTicketNumber = 0;
                     }
@@ -357,7 +363,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =================================================================================================
-        // EVALUAR SIGUIENTE RELEVO: En la barra posterior al TP, evalúa Distancia Pura en la estratósfera
+        // EVALUAR SIGUIENTE RELEVO: Tras descanso táctico, evalúa Distancia Pura Y Fuerza TEMA 9 (v3.4)
         // =================================================================================================
         private void EvaluarSiguienteRelevo()
         {
@@ -367,39 +373,58 @@ namespace NinjaTrader.NinjaScript.Strategies
             double currentDist = 0.0;
             bool distanceOk = false;
             bool emaOk = false;
+            bool temaOk = false;
+            string rejectReason = "";
 
             if (relayDirection == MarketPosition.Long)
             {
                 currentDist = (Close[0] - keltnerBig.Upper[0]) / TickSize;
                 distanceOk  = currentDist >= reqDistance;
                 emaOk       = !RequireEmaSlope  || (ema200[0] >= ema200[EmaSlopeLookback]);
+                temaOk      = !RequireTemaSlope || (tema9[0] > tema9[1] && tema9[0] > tema9[TemaSlopeLookback]);
+
+                if (!distanceOk)
+                    rejectReason = string.Format("Espacio exterior insuficiente ({0:F1}tk < {1}tk requeridos)", currentDist, reqDistance);
+                else if (!emaOk)
+                    rejectReason = string.Format("Pendiente EMA 200 en contra [ema200[0]: {0:F2} < ema200[{1}]: {2:F2}]", ema200[0], EmaSlopeLookback, ema200[EmaSlopeLookback]);
+                else if (!temaOk)
+                    rejectReason = string.Format("TEMA 9 perdió fuerza / se dobló a la baja [tema9[0]: {0:F2} <= tema9[1]: {1:F2} | tema9[{2}]: {3:F2}]. Pase de relevo T{4} abortado para no entrar en rebote",
+                        tema9[0], tema9[1], TemaSlopeLookback, tema9[TemaSlopeLookback], nextTicket);
             }
             else if (relayDirection == MarketPosition.Short)
             {
                 currentDist = (keltnerBig.Lower[0] - Close[0]) / TickSize;
                 distanceOk  = currentDist >= reqDistance;
                 emaOk       = !RequireEmaSlope  || (ema200[0] <= ema200[EmaSlopeLookback]);
+                temaOk      = !RequireTemaSlope || (tema9[0] < tema9[1] && tema9[0] < tema9[TemaSlopeLookback]);
+
+                if (!distanceOk)
+                    rejectReason = string.Format("Espacio exterior insuficiente ({0:F1}tk < {1}tk requeridos)", currentDist, reqDistance);
+                else if (!emaOk)
+                    rejectReason = string.Format("Pendiente EMA 200 en contra [ema200[0]: {0:F2} > ema200[{1}]: {2:F2}]", ema200[0], EmaSlopeLookback, ema200[EmaSlopeLookback]);
+                else if (!temaOk)
+                    rejectReason = string.Format("TEMA 9 perdió fuerza / se dobló al alza [tema9[0]: {0:F2} >= tema9[1]: {1:F2} | tema9[{2}]: {3:F2}]. Pase de relevo T{4} abortado para no entrar en rebote",
+                        tema9[0], tema9[1], TemaSlopeLookback, tema9[TemaSlopeLookback], nextTicket);
             }
 
-            // RELEVO POR DISTANCIA PURA (v3.01): Ya estamos en la estratósfera (≥ 30tk o ≥ 25tk) y el SL Escalonado
-            // nos cuida la espalda. No le exigimos pendientes micro a TEMA 9 para no ahogar los pases de relevo.
-            if (distanceOk && emaOk)
+            // RELEVO v3.4 (DUMBO RECARGADO): Exige distancia exterior Y confirmación de que TEMA 9 no se dobló en contra
+            if (distanceOk && emaOk && temaOk)
             {
-                // ¡El testigo pasa de mano en mano! Dispara el siguiente Dumbo
+                // ¡El testigo pasa de mano en mano con inercia confirmada! Dispara el siguiente Dumbo
                 EjecutarRelevo(nextTicket, relayDirection, currentDist);
                 waitingForNextRelay = false;
             }
             else
             {
-                // La ola se calmó o no hay suficiente espacio exterior: Fin de la campaña
-                dumboQuarantineEndTime = Time[0].AddMinutes(QuarantineMinutes);
+                // La ola se calmó, perdió distancia o la TEMA 9 se dobló: Fin de la campaña protegiendo el botín
+                dumboQuarantineEndTime = (QuarantineMinutes > 0) ? Time[0].AddMinutes(QuarantineMinutes) : DateTime.MinValue;
                 waitingForNextRelay = false;
                 Print(string.Format("*************************************************************************************************************\n" +
                                     "{0} - [EQUIPO DUMBO v{1} | FIN DE CAMPAÑA POR RELEVOS - T{2} NO DISPARA]\n" +
-                                    ">>> MOTIVO: Espacio exterior insuficiente ({3:F1}tk < {4}tk requeridos). La ola perdió inercia estratosférica.\n" +
-                                    ">>> CUARENTENA DE SACIEDAD ACTIVADA: Congelado por {5} minutos (hasta las {6:HH:mm:ss} EST). Cero sobreoperar.\n" +
+                                    ">>> MOTIVO: {3}.\n" +
+                                    ">>> CUARENTENA: {4} minutos. Ganancias acumuladas protegidas en el bolsillo.\n" +
                                     "*************************************************************************************************************",
-                    Time[0], STRATEGY_VERSION, nextTicket, currentDist, reqDistance, QuarantineMinutes, dumboQuarantineEndTime));
+                    Time[0], STRATEGY_VERSION, nextTicket, rejectReason, QuarantineMinutes));
                 lastCompletedTicket = 0;
                 currentTicketNumber = 0;
             }
@@ -1023,6 +1048,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double Ticket4PlusTpDollars { get; set; }
 
         [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name = "Barras de Descanso entre Relevos", Description = "Número de barras de respiro táctico tras cobrar TP antes de evaluar pasar el testigo al siguiente relevo (por defecto: 3 barras)", GroupName = "07. Campaña Relevos: Distancias Exteriores", Order = 0)]
+        public int RelayCooldownBars { get; set; }
+
+        [NinjaScriptProperty]
         [Range(10, 100)]
         [Display(Name = "Distancia Mínima Relevos T2/T3 (Ticks)", Description = "Separación mínima fuera de Banda 3.5 requerida para disparar Tickets 2 y 3 (por defecto: 30 ticks)", GroupName = "07. Campaña Relevos: Distancias Exteriores", Order = 1)]
         public int RelayMinDistanceTicks { get; set; }
@@ -1064,7 +1094,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0, 60)]
-        [Display(Name = "Minutos Cuarentena de Saciedad", Description = "Minutos de congelamiento tras finalizar campaña o SL secundario (por defecto: 1 min)", GroupName = "09. Gestión de Seguridad y Cuarentena", Order = 1)]
+        [Display(Name = "Minutos Cuarentena de Saciedad", Description = "Minutos de congelamiento tras finalizar campaña o SL secundario (por defecto: 0 min - gobernado por barras)", GroupName = "09. Gestión de Seguridad y Cuarentena", Order = 1)]
         public int QuarantineMinutes { get; set; }
 
         [NinjaScriptProperty]

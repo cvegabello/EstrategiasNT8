@@ -1,23 +1,26 @@
-# Bitácora de Pruebas y Desempeño - Equipo Dumbo v3.3 (Micro MES)
+# Bitácora de Pruebas y Desempeño - Equipo Dumbo v3.4 (Micro MES - "Dumbo Recargado")
 
-Esta bitácora documenta las pruebas en Historical Playback de la **Campaña de Relevos en Equipo Monocontrato** de **Dumbo v3.3** en futuros del Micro E-mini S&P 500 (**MES**) en gráfica de **610 Ticks**.
+Esta bitácora documenta las pruebas en Historical Playback de la **Campaña de Relevos en Equipo Monocontrato** de **Dumbo v3.4** en futuros del Micro E-mini S&P 500 (**MES**) en gráfica de **610 Ticks**.
 
 ---
 
-## 1. Novedades y Arquitectura v3.3
+## 1. Novedades y Arquitectura v3.4 (Dumbo Recargado)
 1. **Take Profit Fijo con Orden Limit en el Broker:** Cosecha al milisegundo exacto en los picos de momentum.
 2. **Campaña por Relevos ($60 / $30 / $20):**
    * **Ticket 1:** Despegue inicial con meta de **+$60.00 USD** ($600 ES) y **Stop Loss Dinámico Vivo en Banda Media (Keltner Midline - 2 ticks)** que persigue la pendiente del canal.
-   * **Tickets 2 y 3:** Relevos con meta calibrada a **+$30.00 USD** cada uno ($300 ES = 24 ticks - exactamente la mitad de T1), exigiendo $\ge 30$ ticks fuera por Distancia Pura.
+   * **Tickets 2 y 3:** Relevos con meta calibrada a **+$30.00 USD** cada uno ($300 ES = 24 ticks - exactamente la mitad de T1).
    * **Ticket 4 en adelante:** Gotero de **+$20.00 USD** ($200 ES = 16 ticks), exigiendo **Peaje Caro de $\ge 35$ ticks** fuera y **SL Ceñido a +12 ticks adelante de Banda 3.5** para blindar los $120 USD acumulados.
-3. **Pausa Táctica de Confirmación EMA 40b (v3.3):**
+3. **Descanso Táctico en Relevos (3 Barras - v3.4):**
+   * Al cobrar el TP, el bot da un respiro de **3 barras** (`RelayCooldownBars = 3`) permitiendo que la absorción y rebotes contra la mecha sucedan fuera del mercado.
+4. **Filtro de Inercia TEMA 9 en Relevos (v3.4):**
+   * Al concluir las 3 barras de descanso, el bot exige que la **TEMA 9 conserve la fuerza a favor** (`tema9[0] < tema9[1]` en short, `>` en long). Si el precio rebotó, TEMA 9 se dobla y el pase de posta se **aborta automáticamente**, protegiendo el botín ganado.
+5. **Cuarentena en 0 Minutos (v3.4):**
+   * Desactivada por defecto (`QuarantineMinutes = 0`), gobernada sanamente por las 3 barras de enfriamiento estructurales de Ticket 1 para no enjaular la operativa en megatendencias.
+6. **Pausa Táctica de Confirmación EMA 40b (T1):**
    * Si el precio ya venía flotando afuera antes de que la EMA 200 completara sus 40 barras en el abismo, **NO se dispara en la barra 40**. Espera que termine esa barra y evalúa en la siguiente barra (41+) para evitar entrar en trampas de rebote y velas verdes engañosas.
-   * Si la EMA 200 ya venía con $> 40$ barras maduras en el abismo en el momento en que el precio da sus 3 velas flotando, el disparo es **inmediato** (impulso fresco).
-4. **Alerta de Fina Coquetería EMA 40b:**
+7. **Alerta de Fina Coquetería EMA 40b:**
    * Al alcanzar exactamente 40 barras continuas en abismo, emite sonido configurable (`Ding.wav`), dibuja flecha y texto en la gráfica, e imprime reporte destacado en el log.
-5. **Auditoría TEMA 9 en los Logs:** Impresión detallada de `tema9[0]`, `tema9[1]`, `tema9[TemaSlopeLookback]`, `temaSlope` y `RequireTemaSlope` al disparar T1.
-6. **Stop Loss Escalonado Dinámico (Opción B para T2/T3):** Trailing vivo a Banda 3.5, con avances de +12tk (Stage 1 $\ge 35$tk) y +20tk (Stage 2 $\ge 40$tk).
-7. **Protección Asimétrica:** Fallo en Ticket 1 no entra en cuarentena; fallo o fin de campaña en Tickets 2+ activa **Cuarentena de Saciedad de 1 minuto** (`QuarantineMinutes = 1`), permitiendo capturar cascadas subsiguientes sin asfixiar la operativa.
+8. **Stop Loss Escalonado Dinámico (Opción B para T2/T3):** Trailing vivo a Banda 3.5, con avances de +12tk (Stage 1 $\ge 35$tk) y +20tk (Stage 2 $\ge 40$tk).
 
 ---
 
