@@ -19,12 +19,13 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Equipo Dumbo: Relevo en Equipo Monocontrato"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 3.02 - "La Campaña de Relevos" (T1: $60 USD | T2/T3: $20 USD | T4+: $10 USD con SL Ceñido +12tk | SL Escalonado Opción B para T2/T3)
+// VERSIÓN: 3.1 - "La Campaña de Relevos" (T1: $60 USD con SL en Banda Media | T2/T3: $20 USD | T4+: $10 USD con SL Ceñido +12tk)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante volador. En lugar de exponer un solo contrato a un retroceso salvaje de la tendencia,
 //   Dumbo corre una carrera de relevos en equipo:
-//   1. TICKET 1 (El Primer Envión): Dispara al despegue con SL en Banda Azul 1.75. Cobra $60 USD con orden Limit.
+//   1. TICKET 1 (El Primer Envión): Dispara al despegue con SL inicial profundo 2 ticks detrás de la Banda Media
+//      (Keltner Midline) sin trailing prematuro, dándole máximo oxígeno para consolidar y buscar el TP de $60 USD.
 //      - Si falla el primer envión y toca SL: NO entra en cuarentena; sigue acechando mientras EMA200 siga en abismo.
 //   2. TICKET 2 y 3 (Relevos Quirúrgicos): Si tras cobrar sigue a >= 30 ticks de la Banda 3.5 y filtros OK,
 //      pasa el testigo al siguiente Dumbo con TP Limit de $20 USD y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
@@ -39,7 +40,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class Tick610_DumboES : Strategy
     {
         #region Constantes Centralizadas
-        private const string STRATEGY_VERSION = "3.02";
+        private const string STRATEGY_VERSION = "3.1";
         #endregion
 
         #region Enumeraciones
@@ -100,7 +101,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = "Tick610_DumboES v3.02: Campaña de Relevos Monocontrato en Super-Expansión fuera de Banda 3.5 con EMA 200 en abismo opuesto.";
+                Description                                 = "Tick610_DumboES v3.1: Campaña de Relevos Monocontrato con SL en Banda Media para T1 y SL Ceñido en T4+.";
                 Name                                        = "Tick610_DumboES";
                 Calculate                                   = Calculate.OnBarClose; // Ejecución limpia al cierre de barra
                 EntriesPerDirection                         = 1;
@@ -118,7 +119,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $20 | T4+ $10 [SL Ceñido])", STRATEGY_VERSION);
+                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 SL Banda Media | T2/T3 $20 | T4+ $10 SL Ceñido)", STRATEGY_VERSION);
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (estricto monocontrato)
@@ -158,11 +159,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 StagedStage2DistanceTicks                   = 40;     // Umbral de distancia para Stage 2 (≥ 40 ticks)
                 StagedStage2SlAdvanceTicks                  = 20;     // Avance del SL por delante de Banda 3.5 en Stage 2 (20 ticks)
                 Ticket4PlusSlAdvanceTicks                   = 12;     // Avance ceñido de SL por delante de Banda 3.5 en Tickets 4+ (12 ticks = blindaje de ganancias)
-                SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Azul 1.75 en Ticket 1 (2 ticks)
+                SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Media en Ticket 1 (2 ticks)
 
                 // 09. Gestión de Seguridad y Cuarentena
                 QuarantineMinutes                           = 10;     // Minutos de congelamiento tras finalizar campaña o SL secundario (10 min)
-                MaxCatastrophicStopTicks                    = 40;     // Stop de emergencia máximo absoluto (40 ticks = 10 pts = $50 MES / $500 ES)
+                MaxCatastrophicStopTicks                    = 80;     // Stop de emergencia máximo absoluto (80 ticks = 20 pts = $100 MES / $1000 ES)
 
                 // 10. Canales e Indicadores Técnicos
                 KeltnerBigMult                              = 3.5;
@@ -533,8 +534,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             double tpTicks = Math.Round(effectiveTpDollars / (Contracts * Instrument.MasterInstrument.PointValue * TickSize));
             currentTpPriceGlobal = Instrument.MasterInstrument.RoundToTickSize(entryPriceGlobal + (tpTicks * TickSize));
 
-            // SL Inicial en Banda Azul 1.75 (Holgura para despegue)
-            currentSlPriceGlobal = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (SlBufferTicks * TickSize));
+            // SL Inicial en Banda Media (Keltner Midline - 2 ticks) - Versión 3.1
+            currentSlPriceGlobal = Instrument.MasterInstrument.RoundToTickSize(keltnerBig.Midline[0] - (SlBufferTicks * TickSize));
             currentSlPriceGlobal = Math.Max(currentSlPriceGlobal, entryPriceGlobal - (MaxCatastrophicStopTicks * TickSize));
 
             EnterLong(Contracts, "Dumbo_Long_T1");
@@ -542,7 +543,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             Print(string.Format("*************************************************************************************************************\n" +
                                 "{0} - [EQUIPO DUMBO v{1} | ¡DESPEGUE TICKET 1 ALCISTA DISPARADO!] Separación: +{2:F1}tk (mín {3}tk).\n" +
-                                ">>> DETALLE: Entrada: {4:F2} | TP Limit: {5:F2} (+${6:F0} USD / {7}tk) | SL Inicial: {8:F2} (Banda Azul 1.75 - Colchón {9}tk) | EMA200 Abismo: {10}b\n" +
+                                ">>> DETALLE: Entrada: {4:F2} | TP Limit: {5:F2} (+${6:F0} USD / {7}tk) | SL Inicial: {8:F2} (Banda Media Midline - Colchón {9}tk) | EMA200 Abismo: {10}b\n" +
                                 "*************************************************************************************************************",
                 Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentTpPriceGlobal, effectiveTpDollars, tpTicks, currentSlPriceGlobal, SlBufferTicks, barsEmaBelowOppositeCount));
         }
@@ -561,8 +562,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             double tpTicks = Math.Round(effectiveTpDollars / (Contracts * Instrument.MasterInstrument.PointValue * TickSize));
             currentTpPriceGlobal = Instrument.MasterInstrument.RoundToTickSize(entryPriceGlobal - (tpTicks * TickSize));
 
-            // SL Inicial en Banda Azul 1.75 (Holgura para despegue)
-            currentSlPriceGlobal = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (SlBufferTicks * TickSize));
+            // SL Inicial en Banda Media (Keltner Midline + 2 ticks) - Versión 3.1
+            currentSlPriceGlobal = Instrument.MasterInstrument.RoundToTickSize(keltnerBig.Midline[0] + (SlBufferTicks * TickSize));
             currentSlPriceGlobal = Math.Min(currentSlPriceGlobal, entryPriceGlobal + (MaxCatastrophicStopTicks * TickSize));
 
             EnterShort(Contracts, "Dumbo_Short_T1");
@@ -570,7 +571,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             Print(string.Format("*************************************************************************************************************\n" +
                                 "{0} - [EQUIPO DUMBO v{1} | ¡DESPEGUE TICKET 1 BAJISTA DISPARADO!] Separación: +{2:F1}tk (mín {3}tk).\n" +
-                                ">>> DETALLE: Entrada: {4:F2} | TP Limit: {5:F2} (+${6:F0} USD / {7}tk) | SL Inicial: {8:F2} (Banda Azul 1.75 - Colchón {9}tk) | EMA200 Abismo: {10}b\n" +
+                                ">>> DETALLE: Entrada: {4:F2} | TP Limit: {5:F2} (+${6:F0} USD / {7}tk) | SL Inicial: {8:F2} (Banda Media Midline + Colchón {9}tk) | EMA200 Abismo: {10}b\n" +
                                 "*************************************************************************************************************",
                 Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentTpPriceGlobal, effectiveTpDollars, tpTicks, currentSlPriceGlobal, SlBufferTicks, barsEmaAboveOppositeCount));
         }
@@ -599,8 +600,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double candidateSl = 0.0;
                 if (currentTicketNumber == 1)
                 {
-                    // Ticket 1: acompaña con Banda Azul 1.75
-                    candidateSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (SlBufferTicks * TickSize));
+                    // Ticket 1 (v3.1): SL fijo detrás de la Banda Media sin trailing prematuro
+                    candidateSl = currentSlPriceGlobal;
                 }
                 else if (currentTicketNumber >= 4)
                 {
@@ -638,8 +639,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double candidateSl = 0.0;
                 if (currentTicketNumber == 1)
                 {
-                    // Ticket 1: acompaña con Banda Azul 1.75
-                    candidateSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (SlBufferTicks * TickSize));
+                    // Ticket 1 (v3.1): SL fijo detrás de la Banda Media sin trailing prematuro
+                    candidateSl = currentSlPriceGlobal;
                 }
                 else if (currentTicketNumber >= 4)
                 {
@@ -931,7 +932,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Colchón Respiro SL Banda Azul T1 (Ticks)", Description = "Margen de holgura detrás de Banda Azul 1.75 en Ticket 1 (por defecto: 2 ticks)", GroupName = "08. Opción B: Salto Escalonado de Stop Loss", Order = 6)]
+        [Display(Name = "Colchón Respiro SL Banda Media T1 (Ticks)", Description = "Margen de holgura detrás de la Banda Media en Ticket 1 (por defecto: 2 ticks)", GroupName = "08. Opción B: Salto Escalonado de Stop Loss", Order = 6)]
         public int SlBufferTicks { get; set; }
 
         [NinjaScriptProperty]
@@ -940,8 +941,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int QuarantineMinutes { get; set; }
 
         [NinjaScriptProperty]
-        [Range(10, 100)]
-        [Display(Name = "Stop Catastrófico Máximo (Ticks)", Description = "Riesgo máximo absoluto de seguridad por contrato (40 ticks = 10 pts = $50 MES)", GroupName = "09. Gestión de Seguridad y Cuarentena", Order = 2)]
+        [Range(10, 200)]
+        [Display(Name = "Stop Catastrófico Máximo (Ticks)", Description = "Riesgo máximo absoluto de seguridad por contrato (por defecto: 80 ticks = 20 pts = $100 MES)", GroupName = "09. Gestión de Seguridad y Cuarentena", Order = 2)]
         public int MaxCatastrophicStopTicks { get; set; }
 
         [NinjaScriptProperty]
