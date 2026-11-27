@@ -49,6 +49,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public class Tick610_DumboES : Strategy
     {
+        #region Constantes Centralizadas
+        private const string STRATEGY_VERSION = "1.41";
+        #endregion
+
         #region Enumeraciones
         public enum BandaOpuestaEnum
         {
@@ -119,7 +123,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = "v1.4 (Tranca de Ganancia $400 a Banda 3.5)";
+                Version                                     = string.Format("v{0} (SL Inicial Banda Azul 1.75 + Tranca $40)", STRATEGY_VERSION);
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (escalable)
@@ -145,8 +149,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RequireEmaSlope                             = true;   // Exigir que la pendiente de EMA 200 esté a favor del trade
 
                 // 06. Gestión de Riesgo (Banda Escalonada Ratchet con Promoción Dinámica)
-                SeparationThresholdTicks                    = 10;     // Si el precio entra a >= 10 ticks de Banda 3.5, SL en 3.5; si es menor, SL en 1.75
-                SlBufferTicks                               = 3;      // Colchón de respiro detrás de la banda elegida para el SL (estándar 3 ticks)
+                SeparationThresholdTicks                    = 10;     // (Compatibilidad) Si es mayor a 10 ticks, se usa para ascensos dinámicos
+                SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Azul 1.75 para el SL inicial (2 ticks v1.41)
                 UseProfitMilestoneSlUpgrade                 = true;   // Activar promoción de SL a Banda 3.5 al alcanzar meta de ganancia en dólares
                 ProfitMilestoneDollars                      = 40.0;   // Meta de ganancia en USD para mover SL a Banda 3.5 ($40 MES nativo / auto-escala a $400 en ES)
                 MilestoneAheadTicks                         = 1;      // Ticks adelante de la Banda 3.5 al alcanzar los $40 (1 tick en favor)
@@ -425,7 +429,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =================================================================================================
-        // EJECUCIÓN LONG Y ANCLAJE DE STOP LOSS INICIAL (BANDA ESCALONADA)
+        // EJECUCIÓN LONG Y ANCLAJE DE STOP LOSS INICIAL (BANDA AZUL 1.75 - ESPACIO DUMBO v1.41)
         // =================================================================================================
         private void EjecutarEntradaLong()
         {
@@ -437,19 +441,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Medir distancia de penetración por fuera de la Banda 3.5
             double separationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
 
-            // Determinar Stop Loss Inicial según umbral de penetración (Regla de 10 ticks)
-            if (separationTicks >= SeparationThresholdTicks)
-            {
-                // Despegue fuerte (>= 10 ticks): SL anclado a Banda 3.5 exterior del canal grande
-                slAnchoredToBigBand = true;
-                currentSlPriceGlobal = keltnerBig.Upper[0] - (SlBufferTicks * TickSize);
-            }
-            else
-            {
-                // Despegue corto (< 10 ticks): SL anclado a Banda 1.75 azul del canal pequeño (espacio de respiro)
-                slAnchoredToBigBand = false;
-                currentSlPriceGlobal = keltnerSmall.Upper[0] - (SlBufferTicks * TickSize);
-            }
+            // ANCLAJE INICIAL DUMBO v1.41: Dumbo es un elefante grande y necesita espacio para volar.
+            // Siempre inicia anclado en la BANDA AZUL 1.75 con colchón de 2 ticks (SlBufferTicks)
+            slAnchoredToBigBand = false;
+            currentSlPriceGlobal = keltnerSmall.Upper[0] - (SlBufferTicks * TickSize);
 
             // Limitar por Stop Catastrófico de Emergencia
             double catastrophicSl = entryPriceGlobal - (MaxCatastrophicStopTicks * TickSize);
@@ -463,14 +458,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             double temaSlope = (tema9[0] - tema9[TemaSlopeLookback]) / TemaSlopeLookback;
             double emaSlope = (ema200[0] - ema200[EmaSlopeLookback]);
             Print(string.Format("*************************************************************************************************************\n" +
-                                "{0} - [DUMBO v1.4 | ¡PUM, ADIÓS! ELEFANTE ALCISTA DISPARADO] Despegue fuera de Banda 3.5: +{1:F1} ticks (mín {2}tk).\n" +
-                                ">>> DETALLE: Entrada: {3:F2} | SL Inicial: {4:F2} ({5} - Colchón {6}tk) | Velas Flotando: {7} | EMA200 Abismo: {8}b | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000} | ¡A volar con el viento!\n" +
+                                "{0} - [DUMBO v{1} | ¡PUM, ADIÓS! ELEFANTE ALCISTA DISPARADO] Despegue fuera de Banda 3.5: +{2:F1} ticks (mín {3}tk).\n" +
+                                ">>> DETALLE: Entrada: {4:F2} | SL Inicial: {5:F2} (Banda Azul 1.75 - Colchón {6}tk) | Velas Flotando: {7} | EMA200 Abismo: {8}b | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000} | ¡A volar con el viento!\n" +
                                 "*************************************************************************************************************",
-                Time[0], separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentSlPriceGlobal, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), SlBufferTicks, floatingBarsLongCount, barsEmaBelowOppositeCount, emaSlope, temaSlope));
+                Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentSlPriceGlobal, SlBufferTicks, floatingBarsLongCount, barsEmaBelowOppositeCount, emaSlope, temaSlope));
         }
 
         // =================================================================================================
-        // EJECUCIÓN SHORT Y ANCLAJE DE STOP LOSS INICIAL (BANDA ESCALONADA)
+        // EJECUCIÓN SHORT Y ANCLAJE DE STOP LOSS INICIAL (BANDA AZUL 1.75 - ESPACIO DUMBO v1.41)
         // =================================================================================================
         private void EjecutarEntradaShort()
         {
@@ -482,19 +477,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Medir distancia de penetración por fuera de la Banda 3.5
             double separationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
 
-            // Determinar Stop Loss Inicial según umbral de penetración (Regla de 10 ticks)
-            if (separationTicks >= SeparationThresholdTicks)
-            {
-                // Despegue fuerte (>= 10 ticks): SL anclado a Banda 3.5 exterior del canal grande
-                slAnchoredToBigBand = true;
-                currentSlPriceGlobal = keltnerBig.Lower[0] + (SlBufferTicks * TickSize);
-            }
-            else
-            {
-                // Despegue corto (< 10 ticks): SL anclado a Banda 1.75 azul del canal pequeño (espacio de respiro)
-                slAnchoredToBigBand = false;
-                currentSlPriceGlobal = keltnerSmall.Lower[0] + (SlBufferTicks * TickSize);
-            }
+            // ANCLAJE INICIAL DUMBO v1.41: Dumbo es un elefante grande y necesita espacio para volar.
+            // Siempre inicia anclado en la BANDA AZUL 1.75 con colchón de 2 ticks (SlBufferTicks)
+            slAnchoredToBigBand = false;
+            currentSlPriceGlobal = keltnerSmall.Lower[0] + (SlBufferTicks * TickSize);
 
             // Limitar por Stop Catastrófico de Emergencia
             double catastrophicSl = entryPriceGlobal + (MaxCatastrophicStopTicks * TickSize);
@@ -508,10 +494,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             double temaSlope = (tema9[TemaSlopeLookback] - tema9[0]) / TemaSlopeLookback;
             double emaSlope = (ema200[EmaSlopeLookback] - ema200[0]);
             Print(string.Format("*************************************************************************************************************\n" +
-                                "{0} - [DUMBO v1.4 | ¡PUM, ADIÓS! ELEFANTE BAJISTA DISPARADO] Caída fuera de Banda 3.5: +{1:F1} ticks (mín {2}tk).\n" +
-                                ">>> DETALLE: Entrada: {3:F2} | SL Inicial: {4:F2} ({5} - Colchón {6}tk) | Velas Flotando: {7} | EMA200 Abismo: {8}b | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000} | ¡A surfear la cascada!\n" +
+                                "{0} - [DUMBO v{1} | ¡PUM, ADIÓS! ELEFANTE BAJISTA DISPARADO] Caída fuera de Banda 3.5: +{1:F1} ticks (mín {3}tk).\n" +
+                                ">>> DETALLE: Entrada: {4:F2} | SL Inicial: {5:F2} (Banda Azul 1.75 - Colchón {6}tk) | Velas Flotando: {7} | EMA200 Abismo: {8}b | Pend EMA200: {9:+0.0000;-0.0000} | TEMA9 Slope: {10:+0.0000;-0.0000} | ¡A surfear la cascada!\n" +
                                 "*************************************************************************************************************",
-                Time[0], separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentSlPriceGlobal, (slAnchoredToBigBand ? "Banda 3.5 Grande" : "Banda 1.75 Azul"), SlBufferTicks, floatingBarsShortCount, barsEmaAboveOppositeCount, emaSlope, temaSlope));
+                Time[0], STRATEGY_VERSION, separationTicks, MinSeparationFromBand35Ticks, entryPriceGlobal, currentSlPriceGlobal, SlBufferTicks, floatingBarsShortCount, barsEmaAboveOppositeCount, emaSlope, temaSlope));
         }
 
         // =================================================================================================
@@ -749,7 +735,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (panicButton != null)
             {
-                panicButton.Content = isStrategyActive ? "Dumbo ACTIVA (v1.4)" : "Dumbo PAUSADA (v1.4)";
+                panicButton.Content = isStrategyActive ? string.Format("Dumbo ACTIVA (v{0})", STRATEGY_VERSION) : string.Format("Dumbo PAUSADA (v{0})", STRATEGY_VERSION);
                 panicButton.Background = isStrategyActive ? Brushes.DarkGreen : Brushes.Crimson;
             }
 
@@ -791,7 +777,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name = "Versión", GroupName = "01. Información", Order = 1)]
         [ReadOnly(true)]
-        public string Version { get; set; }
+        public string Version
+        {
+            get { return string.Format("{0} (MES / ES) - Dumbo Super-Expansión", STRATEGY_VERSION); }
+            set { }
+        }
 
         [NinjaScriptProperty]
         [Range(1, 10)]
@@ -868,7 +858,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Colchón Respiro SL (Ticks)", Description = "Ticks de margen detrás de la banda para colocar el Stop Loss inicial", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 2)]
+        [Display(Name = "Colchón Respiro SL Banda Azul (Ticks)", Description = "Ticks de margen detrás de la Banda Azul 1.75 para colocar el Stop Loss inicial (por defecto: 2 ticks v1.41)", GroupName = "06. Gestión de Riesgo (Banda Escalonada)", Order = 2)]
         public int SlBufferTicks { get; set; }
 
         [NinjaScriptProperty]
