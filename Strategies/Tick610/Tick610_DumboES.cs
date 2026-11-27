@@ -19,7 +19,7 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Equipo Dumbo: Relevo en Equipo Monocontrato"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 3.0 - "La Campaña de Relevos" (T1: $60 USD | T2 y T3: $20 USD | T4+: $10 USD | SL Escalonado Opción B)
+// VERSIÓN: 3.02 - "La Campaña de Relevos" (T1: $60 USD | T2/T3: $20 USD | T4+: $10 USD con SL Ceñido +12tk | SL Escalonado Opción B para T2/T3)
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante volador. En lugar de exponer un solo contrato a un retroceso salvaje de la tendencia,
@@ -28,7 +28,8 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //      - Si falla el primer envión y toca SL: NO entra en cuarentena; sigue acechando mientras EMA200 siga en abismo.
 //   2. TICKET 2 y 3 (Relevos Quirúrgicos): Si tras cobrar sigue a >= 30 ticks de la Banda 3.5 y filtros OK,
 //      pasa el testigo al siguiente Dumbo con TP Limit de $20 USD y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
-//   3. TICKET 4+ (El Gotero de Tendencia): Mientras conserve >= 25 ticks fuera, sigue mordiendo $10 USD por relevo.
+//   3. TICKET 4+ (El Gotero Ceñido de Tendencia): Mientras conserve >= 25 ticks fuera, sigue mordiendo $10 USD por relevo
+//      pero con un SL ceñido a +12 ticks por delante de Banda 3.5 (Opción A) para blindar los $100 USD ya ganados en T1+T2+T3.
 //   4. CUARENTENA DE SACIEDAD (10 min): Si cualquier ticket secundario toca su SL o el espacio se acaba,
 //      la campaña termina, congelando entradas por 10 minutos con todas las ganancias blindadas en el bolsillo.
 // =========================================================================================================
@@ -38,7 +39,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class Tick610_DumboES : Strategy
     {
         #region Constantes Centralizadas
-        private const string STRATEGY_VERSION = "3.01";
+        private const string STRATEGY_VERSION = "3.02";
         #endregion
 
         #region Enumeraciones
@@ -99,7 +100,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = "Tick610_DumboES v3.0: Campaña de Relevos Monocontrato en Super-Expansión fuera de Banda 3.5 con EMA 200 en abismo opuesto.";
+                Description                                 = "Tick610_DumboES v3.02: Campaña de Relevos Monocontrato en Super-Expansión fuera de Banda 3.5 con EMA 200 en abismo opuesto.";
                 Name                                        = "Tick610_DumboES";
                 Calculate                                   = Calculate.OnBarClose; // Ejecución limpia al cierre de barra
                 EntriesPerDirection                         = 1;
@@ -117,7 +118,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $20 | T4+ $10)", STRATEGY_VERSION);
+                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $20 | T4+ $10 [SL Ceñido])", STRATEGY_VERSION);
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (estricto monocontrato)
@@ -156,6 +157,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 StagedStage1SlAdvanceTicks                  = 12;     // Avance del SL por delante de Banda 3.5 en Stage 1 (12 ticks)
                 StagedStage2DistanceTicks                   = 40;     // Umbral de distancia para Stage 2 (≥ 40 ticks)
                 StagedStage2SlAdvanceTicks                  = 20;     // Avance del SL por delante de Banda 3.5 en Stage 2 (20 ticks)
+                Ticket4PlusSlAdvanceTicks                   = 12;     // Avance ceñido de SL por delante de Banda 3.5 en Tickets 4+ (12 ticks = blindaje de ganancias)
                 SlBufferTicks                               = 2;      // Colchón de respiro detrás de la Banda Azul 1.75 en Ticket 1 (2 ticks)
 
                 // 09. Gestión de Seguridad y Cuarentena
@@ -191,7 +193,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (ChartControl == null)
                 {
                     isStrategyActive = true;
-                    Print("[EQUIPO DUMBO v3.0] Modo Headless (Strategy Analyzer / Backtest) detectado. Estrategia auto-activada.");
+                    Print(string.Format("[EQUIPO DUMBO v{0}] Modo Headless (Strategy Analyzer / Backtest) detectado. Estrategia auto-activada.", STRATEGY_VERSION));
                 }
             }
             else if (State == State.Historical)
@@ -405,9 +407,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             double effectiveTargetDollars = GetEffectiveDollars(targetDollars);
             double tpTicks = Math.Round(effectiveTargetDollars / (Contracts * Instrument.MasterInstrument.PointValue * TickSize));
 
-            // DETERMINAR STOP LOSS ESCALONADO (OPCIÓN B - SIN ASFIXIA)
+            // DETERMINAR STOP LOSS ESCALONADO (OPCIÓN B PARA T2/T3 Y CEÑIDO FIJO PARA T4+)
             string stagedDetail = "";
-            if (currentDist >= StagedStage2DistanceTicks)
+            if (ticketNumber >= 4)
+            {
+                // Ticket 4 en adelante (Opción A): SL ceñido por delante de Banda 3.5 para blindar los $100 USD acumulados en T1+T2+T3
+                stagedBufferUsedTicks = Ticket4PlusSlAdvanceTicks;
+                stagedDetail = string.Format("+{0}tk ceñido adelante de Banda 3.5 (Blindaje T{1}+)", stagedBufferUsedTicks, ticketNumber);
+            }
+            else if (currentDist >= StagedStage2DistanceTicks)
             {
                 stagedBufferUsedTicks = StagedStage2SlAdvanceTicks; // +20 ticks adelante de Banda 3.5
                 stagedDetail = string.Format("+{0}tk adelante de Banda 3.5 (Estratósfera ≥ {1}tk)", stagedBufferUsedTicks, StagedStage2DistanceTicks);
@@ -594,9 +602,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Ticket 1: acompaña con Banda Azul 1.75
                     candidateSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Upper[0] - (SlBufferTicks * TickSize));
                 }
+                else if (currentTicketNumber >= 4)
+                {
+                    // Tickets 4+: acompaña ceñido a Banda 3.5 + Ticket4PlusSlAdvanceTicks (Protección de Ganancias)
+                    candidateSl = Instrument.MasterInstrument.RoundToTickSize(keltnerBig.Upper[0] + (Ticket4PlusSlAdvanceTicks * TickSize));
+                }
                 else
                 {
-                    // Tickets 2+: acompaña con Banda 3.5 + buffer escalonado Opción B
+                    // Tickets 2 y 3: acompaña con Banda 3.5 + buffer escalonado Opción B
                     candidateSl = (stagedBufferUsedTicks > 0)
                         ? (keltnerBig.Upper[0] + (stagedBufferUsedTicks * TickSize))
                         : (keltnerBig.Upper[0] - (1 * TickSize));
@@ -628,9 +641,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Ticket 1: acompaña con Banda Azul 1.75
                     candidateSl = Instrument.MasterInstrument.RoundToTickSize(keltnerSmall.Lower[0] + (SlBufferTicks * TickSize));
                 }
+                else if (currentTicketNumber >= 4)
+                {
+                    // Tickets 4+: acompaña ceñido a Banda 3.5 - Ticket4PlusSlAdvanceTicks (Protección de Ganancias)
+                    candidateSl = Instrument.MasterInstrument.RoundToTickSize(keltnerBig.Lower[0] - (Ticket4PlusSlAdvanceTicks * TickSize));
+                }
                 else
                 {
-                    // Tickets 2+: acompaña con Banda 3.5 + buffer escalonado Opción B
+                    // Tickets 2 y 3: acompaña con Banda 3.5 + buffer escalonado Opción B
                     candidateSl = (stagedBufferUsedTicks > 0)
                         ? (keltnerBig.Lower[0] - (stagedBufferUsedTicks * TickSize))
                         : (keltnerBig.Lower[0] + (1 * TickSize));
@@ -756,7 +774,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     ExitLong("Boton_Panico_WPF", "");
                     ExitShort("Boton_Panico_WPF", "");
-                    Print(Time[0] + " - [BOTÓN DE PÁNICO DUMBO v3.0] ¡Posiciones liquidadas a mercado!");
+                    Print(string.Format("{0} - [BOTÓN DE PÁNICO DUMBO v{1}] ¡Posiciones liquidadas a mercado!", Time[0], STRATEGY_VERSION));
                 }
                 waitingForNextRelay = false;
                 currentTicketNumber = 0;
@@ -907,8 +925,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int StagedStage2SlAdvanceTicks { get; set; }
 
         [NinjaScriptProperty]
+        [Range(1, 40)]
+        [Display(Name = "Avance SL en Ticket 4+ (Ticks)", Description = "Ticks por delante de Banda 3.5 para ceñir el SL en Tickets 4 en adelante y blindar ganancias (por defecto: 12 ticks)", GroupName = "08. Opción B: Salto Escalonado de Stop Loss", Order = 5)]
+        public int Ticket4PlusSlAdvanceTicks { get; set; }
+
+        [NinjaScriptProperty]
         [Range(0, 10)]
-        [Display(Name = "Colchón Respiro SL Banda Azul T1 (Ticks)", Description = "Margen de holgura detrás de Banda Azul 1.75 en Ticket 1 (por defecto: 2 ticks)", GroupName = "08. Opción B: Salto Escalonado de Stop Loss", Order = 5)]
+        [Display(Name = "Colchón Respiro SL Banda Azul T1 (Ticks)", Description = "Margen de holgura detrás de Banda Azul 1.75 en Ticket 1 (por defecto: 2 ticks)", GroupName = "08. Opción B: Salto Escalonado de Stop Loss", Order = 6)]
         public int SlBufferTicks { get; set; }
 
         [NinjaScriptProperty]

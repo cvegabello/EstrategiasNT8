@@ -1,9 +1,9 @@
-# Ficha Técnica - Equipo Dumbo v3.0 (Campaña de Relevos Monocontrato)
+# Ficha Técnica - Equipo Dumbo v3.02 (Campaña de Relevos Monocontrato)
 
 ![Equipo Dumbo - Relevo en Equipo](EquipoDumboRelevos.jpg)
 
 ## 1. Identidad de la Versión
-* **Nombre de la Estrategia:** `Tick610_DumboES` (v3.01 MES / ES)
+* **Nombre de la Estrategia:** `Tick610_DumboES` (v3.02 MES / ES)
 * **Archivo Fuente:** `\Custom\Strategies\Tick610\Tick610_DumboES.cs`
 * **Instrumento Primario:** Micro E-mini S&P 500 (`MES`)
 * **Instrumento Secundario (Auto-Escalable):** E-mini S&P 500 (`ES`)
@@ -24,19 +24,21 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
    * *Regla Sagrada:* Si el primer envión falla y toca el SL, **NO entra en cuarentena**. Espera el cooldown normal (3 barras) y sigue acechando el despegue mientras la EMA 200 siga en el abismo.
 2. **Ticket 2 y 3 (Los Relevos Quirúrgicos):**
    * Al cerrar en TP el trade previo, la siguiente barra evalúa: ¿El precio sigue a **$\ge 30$ ticks** fuera de Banda 3.5 con filtros OK?
-   * Si sí, ¡el testigo pasa al siguiente Dumbo! Dispara con **TP Limit a +$20.00 USD** ($200 ES = 16 ticks).
+   * Relevos disparados por **Distancia Pura** sin asfixia de osciladores micro.
+   * Cobra con **TP Limit a +$20.00 USD** cada uno ($200 ES = 16 ticks).
    * **Stop Loss Escalonado (Opción B):** Para no asfixiar el trade ni regalar demasiado:
      * Si la distancia es de 30 a 34 ticks $\rightarrow$ SL en Banda 3.5 (-1tk).
      * Si la distancia es de 35 a 39 ticks $\rightarrow$ SL a **+12 ticks adelante** de Banda 3.5.
      * Si la distancia es $\ge 40$ ticks $\rightarrow$ SL a **+20 ticks adelante** de Banda 3.5.
-3. **Ticket 4 en adelante (El Gotero de Tendencia):**
+3. **Ticket 4 en adelante (El Gotero de Tendencia con Blindaje Ceñido - v3.02):**
    * Mientras conserve **$\ge 25$ ticks** fuera de Banda 3.5, sigue mordiendo **+$10.00 USD** ($100 ES = 8 ticks) por relevo.
+   * **SL Ceñido Fijo (Opción A):** Para evitar una asimetría de riesgo (arriesgar 30-40 ticks por buscar solo 8 ticks de TP), en T4+ el SL se sitúa directamente a **+12 ticks por delante de la Banda 3.5** (`Ticket4PlusSlAdvanceTicks = 12`). Si el mercado retrocede, el trade corta con una pérdida muy pequeña ($15 - $20 USD), blindando el 80% o más de los $100 USD ya cosechados entre T1, T2 y T3.
 4. **Cuarentena de Saciedad (10 minutos):**
    * Si cualquier ticket secundario toca su SL o si la distancia exterior cae por debajo del umbral mínimo, la campaña termina y el bot se congela por 10 minutos protegiendo todas las ganancias cosechadas.
 
 ---
 
-## 3. Parámetros Nativos de Fábrica (Micro MES v3.0)
+## 3. Parámetros Nativos de Fábrica (Micro MES v3.02)
 
 ### A. Gestión de Posición
 * **Contratos:** 1 contrato (`Contracts = 1`). Monocontrato puro.
@@ -56,8 +58,9 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
 * **Distancia Mínima Relevos T2/T3:** $\ge 30$ ticks.
 * **Distancia Mínima Relevos T4+:** $\ge 25$ ticks.
 
-### D. Opción B: Salto Escalonado de Stop Loss
-* **Umbral Stage 1:** 35 ticks $\rightarrow$ SL a +12 ticks adelante de Banda 3.5.
-* **Umbral Stage 2:** 40 ticks $\rightarrow$ SL a +20 ticks adelante de Banda 3.5.
+### D. Stop Loss Escalonado y Protección v3.02
+* **Umbral Stage 1 (T2/T3):** 35 ticks $\rightarrow$ SL a +12 ticks adelante de Banda 3.5.
+* **Umbral Stage 2 (T2/T3):** 40 ticks $\rightarrow$ SL a +20 ticks adelante de Banda 3.5.
+* **Avance SL en Ticket 4+ (T4+):** +12 ticks por delante de Banda 3.5 (`Ticket4PlusSlAdvanceTicks = 12`).
 * **Stop Catastrófico Máximo:** 40 ticks (10 puntos = $50 USD MES / $500 ES).
 * **Cuarentena de Saciedad:** 10 minutos tras finalizar campaña o SL secundario.
