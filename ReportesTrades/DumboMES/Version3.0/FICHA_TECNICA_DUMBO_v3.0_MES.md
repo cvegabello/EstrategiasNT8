@@ -1,9 +1,9 @@
-# Ficha Técnica - Equipo Dumbo v3.21 (Campaña de Relevos Monocontrato)
+# Ficha Técnica - Equipo Dumbo v3.3 (Campaña de Relevos Monocontrato)
 
 ![Equipo Dumbo - Relevo en Equipo](EquipoDumboRelevos.jpg)
 
 ## 1. Identidad de la Versión
-* **Nombre de la Estrategia:** `Tick610_DumboES` (v3.21 MES / ES)
+* **Nombre de la Estrategia:** `Tick610_DumboES` (v3.3 MES / ES)
 * **Archivo Fuente:** `\Custom\Strategies\Tick610\Tick610_DumboES.cs`
 * **Instrumento Primario:** Micro E-mini S&P 500 (`MES`)
 * **Instrumento Secundario (Auto-Escalable):** E-mini S&P 500 (`ES`)
@@ -17,8 +17,12 @@
 ## 2. Concepto y Filosofía de Trading: La Carrera de Relevos (ELI5)
 En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a un retroceso salvaje de la tendencia, **Dumbo corre una carrera de relevos en equipo**:
 
-1. **Ticket 1 (El Despegue Principal con Trailing Dinámico en Banda Media y Auditoría TEMA 9 - v3.21):**
+1. **Ticket 1 (El Despegue Principal con Pausa Táctica de Confirmación y Trailing en Banda Media - v3.3):**
    * Dispara en la ruptura y aceleración inicial.
+   * **Pausa Táctica de Confirmación (v3.3):**
+     * Si el precio **YA venía flotando afuera** antes de que la EMA 200 cumpliera sus 40 barras en el abismo, el impulso ya está viejo y puede haber trampas de rebote. Por tanto, **NO dispara en esa barra 40**. Deja que termine esa barra y evalúa en la siguiente (barra 41+). Si la siguiente vela rebota en contra, la TEMA 9 girará y el bot se mantendrá a salvo.
+     * Si la EMA 200 **ya venía con > 40 barras maduras** en el abismo y el precio rompe dando sus 3 barras flotantes, el impulso es fresco y **dispara inmediatamente** (sin esperas).
+   * **Alerta de Fina Coquetería EMA 40b:** Al llegar exactamente a 40 barras continuas en abismo (independiente de si el precio está dentro o fuera), emite campanita (`Ding.wav`), flecha y texto dorado en la gráfica y mensaje destacado en el log.
    * **Auditoría TEMA 9 en Log:** Al ejecutar la orden, imprime en consola y Output Window el desglose exacto de `tema9[0]`, `tema9[1]`, `tema9[TemaSlopeLookback]`, pendiente y estado de `RequireTemaSlope`.
    * **Stop Loss Dinámico en Banda Media:** Anclado a **2 ticks detrás de la Banda Media (`keltnerBig.Midline[0]`)**, haciendo **trailing vivo barra a barra**. Si el precio despega y la línea blanca sube con la pendiente, el SL la persigue. Si el precio se desploma, corta inmediatamente al besar la línea blanca, asegurando salida en tablas o mínima pérdida.
    * Cobra en seco con **Orden Limit a +$60.00 USD** ($600 ES = 48 ticks).
@@ -40,7 +44,7 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
 
 ---
 
-## 3. Parámetros Nativos de Fábrica (Micro MES v3.21)
+## 3. Parámetros Nativos de Fábrica (Micro MES v3.3)
 
 ### A. Gestión de Posición
 * **Contratos:** 1 contrato (`Contracts = 1`). Monocontrato puro.
@@ -50,6 +54,9 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
 * **Velas Flotando Requeridas (T1):** 3 velas consecutivas.
 * **Separación Mínima (T1):** $\ge 12$ ticks por fuera de Banda 3.5.
 * **Barras EMA 200 en Abismo:** $\ge 40$ barras continuas fuera de Banda 3.5 opuesta.
+* **Pausa Táctica de Confirmación:** Activa cuando precio flotaba antes de la barra 40 de EMA.
+* **Alerta Sonora EMA 40b:** `Ding.wav` (Configurable en propiedades).
+* **Alerta Visual EMA 40b:** Flecha y texto dorado en barra 40.
 * **Pendiente EMA 200 Macro:** Activa (`EmaSlopeLookback = 3`).
 * **Pendiente TEMA 9 Micro:** Activa (`TemaPeriod = 9`, `TemaSlopeLookback = 2`).
 
@@ -60,7 +67,7 @@ En lugar de arriesgar 3 contratos a la vez o dejar un único contrato expuesto a
 * **Distancia Mínima Relevos T2/T3:** $\ge 30$ ticks.
 * **Distancia Mínima Relevos T4+ (El Peaje Caro):** $\ge 35$ ticks.
 
-### D. Stop Loss Dinámico y Protección v3.21
+### D. Stop Loss Dinámico y Protección v3.3
 * **SL Dinámico Ticket 1:** 2 ticks detrás de la Banda Media viva (`keltnerBig.Midline[0]`).
 * **Umbral Stage 1 (T2/T3):** 35 ticks $\rightarrow$ SL a +12 ticks adelante de Banda 3.5.
 * **Umbral Stage 2 (T2/T3):** 40 ticks $\rightarrow$ SL a +20 ticks adelante de Banda 3.5.

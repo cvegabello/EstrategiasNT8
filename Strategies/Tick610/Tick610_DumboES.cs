@@ -1,5 +1,6 @@
 #region Using declarations
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
@@ -19,13 +20,17 @@ using NinjaTrader.NinjaScript.DrawingTools;
 // =========================================================================================================
 // ESTRATEGIA: Tick610_DumboES - "Equipo Dumbo: Relevo en Equipo Monocontrato"
 // Desarrollada con Pedagogía y Mentoría de Trading para Gráficas de 610 Ticks en Futuros ES / MES.
-// VERSIÓN: 3.21 - "La Campaña de Relevos" (T1: $60 con Trailing Banda Media | T2/T3: $30 | T4+: $20 con Peaje 35tk | Auditoría TEMA9)
+// VERSIÓN: 3.3 - "Campaña de Relevos con Pausa Táctica de Confirmación y Campanita EMA 40b"
 //
 // CONCEPTO (ELI5):
 //   Dumbo es el elefante volador. En lugar de exponer un solo contrato a un retroceso salvaje de la tendencia,
 //   Dumbo corre una carrera de relevos en equipo:
 //   1. TICKET 1 (El Primer Envión): Dispara al despegue con SL dinámico vivo anclado a la Banda Media (Keltner Midline - 2 ticks)
 //      que persigue la pendiente del canal con auditoría completa de TEMA 9 en los logs.
+//      - PAUSA TÁCTICA DE CONFIRMACIÓN (v3.3): Si el precio ya venía flotando afuera antes de que la EMA 200 cumpliera
+//        sus 40 barras en el abismo, NO disparamos a ciegas en esa barra 40. Dejamos que esa barra cierre y evaluamos
+//        al cierre de la siguiente barra (41+) para evitar entrar en velas verdes de rebote y trampas de agotamiento.
+//        Si la EMA ya venía con > 40 barras y el precio rompe dando sus 3 barras flotando, el disparo es inmediato.
 //      - Si falla el primer envión y toca SL: NO entra en cuarentena; sigue acechando mientras EMA200 siga en abismo.
 //   2. TICKET 2 y 3 (Relevos Quirúrgicos a $30 USD): Si tras cobrar sigue a >= 30 ticks de la Banda 3.5 y filtros OK,
 //      pasa el testigo al siguiente Dumbo con TP Limit de $30 USD (la mitad de T1) y SL Escalonado (Opción B: a Banda 3.5, +12tk o +20tk).
@@ -33,6 +38,9 @@ using NinjaTrader.NinjaScript.DrawingTools;
 //      (el peaje caro). Si califica, busca $20 USD con SL ceñido a +12 ticks por delante de Banda 3.5 para blindar el botín acumulado.
 //   4. CUARENTENA DE SACIEDAD (10 min): Si cualquier ticket secundario toca su SL o el espacio se acaba,
 //      la campaña termina, congelando entradas por 10 minutos con todas las ganancias blindadas en el bolsillo.
+//   5. ALERTA DE FINA COQUETERÍA (v3.3): Al momento exacto en que la EMA 200 alcanza 40 barras continuas en el abismo
+//      (independiente de si el precio está dentro o fuera), emite sonido configurable ("Ding.wav"), dibuja flecha
+//      en la gráfica y emite reporte destacado en el log.
 // =========================================================================================================
 
 namespace NinjaTrader.NinjaScript.Strategies
@@ -40,7 +48,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class Tick610_DumboES : Strategy
     {
         #region Constantes Centralizadas
-        private const string STRATEGY_VERSION = "3.21";
+        private const string STRATEGY_VERSION = "3.3";
         #endregion
 
         #region Enumeraciones
@@ -101,7 +109,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description                                 = "Tick610_DumboES v3.21: Campaña de Relevos Monocontrato con Trailing en Banda Media (T1), TPs $60/$30/$20, Peaje 35tk y Auditoría TEMA9.";
+                Description                                 = "Tick610_DumboES v3.3: Campaña de Relevos Monocontrato con Trailing en Banda Media (T1), Pausa Táctica EMA 40b, Alerta Sonora/Visual, TPs $60/$30/$20 y Peaje 35tk.";
                 Name                                        = "Tick610_DumboES";
                 Calculate                                   = Calculate.OnBarClose; // Ejecución limpia al cierre de barra
                 EntriesPerDirection                         = 1;
@@ -119,7 +127,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BarsRequiredToTrade                         = 200;
 
                 // 01. Información de Versión
-                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $30 | T4+ $20 [Peaje 35tk])", STRATEGY_VERSION);
+                Version                                     = string.Format("v{0} (Equipo Dumbo Relevos: T1 $60 | T2/T3 $30 | T4+ $20 [Pausa Táctica EMA 40b])", STRATEGY_VERSION);
 
                 // 02. Gestión de Posición
                 Contracts                                   = 1;      // Número de contratos a operar (estricto monocontrato)
@@ -138,11 +146,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TemaPeriod                                  = 9;      // Periodo de la media rápida TEMA (idéntica a CascadaVega)
                 TemaSlopeLookback                           = 2;      // Barras hacia atrás para medir la pendiente de TEMA 9
 
-                // 05. Filtro Macro EMA 200 en el Abismo
+                // 05. Filtro Macro EMA 200 en el Abismo y Alertas
                 MinBarsEmaOpposite                          = 40;     // Mínimo de barras continuas con la EMA 200 fuera del canal opuesto (40 barras v3.0)
                 EmaOppositeBandTarget                       = BandaOpuestaEnum.BandaGrande35; // Umbral: fuera del Canal Grande 3.5 opuesto
                 EmaSlopeLookback                            = 3;      // Barras para medir la pendiente de la EMA 200
                 RequireEmaSlope                             = true;   // Exigir que la pendiente de EMA 200 esté a favor del trade
+                SoundAlertEma40                             = "Ding.wav"; // Archivo de sonido para alerta de EMA 40b en sounds/
+                EnableEma40Sound                            = true;   // Activar sonido de campanita al tocar 40 barras
+                EnableEma40Visual                           = true;   // Activar flecha y texto en gráfica al tocar 40 barras
 
                 // 06. Campaña de Relevos: Metas de Take Profit ($ USD)
                 Ticket1TpDollars                            = 60.0;   // TP Limit Ticket 1: $60 MES / $600 ES (48 ticks = 12 pts)
@@ -488,6 +499,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             // === 1. TICKET 1 LONG (DESPEGUE ALCISTA) ===
             if (floatingBarsLongCount >= FloatingBarsRequired)
             {
+                // REGLA v3.3 (PAUSA TÁCTICA DE CONFIRMACIÓN SI EL PRECIO ESPERÓ A LA EMA):
+                // Si el precio YA venía flotando por fuera (floatingBarsLongCount > FloatingBarsRequired)
+                // y la EMA 200 apenas acaba de completar su barra 40 (barsEmaBelowOppositeCount == MinBarsEmaOpposite),
+                // no entramos a ciegas en esta barra 40; dejamos que cierre y evaluamos al cierre de la siguiente (barra 41+).
+                // Si la EMA ya venía con > 40 barras cuando el precio rompió y dio sus 3 barras flotando, el disparo es inmediato.
+                if (floatingBarsLongCount > FloatingBarsRequired && barsEmaBelowOppositeCount == MinBarsEmaOpposite)
+                {
+                    Print(string.Format("{0} - [EQUIPO DUMBO v{1} | PAUSA TÁCTICA T1 LONG] EMA 200 completó {2}b con precio ya flotando ({3}b). Esperando 1 barra de confirmación...",
+                        Time[0], STRATEGY_VERSION, MinBarsEmaOpposite, floatingBarsLongCount));
+                    return;
+                }
+
                 double separationTicks = (Close[0] - keltnerBig.Upper[0]) / TickSize;
                 double temaSlope = (tema9[0] - tema9[TemaSlopeLookback]) / TemaSlopeLookback;
                 double emaSlope = (ema200[0] - ema200[EmaSlopeLookback]);
@@ -505,6 +528,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             // === 2. TICKET 1 SHORT (DESPEGUE BAJISTA) ===
             if (floatingBarsShortCount >= FloatingBarsRequired)
             {
+                // REGLA v3.3 (PAUSA TÁCTICA DE CONFIRMACIÓN SI EL PRECIO ESPERÓ A LA EMA):
+                // Si el precio YA venía flotando por fuera (floatingBarsShortCount > FloatingBarsRequired)
+                // y la EMA 200 apenas acaba de completar su barra 40 (barsEmaAboveOppositeCount == MinBarsEmaOpposite),
+                // no entramos a ciegas en esta barra 40; dejamos que cierre y evaluamos al cierre de la siguiente (barra 41+).
+                // Si la EMA ya venía con > 40 barras cuando el precio rompió y dio sus 3 barras flotando, el disparo es inmediato.
+                if (floatingBarsShortCount > FloatingBarsRequired && barsEmaAboveOppositeCount == MinBarsEmaOpposite)
+                {
+                    Print(string.Format("{0} - [EQUIPO DUMBO v{1} | PAUSA TÁCTICA T1 SHORT] EMA 200 completó {2}b con precio ya flotando ({3}b). Esperando 1 barra de confirmación...",
+                        Time[0], STRATEGY_VERSION, MinBarsEmaOpposite, floatingBarsShortCount));
+                    return;
+                }
+
                 double separationTicks = (keltnerBig.Lower[0] - Close[0]) / TickSize;
                 double temaSlope = (tema9[TemaSlopeLookback] - tema9[0]) / TemaSlopeLookback;
                 double emaSlope = (ema200[EmaSlopeLookback] - ema200[0]);
@@ -688,14 +723,32 @@ namespace NinjaTrader.NinjaScript.Strategies
             double lowerOpposite = (EmaOppositeBandTarget == BandaOpuestaEnum.BandaGrande35) ? keltnerBig.Lower[0] : keltnerSmall.Lower[0];
 
             if (emaVal < lowerOpposite)
+            {
                 barsEmaBelowOppositeCount++;
+                // ALERTA DE FINA COQUETERÍA: Al alcanzar exactamente 40 barras continuas en abismo alcista
+                if (barsEmaBelowOppositeCount == MinBarsEmaOpposite)
+                {
+                    DispararAlertaEma40(MarketPosition.Long, emaVal);
+                }
+            }
             else
+            {
                 barsEmaBelowOppositeCount = 0;
+            }
 
             if (emaVal > upperOpposite)
+            {
                 barsEmaAboveOppositeCount++;
+                // ALERTA DE FINA COQUETERÍA: Al alcanzar exactamente 40 barras continuas en abismo bajista
+                if (barsEmaAboveOppositeCount == MinBarsEmaOpposite)
+                {
+                    DispararAlertaEma40(MarketPosition.Short, emaVal);
+                }
+            }
             else
+            {
                 barsEmaAboveOppositeCount = 0;
+            }
 
             bool isFloatingLong  = StrictFloatingLowHigh ? (Low[0] > keltnerBig.Upper[0]) : (Close[0] > keltnerBig.Upper[0]);
             bool isFloatingShort = StrictFloatingLowHigh ? (High[0] < keltnerBig.Lower[0]) : (Close[0] < keltnerBig.Lower[0]);
@@ -709,6 +762,64 @@ namespace NinjaTrader.NinjaScript.Strategies
                 floatingBarsShortCount++;
             else
                 floatingBarsShortCount = 0;
+        }
+
+        // =================================================================================================
+        // ALERTA DE FINA COQUETERÍA: Notificación Visual, Sonora y Log al cumplir 40 barras de EMA 200
+        // =================================================================================================
+        private void DispararAlertaEma40(MarketPosition direction, double emaVal)
+        {
+            string dirTxt = (direction == MarketPosition.Long) ? "ALCISTA (Abismo Inferior)" : "BAJISTA (Abismo Superior)";
+
+            // 1. Log destacado en Output Window
+            Print(string.Format("=============================================================================================================\n" +
+                                "{0} - [CAMPANA DUMBO v{1} | ¡EMA 200 ALCANZÓ {2} BARRAS EN EL ABISMO!]\n" +
+                                ">>> DIRECCIÓN: {3} | Nivel EMA 200: {4:F2} | Cierre Actual: {5:F2}\n" +
+                                ">>> ZONA DE ACECHO MADURA: El abismo macro está 100% activo e independiente de la posición del precio.\n" +
+                                "=============================================================================================================",
+                Time[0], STRATEGY_VERSION, MinBarsEmaOpposite, dirTxt, emaVal, Close[0]));
+
+            // 2. Alerta Sonora (.wav expuesto en propiedades, por defecto Ding.wav)
+            ReproducirAlertaSonora(SoundAlertEma40);
+
+            // 3. Marcador Visual en Gráfica (Flecha y Texto Oro)
+            if (EnableEma40Visual)
+            {
+                if (direction == MarketPosition.Long)
+                {
+                    Draw.ArrowUp(this, "Ema40_Bull_" + CurrentBar, true, 0, Low[0] - (4 * TickSize), Brushes.Gold);
+                    Draw.Text(this, "Ema40_Bull_Txt_" + CurrentBar, "★ EMA 40b", 0, Low[0] - (8 * TickSize), Brushes.Gold);
+                }
+                else
+                {
+                    Draw.ArrowDown(this, "Ema40_Bear_" + CurrentBar, true, 0, High[0] + (4 * TickSize), Brushes.Gold);
+                    Draw.Text(this, "Ema40_Bear_Txt_" + CurrentBar, "★ EMA 40b", 0, High[0] + (8 * TickSize), Brushes.Gold);
+                }
+            }
+        }
+
+        // =================================================================================================
+        // REPRODUCIR ALERTA SONORA: Reproduce archivo .wav de la carpeta sounds de NinjaTrader
+        // =================================================================================================
+        private void ReproducirAlertaSonora(string soundFile)
+        {
+            if (!EnableEma40Sound || string.IsNullOrEmpty(soundFile)) return;
+            try
+            {
+                string fullPath = soundFile;
+                if (!Path.IsPathRooted(soundFile))
+                {
+                    fullPath = Path.Combine(NinjaTrader.Core.Globals.InstallDir, "sounds", soundFile);
+                }
+                if (File.Exists(fullPath))
+                {
+                    PlaySound(fullPath);
+                }
+            }
+            catch (Exception)
+            {
+                // Silencioso ante excepciones de audio para no afectar el flujo de cálculo
+            }
         }
 
         // =================================================================================================
@@ -883,6 +994,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name = "Exigir Pendiente EMA a Favor", Description = "true: Requiere que la EMA 200 apunte a favor del trade", GroupName = "05. Filtro Macro EMA 200", Order = 4)]
         public bool RequireEmaSlope { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Sonido Alerta EMA 40b", Description = "Archivo de audio .wav ubicado en la carpeta sounds de NinjaTrader 8 (por defecto Ding.wav)", GroupName = "05. Filtro Macro EMA 200", Order = 5)]
+        public string SoundAlertEma40 { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Activar Sonido Alerta EMA 40b", Description = "true: Emite alerta sonora al momento en que EMA 200 alcanza 40 barras continuas en abismo", GroupName = "05. Filtro Macro EMA 200", Order = 6)]
+        public bool EnableEma40Sound { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Activar Flecha Visual EMA 40b", Description = "true: Dibuja flecha y texto en la gráfica cuando EMA 200 alcanza 40 barras continuas en abismo", GroupName = "05. Filtro Macro EMA 200", Order = 7)]
+        public bool EnableEma40Visual { get; set; }
 
         [NinjaScriptProperty]
         [Range(5.0, 5000.0)]
